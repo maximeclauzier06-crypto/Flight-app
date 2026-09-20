@@ -22,6 +22,9 @@ only two the example data currently knows about.
   "Setting up the flight data" below for why that extra piece exists.
 - Airport/city search is real, live autocomplete (Travelpayouts' public
   places lookup — no token needed for this part).
+- Currency defaults to a guess based on your browser's locale (e.g. a
+  Swedish browser defaults to SEK) and can be changed with the dropdown —
+  no redeploy needed, the Edge Function already accepted a `currency` param.
 - Dates are real: pick specific depart/return dates, or "flexible — lowest
   price" with a trip length (a weekend, a full week, or a custom number of
   nights). Either way, results show the actual matching dates and night

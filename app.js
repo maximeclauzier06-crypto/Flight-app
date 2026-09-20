@@ -181,6 +181,11 @@ function searchFlights(originA, originB, dateParams) {
       if (!Array.isArray(json.results)) {
         throw new Error("The server replied, but without a results list — the function may not be deployed correctly.");
       }
+      if (json.results.length > 0 && json.results[0].departDate === undefined) {
+        throw new Error(
+          "The deployed search-flights function is running older code with no date info — redeploy supabase/functions/search-flights/index.ts to your Supabase dashboard."
+        );
+      }
 
       // Keep the debug info around so we can explain an empty result
       // instead of just saying "found nothing" with no reason why.
@@ -211,17 +216,28 @@ function formatDate(dateStr) {
   return DATE_FORMAT.format(new Date(`${dateStr}T00:00:00Z`));
 }
 
+// Formats a price in whichever currency the search was run in — using
+// Intl instead of a hardcoded "$" so the symbol/format is actually right
+// for the selected currency (e.g. "€88" vs "$88" vs "₹88").
+function formatPrice(amount, currencyCode) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currencyCode.toUpperCase(),
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 // Renders one destination result as a card in the page.
-function renderResult(result) {
+function renderResult(result, currencyCode) {
   const card = document.createElement("div");
   card.className = "result-card";
   card.innerHTML = `
     <div>
       <div class="destination">${result.destination}</div>
       <div class="dates">${formatDate(result.departDate)} → ${formatDate(result.returnDate)} · ${result.nights} night${result.nights === 1 ? "" : "s"}</div>
-      <div class="breakdown">You: $${result.priceA} · Them: $${result.priceB}</div>
+      <div class="breakdown">You: ${formatPrice(result.priceA, currencyCode)} · Them: ${formatPrice(result.priceB, currencyCode)}</div>
     </div>
-    <div class="total">$${result.total}</div>
+    <div class="total">${formatPrice(result.total, currencyCode)}</div>
   `;
   return card;
 }
@@ -237,9 +253,33 @@ const customNightsField = document.getElementById("custom-nights-field");
 const durationSelect = document.getElementById("duration");
 const departDateInput = document.getElementById("depart-date");
 const returnDateInput = document.getElementById("return-date");
+const currencySelect = document.getElementById("currency");
 
 setupAutocomplete(originAInput, document.getElementById("origin-a-suggestions"));
 setupAutocomplete(originBInput, document.getElementById("origin-b-suggestions"));
+
+// Guesses a sensible default currency from the browser's locale (e.g.
+// "sv-SE" → SEK, "en-GB" → GBP) — just a starting point, the dropdown
+// above it is always there to override.
+const REGION_CURRENCY = {
+  US: "usd", GB: "gbp", IE: "eur", DE: "eur", FR: "eur", ES: "eur", IT: "eur",
+  NL: "eur", PT: "eur", AT: "eur", BE: "eur", FI: "eur", GR: "eur", LU: "eur",
+  SI: "eur", SK: "eur", EE: "eur", LV: "eur", LT: "eur", CY: "eur", MT: "eur",
+  SE: "sek", NO: "nok", DK: "dkk", CH: "chf", PL: "pln",
+  CA: "cad", AU: "aud", NZ: "nzd", JP: "jpy", RU: "rub", TR: "try",
+  IN: "inr", BR: "brl", MX: "mxn",
+};
+
+function detectDefaultCurrency() {
+  const locales = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
+  for (const locale of locales) {
+    const region = locale.split("-")[1];
+    if (region && REGION_CURRENCY[region.toUpperCase()]) return REGION_CURRENCY[region.toUpperCase()];
+  }
+  return "usd";
+}
+
+currencySelect.value = detectDefaultCurrency();
 
 // Depart/return dates can't be in the past.
 const today = new Date().toISOString().slice(0, 10);
@@ -301,9 +341,10 @@ form.addEventListener("submit", (event) => {
     return;
   }
 
+  const currencyCode = currencySelect.value;
   resultsSection.innerHTML = "<p>Searching…</p>";
 
-  searchFlights(originA, originB, dateParams)
+  searchFlights(originA, originB, { ...dateParams, currency: currencyCode })
     .then(({ results, debug }) => {
       resultsSection.innerHTML = "";
       if (!results || results.length === 0) {
@@ -311,7 +352,7 @@ form.addEventListener("submit", (event) => {
         return;
       }
       results.forEach((result) => {
-        resultsSection.appendChild(renderResult(result));
+        resultsSection.appendChild(renderResult(result, currencyCode));
       });
     })
     .catch((error) => {
