@@ -53,8 +53,22 @@ function searchFlights(originAInput, originBInput) {
     .then((response) => response.json())
     .then((json) => {
       if (json.error) throw new Error(json.error);
-      return json.results;
+      // Keep the debug info around so we can explain an empty result
+      // instead of just saying "found nothing" with no reason why.
+      return { results: json.results, debug: json.debug };
     });
+}
+
+// Turns the debug block from the function into a plain-English reason,
+// for when there are zero shared destinations and we want to know why.
+function explainEmptyResult(debug) {
+  if (!debug) return "No shared destinations found.";
+  if (!debug.originAOk || !debug.originBOk) {
+    const brokenOne = !debug.originAOk ? debug.originA : debug.originB;
+    const reason = !debug.originAOk ? debug.originAError : debug.originBError;
+    return `Travelpayouts rejected the request for ${brokenOne}${reason ? ` (${reason})` : ""} — likely the token isn't set correctly in Edge Function Secrets.`;
+  }
+  return `No overlap: ${debug.originA} found ${debug.originADestinationsFound} destinations, ${debug.originB} found ${debug.originBDestinationsFound}. Try two origins with more cached search volume, like ARN and LON.`;
 }
 
 // Renders one destination result as a card in the page.
@@ -86,10 +100,10 @@ form.addEventListener("submit", (event) => {
   resultsSection.innerHTML = "<p>Searching…</p>";
 
   searchFlights(originA, originB)
-    .then((results) => {
+    .then(({ results, debug }) => {
       resultsSection.innerHTML = "";
       if (!results || results.length === 0) {
-        resultsSection.innerHTML = "<p>No shared destinations found.</p>";
+        resultsSection.innerHTML = `<p>${explainEmptyResult(debug)}</p>`;
         return;
       }
       results.forEach((result) => {
