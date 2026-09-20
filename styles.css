@@ -55,6 +55,10 @@ body {
   gap: 0.35rem;
 }
 
+.field[hidden] {
+  display: none;
+}
+
 .field label {
   font-size: 0.85rem;
   font-weight: 600;
@@ -67,6 +71,40 @@ body {
   border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 1rem;
+}
+
+.toggle-group {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.toggle-option {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-row input[type="date"] {
+  flex: 1;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.date-row span {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
 }
 
 .autocomplete {
@@ -158,9 +196,16 @@ button[type="submit"]:hover {
   font-weight: 600;
 }
 
+.result-card .dates {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin-top: 0.15rem;
+}
+
 .result-card .breakdown {
   font-size: 0.85rem;
   color: var(--ink-soft);
+  margin-top: 0.15rem;
 }
 
 .result-card .total {

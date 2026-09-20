@@ -142,15 +142,16 @@ function debounce(fn, delayMs) {
 }
 
 // Calls our Supabase Edge Function, which calls Travelpayouts server-side
-// and returns the combined, ranked list of shared destinations.
-function searchFlights(originA, originB) {
+// and returns the combined, ranked list of shared destinations, each with
+// a real matching departure date, return date, and night count.
+function searchFlights(originA, originB, dateParams) {
   if (!originA || !originB) {
     return Promise.reject(
       new Error("Pick an airport or city from the dropdown for both fields.")
     );
   }
 
-  const params = new URLSearchParams({ originA, originB });
+  const params = new URLSearchParams({ originA, originB, ...dateParams });
 
   return fetch(`${SEARCH_FUNCTION_URL}?${params}`, {
     // Supabase requires these on every call to an Edge Function.
@@ -196,7 +197,18 @@ function explainEmptyResult(debug) {
     const reason = !debug.originAOk ? debug.originAError : debug.originBError;
     return `Travelpayouts rejected the request for ${brokenOne}${reason ? ` (${reason})` : ""} — likely the token isn't set correctly in Edge Function Secrets.`;
   }
-  return `No overlap: ${debug.originA} found ${debug.originADestinationsFound} destinations, ${debug.originB} found ${debug.originBDestinationsFound}. Try two origins with more cached search volume, like ARN and LON.`;
+  if (!debug.candidatesConsidered) {
+    return `No overlap: ${debug.originA} found ${debug.originADestinationsFound} destinations, ${debug.originB} found ${debug.originBDestinationsFound}. Try two origins with more cached search volume, like ARN and LON.`;
+  }
+  return `Found ${debug.candidatesConsidered} destination${debug.candidatesConsidered === 1 ? "" : "s"} you can both reach, but no cached fare matches your dates. Try "Flexible — lowest price", or different dates.`;
+}
+
+const DATE_FORMAT = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" });
+
+// Formats a "YYYY-MM-DD" string without letting the browser's local
+// timezone shift it to the wrong day (these are date-only, not instants).
+function formatDate(dateStr) {
+  return DATE_FORMAT.format(new Date(`${dateStr}T00:00:00Z`));
 }
 
 // Renders one destination result as a card in the page.
@@ -206,6 +218,7 @@ function renderResult(result) {
   card.innerHTML = `
     <div>
       <div class="destination">${result.destination}</div>
+      <div class="dates">${formatDate(result.departDate)} → ${formatDate(result.returnDate)} · ${result.nights} night${result.nights === 1 ? "" : "s"}</div>
       <div class="breakdown">You: $${result.priceA} · Them: $${result.priceB}</div>
     </div>
     <div class="total">$${result.total}</div>
@@ -218,9 +231,59 @@ const form = document.getElementById("search-form");
 const resultsSection = document.getElementById("results");
 const originAInput = document.getElementById("origin-a");
 const originBInput = document.getElementById("origin-b");
+const flexibleFields = document.getElementById("flexible-fields");
+const specificFields = document.getElementById("specific-fields");
+const customNightsField = document.getElementById("custom-nights-field");
+const durationSelect = document.getElementById("duration");
+const departDateInput = document.getElementById("depart-date");
+const returnDateInput = document.getElementById("return-date");
 
 setupAutocomplete(originAInput, document.getElementById("origin-a-suggestions"));
 setupAutocomplete(originBInput, document.getElementById("origin-b-suggestions"));
+
+// Depart/return dates can't be in the past.
+const today = new Date().toISOString().slice(0, 10);
+departDateInput.min = today;
+returnDateInput.min = today;
+
+function updateVisibleFields() {
+  const isSpecific = document.getElementById("mode-specific").checked;
+  specificFields.hidden = !isSpecific;
+  flexibleFields.hidden = isSpecific;
+  customNightsField.hidden = isSpecific || durationSelect.value !== "custom";
+}
+
+document.querySelectorAll('input[name="date-mode"]').forEach((radio) => {
+  radio.addEventListener("change", updateVisibleFields);
+});
+durationSelect.addEventListener("change", updateVisibleFields);
+
+// Keep the return-date picker from allowing a date before the chosen depart date.
+departDateInput.addEventListener("change", () => {
+  returnDateInput.min = departDateInput.value || today;
+});
+
+// Reads the form's date controls into the query params searchFlights needs.
+function collectDateParams() {
+  if (document.getElementById("mode-specific").checked) {
+    if (!departDateInput.value || !returnDateInput.value) {
+      throw new Error("Pick both a depart and a return date, or switch to flexible dates.");
+    }
+    if (returnDateInput.value <= departDateInput.value) {
+      throw new Error("The return date needs to be after the depart date.");
+    }
+    return { mode: "specific", departDate: departDateInput.value, returnDate: returnDateInput.value };
+  }
+
+  if (durationSelect.value === "weekend") return { mode: "flexible", nights: "2", weekendOnly: "true" };
+  if (durationSelect.value === "week") return { mode: "flexible", nights: "7" };
+
+  const nights = Number(document.getElementById("custom-nights").value);
+  if (!Number.isInteger(nights) || nights < 1) {
+    throw new Error("Enter a whole number of nights (1 or more).");
+  }
+  return { mode: "flexible", nights: String(nights) };
+}
 
 form.addEventListener("submit", (event) => {
   // Stop the browser from doing a full page reload on submit —
@@ -230,9 +293,17 @@ form.addEventListener("submit", (event) => {
   const originA = originAInput.dataset.code;
   const originB = originBInput.dataset.code;
 
+  let dateParams;
+  try {
+    dateParams = collectDateParams();
+  } catch (error) {
+    resultsSection.innerHTML = `<p style="color:#a8431f">${error.message}</p>`;
+    return;
+  }
+
   resultsSection.innerHTML = "<p>Searching…</p>";
 
-  searchFlights(originA, originB)
+  searchFlights(originA, originB, dateParams)
     .then(({ results, debug }) => {
       resultsSection.innerHTML = "";
       if (!results || results.length === 0) {

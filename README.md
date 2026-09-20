@@ -20,6 +20,27 @@ only two the example data currently knows about.
   Edge Function (`supabase/functions/search-flights`) that holds the API
   token safely and calls Travelpayouts on the browser's behalf — see
   "Setting up the flight data" below for why that extra piece exists.
+- Airport/city search is real, live autocomplete (Travelpayouts' public
+  places lookup — no token needed for this part).
+- Dates are real: pick specific depart/return dates, or "flexible — lowest
+  price" with a trip length (a weekend, a full week, or a custom number of
+  nights). Either way, results show the actual matching dates and night
+  count, not just a price — see "How date search works" below.
+
+## How date search works
+
+The Edge Function first asks Travelpayouts for each traveler's cheapest
+cached fare to every destination (no dates yet) to find the destinations
+you can both reach, then takes the cheapest handful of those and looks,
+day by day, for a departure date **both** travelers have a cached fare
+for — so the two of you are actually there together, not just each
+independently cheap. "Flexible" scans the next two months for the best
+matching day; "specific dates" checks only the exact dates you picked.
+
+Because this runs on Travelpayouts' *cached* fare data (not a live
+search), a very specific date or an unusual route can come back empty even
+when the flights themselves exist — the app explains this in the results
+rather than just saying "nothing found."
 
 ## Files
 
@@ -47,9 +68,12 @@ So the real request happens on a small server we control instead:
    `https://abcdefgh.supabase.co/functions/v1/search-flights`) into
    `SEARCH_FUNCTION_URL` at the top of `app.js`.
 
+Whenever `supabase/functions/search-flights/index.ts` changes, redeploy it
+the same way — paste the updated code into the dashboard's editor for the
+`search-flights` function.
+
 ## Next steps (Phase 1, continued)
 
-- Add a real date picker instead of the "roughly when" dropdown.
-
-Everything past this (accounts, the real-time shared dashboard, alerts) is
-Phase 2 onward — deliberately not part of this first piece.
+Phase 1's original list is done. Everything past this (accounts, the
+real-time shared dashboard, alerts) is Phase 2 onward — deliberately not
+part of this first piece.

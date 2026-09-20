@@ -33,12 +33,40 @@
       </div>
 
       <div class="field">
-        <label for="date-range">Roughly when?</label>
-        <select id="date-range">
-          <option value="any">Any time in the next 3 months</option>
-          <option value="weekend">A weekend</option>
-          <option value="week">A full week</option>
+        <label>When?</label>
+        <div class="toggle-group" role="radiogroup" aria-label="Date mode">
+          <label class="toggle-option">
+            <input type="radio" name="date-mode" id="mode-flexible" value="flexible" checked>
+            Flexible — lowest price
+          </label>
+          <label class="toggle-option">
+            <input type="radio" name="date-mode" id="mode-specific" value="specific">
+            Specific dates
+          </label>
+        </div>
+      </div>
+
+      <div class="field" id="flexible-fields">
+        <label for="duration">Trip length</label>
+        <select id="duration">
+          <option value="weekend">A weekend (2 nights, Fri/Sat departure)</option>
+          <option value="week" selected>A full week (7 nights)</option>
+          <option value="custom">Custom number of nights</option>
         </select>
+      </div>
+
+      <div class="field" id="custom-nights-field" hidden>
+        <label for="custom-nights">How many nights?</label>
+        <input type="number" id="custom-nights" min="1" max="30" value="5">
+      </div>
+
+      <div class="field" id="specific-fields" hidden>
+        <label>Dates</label>
+        <div class="date-row">
+          <input type="date" id="depart-date" aria-label="Depart date">
+          <span>to</span>
+          <input type="date" id="return-date" aria-label="Return date">
+        </div>
       </div>
 
       <button type="submit">Find destinations</button>
