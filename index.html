@@ -18,12 +18,18 @@
     <form id="search-form" class="search-form">
       <div class="field">
         <label for="origin-a">Your airport</label>
-        <input type="text" id="origin-a" placeholder="e.g. Stockholm (ARN)" required>
+        <div class="autocomplete">
+          <input type="text" id="origin-a" placeholder="Start typing a city or airport…" autocomplete="off" required>
+          <ul class="suggestions" id="origin-a-suggestions" role="listbox"></ul>
+        </div>
       </div>
 
       <div class="field">
         <label for="origin-b">Their airport</label>
-        <input type="text" id="origin-b" placeholder="e.g. Berlin (BER)" required>
+        <div class="autocomplete">
+          <input type="text" id="origin-b" placeholder="Start typing a city or airport…" autocomplete="off" required>
+          <ul class="suggestions" id="origin-b-suggestions" role="listbox"></ul>
+        </div>
       </div>
 
       <div class="field">
@@ -43,7 +49,7 @@
   </main>
 
   <footer class="page-footer">
-    <p>Showing example prices for now — real flight data comes in once the API is connected. See README.md.</p>
+    <p>Real flight prices via Travelpayouts. See README.md for setup.</p>
   </footer>
 
   <script src="app.js"></script>

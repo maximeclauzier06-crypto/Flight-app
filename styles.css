@@ -69,6 +69,58 @@ body {
   font-size: 1rem;
 }
 
+.autocomplete {
+  position: relative;
+}
+
+.suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 16px rgba(27, 36, 48, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.suggestions:empty {
+  display: none;
+  border: none;
+  box-shadow: none;
+}
+
+.suggestions li {
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.suggestions li:last-child {
+  border-bottom: none;
+}
+
+.suggestions li .code {
+  font-weight: 600;
+}
+
+.suggestions li .detail {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.suggestions li:hover,
+.suggestions li.active {
+  background: var(--bg);
+}
+
 button[type="submit"] {
   background: var(--accent);
   color: white;

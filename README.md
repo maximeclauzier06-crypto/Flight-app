@@ -49,8 +49,6 @@ So the real request happens on a small server we control instead:
 
 ## Next steps (Phase 1, continued)
 
-- Replace the small hardcoded `originCodes` list in `app.js` with a real
-  airport search/autocomplete.
 - Add a real date picker instead of the "roughly when" dropdown.
 
 Everything past this (accounts, the real-time shared dashboard, alerts) is
