@@ -10,8 +10,20 @@
 // Travelpayouts on our behalf. This file never sees the token at all.
 // ---------------------------------------------------------
 
-
 const SEARCH_FUNCTION_URL = "https://xlmxbyrcgftxmfzlglkr.supabase.co/functions/v1/search-flights";
+
+// ⬇️ PASTE YOUR ANON KEY HERE (one-time step)
+// Supabase blocks calls to your function unless they carry this key.
+// Find it in your Supabase dashboard: Project Settings → API Keys →
+// the key labelled "anon" / "public" / "publishable". It starts with
+// "eyJ..." or "sb_publishable_...".
+//
+// This key is DESIGNED to live in frontend code — it's public by nature
+// and safe to commit to GitHub. The one you must NEVER put here (or send
+// to anyone, including me) is the "service_role" / "secret" key, which
+// bypasses all security rules.
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbXhieXJjZ2Z0eG1memxnbGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MTIxNjUsImV4cCI6MjEwNTQ4ODE2NX0.--mD9VzcBZfB6ncOu35_rr3h1ZdrNzeI83KymRbPrFE";
 
 // Real airport lookup (typing a city name and finding its IATA code) is
 // its own small feature we haven't built yet. For now, a short list of
@@ -49,10 +61,35 @@ function searchFlights(originAInput, originBInput) {
 
   const params = new URLSearchParams({ originA, originB });
 
-  return fetch(`${SEARCH_FUNCTION_URL}?${params}`)
-    .then((response) => response.json())
-    .then((json) => {
+  return fetch(`${SEARCH_FUNCTION_URL}?${params}`, {
+    // Supabase requires these on every call to an Edge Function.
+    headers: {
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+  })
+    .then(async (response) => {
+      // Read the body once, tolerating a non-JSON response (e.g. plain text).
+      const text = await response.text();
+      let json = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        throw new Error(`Unexpected response from the server: ${text.slice(0, 200)}`);
+      }
+
+      // A rejected request can label its reason `message`, `msg`, or `error`
+      // depending on which layer refused it — check all three, so a real
+      // failure never quietly looks like "no results found".
+      if (!response.ok) {
+        const reason = json.message || json.msg || json.error || `HTTP ${response.status}`;
+        throw new Error(`Request rejected: ${reason}`);
+      }
       if (json.error) throw new Error(json.error);
+      if (!Array.isArray(json.results)) {
+        throw new Error("The server replied, but without a results list — the function may not be deployed correctly.");
+      }
+
       // Keep the debug info around so we can explain an empty result
       // instead of just saying "found nothing" with no reason why.
       return { results: json.results, debug: json.debug };
