@@ -181,7 +181,7 @@ function searchFlights(originA, originB, dateParams) {
       if (!Array.isArray(json.results)) {
         throw new Error("The server replied, but without a results list — the function may not be deployed correctly.");
       }
-      if (json.results.length > 0 && json.results[0].departDate === undefined) {
+      if (json.results.length > 0 && json.results[0].departDateA === undefined) {
         throw new Error(
           "The deployed search-flights function is running older code with no date info — redeploy supabase/functions/search-flights/index.ts to your Supabase dashboard."
         );
@@ -231,14 +231,24 @@ function formatPrice(amount, currencyCode) {
   }).format(amount);
 }
 
-// Renders one destination result as a card in the page.
+// Renders one destination result as a card in the page. The two
+// travelers' departure dates aren't always identical — flexible search
+// allows them a couple of days apart so sparse cached data still finds a
+// match — so this shows one combined range when they match exactly, and
+// each traveler's own dates when they don't.
 function renderResult(result, currencyCode) {
+  const nightsLabel = `${result.nights} night${result.nights === 1 ? "" : "s"}`;
+  const datesLine =
+    result.departDateA === result.departDateB
+      ? `${formatDate(result.departDateA)} → ${formatDate(result.returnDateA)} · ${nightsLabel}`
+      : `You: ${formatDate(result.departDateA)} → ${formatDate(result.returnDateA)} · Them: ${formatDate(result.departDateB)} → ${formatDate(result.returnDateB)} · ${nightsLabel} each`;
+
   const card = document.createElement("div");
   card.className = "result-card";
   card.innerHTML = `
     <div>
       <div class="destination">${result.destination}</div>
-      <div class="dates">${formatDate(result.departDate)} → ${formatDate(result.returnDate)} · ${result.nights} night${result.nights === 1 ? "" : "s"}</div>
+      <div class="dates">${datesLine}</div>
       <div class="breakdown">You: ${formatPrice(result.priceA, currencyCode)} · Them: ${formatPrice(result.priceB, currencyCode)}</div>
     </div>
     <div class="total">${formatPrice(result.total, currencyCode)}</div>
