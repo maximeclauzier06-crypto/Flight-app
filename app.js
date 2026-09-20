@@ -205,7 +205,11 @@ function explainEmptyResult(debug) {
   if (!debug.candidatesConsidered) {
     return `No overlap: ${debug.originA} found ${debug.originADestinationsFound} destinations, ${debug.originB} found ${debug.originBDestinationsFound}. Try two origins with more cached search volume, like ARN and LON.`;
   }
-  return `Found ${debug.candidatesConsidered} destination${debug.candidatesConsidered === 1 ? "" : "s"} you can both reach, but no cached fare matches your dates. Try "Flexible — lowest price", or different dates.`;
+  const foundNeither = !debug.candidatesWithOriginAData && !debug.candidatesWithOriginBData;
+  const dataHint = foundNeither
+    ? "Travelpayouts has no cached fares at all for that stay length on either side — try a different trip length."
+    : "Both sides have some cached fares, they just never land on the same day — try a shorter or more common trip length (a full week tends to have more cached data than an odd number of nights).";
+  return `Found ${debug.candidatesConsidered} destination${debug.candidatesConsidered === 1 ? "" : "s"} you can both reach, but no cached fare matches your dates. ${dataHint}`;
 }
 
 const DATE_FORMAT = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" });

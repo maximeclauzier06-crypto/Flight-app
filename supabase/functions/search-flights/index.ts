@@ -29,12 +29,16 @@ const CORS_HEADERS = {
 
 // How many of the cheapest shared destinations get a deeper, date-aware
 // look in phase 2. Keeps the number of Travelpayouts calls bounded.
-const MAX_CANDIDATES = 6;
+// Travelpayouts' calendar cache (unlike the dateless "cheapest fare" cache)
+// is built from real searches for that exact route/length/date, so it's
+// noticeably sparser — a wider net here meaningfully improves the odds of
+// finding a day both origins have cached, at the cost of more calls.
+const MAX_CANDIDATES = 10;
 
 // How many months ahead (including the current month) a "flexible dates"
 // search scans for the cheapest matching day. Larger = more thorough but
 // more Travelpayouts calls.
-const FLEXIBLE_SEARCH_MONTHS = 2;
+const FLEXIBLE_SEARCH_MONTHS = 3;
 
 // Travelpayouts sometimes returns { DEST: { price, ... } } and sometimes
 // { DEST: { "0": { price, ... }, "1": { price, ... } } } for the same
@@ -258,13 +262,24 @@ Deno.serve(async (req) => {
       .sort((x, y) => x.baseline - y.baseline)
       .slice(0, MAX_CANDIDATES);
 
-    // Phase 2: date-aware lookup, only for the cheapest candidates.
+    // Phase 2: date-aware lookup, only for the cheapest candidates. Also
+    // tracked for the debug block: how much calendar data existed on each
+    // side even when it didn't lead to a match — this is what tells us
+    // whether an empty result means "no cached data at all for this
+    // route/length" (a real gap) vs. "both sides have data, it just never
+    // lands on the same day" (expected sparsity, try a wider search).
+    let candidatesWithOriginAData = 0;
+    let candidatesWithOriginBData = 0;
+
     const matched = await Promise.all(
       candidates.map(async ({ destination }) => {
         const [datesA, datesB] = await Promise.all([
           datesForOriginDestination(originA, destination, currency, token, searchOptions),
           datesForOriginDestination(originB, destination, currency, token, searchOptions),
         ]);
+        if (Object.keys(datesA).length > 0) candidatesWithOriginAData++;
+        if (Object.keys(datesB).length > 0) candidatesWithOriginBData++;
+
         const best = cheapestSharedDate(datesA, datesB);
         if (!best) return null;
         return {
@@ -297,6 +312,8 @@ Deno.serve(async (req) => {
           originBDestinationsFound: Object.keys(b.prices).length,
           candidatesConsidered: candidates.length,
           candidatesWithDateMatch: results.length,
+          candidatesWithOriginAData,
+          candidatesWithOriginBData,
         },
       }),
       { headers: jsonHeaders }
