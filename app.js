@@ -1,91 +1,60 @@
 // ---------------------------------------------------------
 // Flight Plan — v1 search logic
 //
-// Right now this uses EXAMPLE data (see exampleFlightData below)
-// instead of calling a real flight API. That's on purpose: it lets
-// us get the whole search-and-display flow working and looking
-// right before we deal with signing up for an API key and handling
-// real network requests. Swapping the example data for a real API
-// call later will only mean changing the function `searchFlights`
-// — nothing else in this file needs to change.
+// This now calls a real flight data source instead of made-up numbers.
+// Because Travelpayouts' own API rules don't allow calling them directly
+// from browser JavaScript (it would expose your secret token to anyone
+// who opens dev tools), the actual request goes to a small Supabase
+// Edge Function we deploy ourselves — see supabase/functions/search-flights.
+// That function holds the token safely on the server and calls
+// Travelpayouts on our behalf. This file never sees the token at all.
 // ---------------------------------------------------------
 
-// EXAMPLE DATA — stand-ins for what a real flight API would return.
-// Each entry is: a destination, and the round-trip price from each
-// of two example origins (Stockholm and Berlin), just so the demo
-// has something to show. Replace this once real data is wired up.
-const exampleFlightData = {
-  stockholm: {
-    Lisbon: 145,
-    Barcelona: 120,
-    Rome: 160,
-    Copenhagen: 60,
-    Vienna: 130,
-  },
-  berlin: {
-    Lisbon: 110,
-    Barcelona: 95,
-    Rome: 90,
-    Copenhagen: 75,
-    Vienna: 85,
-  },
+
+const SEARCH_FUNCTION_URL = "https://xlmxbyrcgftxmfzlglkr.supabase.co/functions/v1/search-flights";
+
+// Real airport lookup (typing a city name and finding its IATA code) is
+// its own small feature we haven't built yet. For now, a short list of
+// codes covers testing. Add more cities here as you test with them —
+// find codes at https://www.iata.org/en/publications/directories/code-search/
+const originCodes = {
+  stockholm: "ARN",
+  berlin: "BER",
+  lisbon: "LIS",
+  london: "LON",
+  paris: "PAR",
 };
 
-// Very rough "which example city set does this input match" helper.
-// A real version of this would look up an actual airport code via
-// the flight API instead of guessing from typed text.
 function matchOrigin(inputText) {
   const text = inputText.toLowerCase();
-  if (text.includes("stockholm") || text.includes("arn")) return "stockholm";
-  if (text.includes("berlin") || text.includes("ber")) return "berlin";
+  for (const city in originCodes) {
+    if (text.includes(city)) return originCodes[city];
+  }
   return null;
 }
 
-// This is the function that will eventually make a real network
-// request to a flight API (Travelpayouts or Duffel). For now it
-// just reads from exampleFlightData and returns a Promise, so the
-// rest of the code already works the way it will once this is real.
+// Calls our Supabase Edge Function, which calls Travelpayouts server-side
+// and returns the combined, ranked list of shared destinations.
 function searchFlights(originAInput, originBInput) {
-  return new Promise((resolve, reject) => {
-    const originA = matchOrigin(originAInput);
-    const originB = matchOrigin(originBInput);
+  const originA = matchOrigin(originAInput);
+  const originB = matchOrigin(originBInput);
 
-    if (!originA || !originB) {
-      reject(
-        new Error(
-          "For this demo, try 'Stockholm' and 'Berlin' as the two airports — real airport lookup comes with the live API."
-        )
-      );
-      return;
-    }
+  if (!originA || !originB) {
+    return Promise.reject(
+      new Error(
+        `Try one of: ${Object.keys(originCodes).join(", ")} — a real airport search comes later.`
+      )
+    );
+  }
 
-    const pricesA = exampleFlightData[originA];
-    const pricesB = exampleFlightData[originB];
+  const params = new URLSearchParams({ originA, originB });
 
-    // Build a combined list: for every destination both origins fly to,
-    // work out each partner's price and the total.
-    const combined = Object.keys(pricesA)
-      .filter((destination) => destination in pricesB)
-      .map((destination) => {
-        const priceA = pricesA[destination];
-        const priceB = pricesB[destination];
-        return {
-          destination,
-          priceA,
-          priceB,
-          total: priceA + priceB,
-          // "fairness" gap: how far apart the two prices are.
-          // Smaller is more balanced between the two of you.
-          gap: Math.abs(priceA - priceB),
-        };
-      })
-      // Sort cheapest total first — this is the ranking decision
-      // called out in the roadmap. Switching to "fairest split"
-      // instead would mean sorting by `gap` here rather than `total`.
-      .sort((a, b) => a.total - b.total);
-
-    resolve(combined);
-  });
+  return fetch(`${SEARCH_FUNCTION_URL}?${params}`)
+    .then((response) => response.json())
+    .then((json) => {
+      if (json.error) throw new Error(json.error);
+      return json.results;
+    });
 }
 
 // Renders one destination result as a card in the page.
@@ -119,7 +88,7 @@ form.addEventListener("submit", (event) => {
   searchFlights(originA, originB)
     .then((results) => {
       resultsSection.innerHTML = "";
-      if (results.length === 0) {
+      if (!results || results.length === 0) {
         resultsSection.innerHTML = "<p>No shared destinations found.</p>";
         return;
       }
