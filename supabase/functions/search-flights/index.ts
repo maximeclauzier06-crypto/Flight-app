@@ -13,11 +13,9 @@
 //      cheapest handful of those as candidates worth a closer look.
 //   2. For each candidate, calls Travelpayouts' day-by-day calendar
 //      endpoint for both origins with the traveler's requested stay
-//      length (or exact dates), and looks for departure days close
-//      together (exact match in specific-dates mode; within a small
-//      tolerance in flexible mode, since the calendar cache is sparse) —
-//      so the two travelers are actually at the destination together,
-//      not just each cheap on their own on unrelated dates.
+//      length (or exact dates), and looks for a departure day BOTH
+//      origins have a cached fare for — so the two travelers are actually
+//      at the destination together, not just each cheap on their own.
 //
 // This also still returns a `debug` block, extended with how many
 // candidates were considered and how many survived phase 2, so an empty
@@ -35,18 +33,12 @@ const CORS_HEADERS = {
 // is built from real searches for that exact route/length/date, so it's
 // noticeably sparser — a wider net here meaningfully improves the odds of
 // finding a day both origins have cached, at the cost of more calls.
-const MAX_CANDIDATES = 10;
+const MAX_CANDIDATES = 15;
 
 // How many months ahead (including the current month) a "flexible dates"
 // search scans for the cheapest matching day. Larger = more thorough but
 // more Travelpayouts calls.
-const FLEXIBLE_SEARCH_MONTHS = 3;
-
-// In flexible mode, how many days apart the two travelers' departure dates
-// are allowed to be and still count as a match. 0 would mean "exact same
-// day only" (rarely found — see bestNearbyDates above); a small tolerance
-// finds far more matches without any extra Travelpayouts calls.
-const FLEXIBLE_DATE_TOLERANCE_DAYS = 2;
+const FLEXIBLE_SEARCH_MONTHS = 4;
 
 // Travelpayouts sometimes returns { DEST: { price, ... } } and sometimes
 // { DEST: { "0": { price, ... }, "1": { price, ... } } } for the same
@@ -184,31 +176,16 @@ async function datesForOriginDestination(
   return prices;
 }
 
-// Travelpayouts' calendar cache is built from real past searches for that
-// exact route/length/date, so it's much sparser than the dateless
-// "cheapest fare" cache — requiring both origins to depart on the EXACT
-// same cached day (toleranceDays = 0) rarely finds a match. Widening the
-// window to "within toleranceDays of each other" finds far more matches
-// for free (no extra Travelpayouts calls), at the cost of the two
-// travelers' trips not lining up perfectly — still mostly overlapping for
-// a week-long stay when toleranceDays is small.
-function bestNearbyDates(
-  pricesA: Record<string, number>,
-  pricesB: Record<string, number>,
-  toleranceDays: number
-) {
-  let best: { dateA: string; dateB: string; priceA: number; priceB: number } | null = null;
-  const datesB = Object.keys(pricesB);
-
-  for (const dateA in pricesA) {
-    for (const dateB of datesB) {
-      const offsetDays = Math.abs(Math.round((Date.parse(dateB) - Date.parse(dateA)) / 86_400_000));
-      if (offsetDays > toleranceDays) continue;
-      const priceA = pricesA[dateA];
-      const priceB = pricesB[dateB];
-      if (!best || priceA + priceB < best.priceA + best.priceB) {
-        best = { dateA, dateB, priceA, priceB };
-      }
+// The cheapest departure day both origins have a cached fare for — i.e.
+// both travelers can actually be at the destination together on that day.
+function cheapestSharedDate(pricesA: Record<string, number>, pricesB: Record<string, number>) {
+  let best: { date: string; priceA: number; priceB: number } | null = null;
+  for (const date in pricesA) {
+    if (!(date in pricesB)) continue;
+    const priceA = pricesA[date];
+    const priceB = pricesB[date];
+    if (!best || priceA + priceB < best.priceA + best.priceB) {
+      best = { date, priceA, priceB };
     }
   }
   return best;
@@ -303,21 +280,15 @@ Deno.serve(async (req) => {
         if (Object.keys(datesA).length > 0) candidatesWithOriginAData++;
         if (Object.keys(datesB).length > 0) candidatesWithOriginBData++;
 
-        // Specific-dates mode: the user chose exact dates, so only an
-        // exact match counts. Flexible mode: allow departures a little
-        // apart from each other so sparse cache data still finds matches.
-        const toleranceDays = searchOptions.mode === "specific" ? 0 : FLEXIBLE_DATE_TOLERANCE_DAYS;
-        const best = bestNearbyDates(datesA, datesB, toleranceDays);
+        const best = cheapestSharedDate(datesA, datesB);
         if (!best) return null;
         return {
           destination,
           priceA: best.priceA,
           priceB: best.priceB,
           total: best.priceA + best.priceB,
-          departDateA: best.dateA,
-          returnDateA: addDays(best.dateA, searchOptions.nights),
-          departDateB: best.dateB,
-          returnDateB: addDays(best.dateB, searchOptions.nights),
+          departDate: best.date,
+          returnDate: addDays(best.date, searchOptions.nights),
           nights: searchOptions.nights,
         };
       })
