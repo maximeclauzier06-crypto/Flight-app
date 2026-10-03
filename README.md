@@ -3,9 +3,17 @@
 Add two or more departures (yours, a partner's, friends', family's — up to 8,
 with how many people leave from each) and get a ranked list of places you could
 all fly to **on the same dates**, cheapest first — with flight times for each
-traveller and a globe, which stays in view as you scroll the results, showing
-where everyone would meet. Every result is also a dot on the globe: hover it
-for the city and total price, click it to select that destination.
+traveller and a globe, which stays in the middle of the screen as you scroll
+the results, showing where everyone would meet. Every result is also a dot on
+the globe: hover it for the city and total price, click it to select that
+destination. Drag the globe to turn it; zoom with + / −, a pinch, or Ctrl
+(⌘ on a Mac) + scroll; "Recentre" brings back the view of every result.
+
+Already know where you're going? Pick it in **Going to** (left empty, it means
+"Anywhere" — find the middle). The page then compares **dates** instead of
+places: the coming weekends as a small price chart, and for the chosen
+weekend the other ways to do it (Thu → Sun, Fri → Mon, ...) cheapest first,
+each with how much it saves compared with the usual Fri → Sun.
 
 The look is design 19, "Terracotta & Sand". All its colours are the variables at the top of `styles.css` (the globe reads them too), so trying another palette is a single edit there.
 
@@ -22,8 +30,8 @@ The page talks to the Supabase function below, so you need internet.
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-1`, `--accent`, `--peach`...). Change them and the whole site follows. |
 | `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the table, the globe | Settings are in section 1 at the top |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
-| `geo.js` | Draws the dot-matrix globe (rough land outlines, no map library) | Rarely needs changes |
-| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | `DEFAULT_MAX_GAP_HOURS`, `MAX_CANDIDATES`, `FLEXIBLE_SEARCH_MONTHS` at the top |
+| `geo.js` | The world map on the globe: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--land`, `--borders`, `--grid`, `--ocean-a/b` in `styles.css` |
+| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | `DEFAULT_MAX_GAP_HOURS`, `FIRST_PASS_CANDIDATES`, `FLEXIBLE_SEARCH_MONTHS` at the top; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
 
 ## How a search works
 
@@ -43,6 +51,23 @@ The page talks to the Supabase function below, so you need internet.
    shorter/longer (the "±1 night" checkbox), then checks 25 more destinations.
    Rows show the real number of nights, so a "full week" search can return 6,
    7 or 8 nights.
+
+### Searching towards one destination ("Going to")
+
+With a destination, the function skips phase 1 and prices **dates**:
+
+- **Which dates:** the next 10 weekends (Fri → Sun), long weekends
+  (Fri → Mon) or weeks (Sat → Sat), following the chips above the results
+  (or the "Trip length" in the When pop-up). With "Specific dates" it prices
+  your dates instead.
+- **Around each one** it also prices leaving a day earlier, coming back a day
+  later, and the whole trip a day earlier or later (`TRIP_VARIATIONS`). Each
+  weekend's options come back **cheapest first**; options whose arrival or
+  return times break the time rule are shown greyed with the reason, and
+  combinations without a cached fare say "No fare yet".
+- **It's cheap on the data:** one calendar call per departure × month × stay
+  length — about 12 calls for two people — so it's fast and rarely hits the
+  rate limit. Results are still only as complete as the cached data.
 
 ### Searching from more than two places
 

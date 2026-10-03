@@ -64,6 +64,23 @@
                "+ Add a departure" button at the end. -->
           <div class="origins" id="origins"></div>
 
+          <div class="divider divider-origins"></div>
+
+          <!-- Where to: empty = "Anywhere" (we find the middle); a city = we compare
+               the dates to go there together. -->
+          <div class="field field-going" id="going-field">
+            <div class="going-head">
+              <label for="going-input">Going to</label>
+              <button type="button" class="going-clear" id="going-clear" aria-label="Back to Anywhere" title="Back to Anywhere" hidden>×</button>
+            </div>
+            <div class="going-row">
+              <span class="going-icon" id="going-icon" aria-hidden="true"></span>
+              <input type="text" id="going-input" placeholder="Anywhere" autocomplete="off">
+            </div>
+            <div class="going-sub" id="going-sub">We find the middle</div>
+            <ul class="suggestions" role="listbox" id="going-suggestions"></ul>
+          </div>
+
           <div class="divider"></div>
 
           <div class="field field-when">
@@ -83,6 +100,7 @@
                 <label for="duration">Trip length</label>
                 <select id="duration">
                   <option value="weekend">A weekend (2 nights, Fri/Sat departure)</option>
+                  <option value="long">A long weekend (3 nights, Fri/Sat departure)</option>
                   <option value="week" selected>A full week (7 nights)</option>
                   <option value="custom">Custom number of nights</option>
                 </select>
@@ -124,7 +142,7 @@
           </div>
 
           <button type="submit" class="search-btn">
-            Find destinations
+            <span id="search-btn-text">Find destinations</span>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           </button>
         </form>
@@ -132,7 +150,7 @@
         <!-- Small box under the bar: add more departures (friends, family...) -->
         <div class="bar-extras">
           <button type="button" class="add-departure" id="add-departure">+ Add a departure <small id="add-departure-note">(2/8)</small></button>
-          <span class="bar-hint">Travelling as a group? Add everyone's airport.</span>
+          <span class="bar-hint" id="bar-hint">Travelling as a group? Add everyone's airport.</span>
         </div>
       </div>
     </section>
@@ -141,12 +159,18 @@
     <section class="results-grid">
       <div class="table-box">
         <div class="table-top">
-          <h2>Ranked meeting spots</h2>
+          <h2 id="results-title">Ranked meeting spots</h2>
           <p id="results-subtitle">Same dates for everyone · cheapest total first</p>
           <div class="chips" id="sort-chips">
             <button type="button" class="chip is-selected" data-sort="cheapest">Cheapest</button>
             <button type="button" class="chip" data-sort="fastest">Fastest</button>
             <button type="button" class="chip" data-sort="stops">Fewest stops</button>
+          </div>
+          <!-- With a destination chosen: which kind of stay to compare -->
+          <div class="chips" id="trip-chips" hidden>
+            <button type="button" class="chip" data-trip="weekend">Weekend</button>
+            <button type="button" class="chip" data-trip="long">Long weekend</button>
+            <button type="button" class="chip" data-trip="week">A week</button>
           </div>
         </div>
 
@@ -171,7 +195,13 @@
           <svg id="globe" width="520" height="520" viewBox="0 0 520 520" aria-hidden="true"></svg>
           <div id="globe-labels"></div>
           <div class="live-pill"><span></span>LIVE MAP</div>
-          <div class="map-hint" id="map-hint" hidden>Tap a dot to see another destination</div>
+          <!-- Drag the globe to turn it; zoom with these buttons, a pinch, or Ctrl + scroll -->
+          <button type="button" class="globe-reset" id="globe-reset" hidden>↺ Recentre</button>
+          <div class="globe-zoom">
+            <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+            <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+          </div>
+          <div class="map-hint" id="map-hint" hidden></div>
         </div>
         <div class="info-card">
           <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -179,7 +209,7 @@
             <circle cx="26" cy="14" r="12" class="logo-b"></circle>
             <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
           </svg>
-          <p><strong>Fly out and back on the same days.</strong> We only show dates that work for everyone.</p>
+          <p id="info-text"><strong>Fly out and back on the same days.</strong> We only show dates that work for everyone.</p>
         </div>
       </aside>
     </section>
@@ -190,6 +220,10 @@
     <span class="footer-links"><a href="#">Privacy</a><a href="#">Contact</a></span>
   </footer>
 
+  <!-- Map libraries for the globe's countries (free, from a public CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
   <script src="geo.js"></script>
   <script src="app.js"></script>
 </body>

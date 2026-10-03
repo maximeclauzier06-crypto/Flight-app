@@ -17,7 +17,8 @@
   --tint-strong: #FBF0E6;   /* selected-row fill */
   --row-hover: #FDF7F1;
   --accent: #A9472F;        /* buttons, highlights */
-  --good: #2F7A4A;          /* "Direct" */
+  --good: #2F7A4A;          /* "Direct", "€23 less" */
+  --good-tint: #E3EFDF;     /* behind "€23 less" */
   --pill-border: #E3C9B5;   /* outlines of the currency pill and sort chips */
   --placeholder: #C2A493;   /* "City or airport" */
   --shadow: 74, 29, 18;     /* colour of the soft shadows (red, green, blue) */
@@ -30,6 +31,7 @@
   --badge-text: #FFE9DA;
   --bar-hint: #F3D2BF;      /* "Travelling as a group?" */
   --bar-fade: rgba(251, 240, 230, 0.88); /* the soft fade at the right of the search bar */
+  --going-fill: rgba(240, 196, 138, 0.24); /* the "Going to" box once a city is chosen */
 
   /* Warm accent: the meeting point, flight paths, the globe's backdrop */
   --peach: #F0C48A;
@@ -38,7 +40,9 @@
   /* Globe */
   --ocean-a: #B5553B;       /* sea, light side */
   --ocean-b: #4A1D12;       /* sea, dark side */
-  --land: #F6D9B8;          /* the dots that draw the continents */
+  --land: #F6D9B8;          /* the countries */
+  --borders: rgba(122, 47, 32, 0.38); /* the lines between countries */
+  --grid: rgba(255, 233, 218, 0.13);  /* faint latitude/longitude lines on the sea */
   --orbit: rgba(169, 71, 47, 0.35);
 
   /* One colour per departure (1st = you, 2nd = them, ... up to 8):
@@ -134,7 +138,21 @@ button, input, select { font-family: inherit; }
   padding: 12px 12px 12px 22px;
 }
 .search-bar .field { position: relative; flex: 1; padding: 10px 20px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-.search-bar .field-when { flex: 0 0 240px; }
+.search-bar .field-when { flex: 0 0 auto; min-width: 190px; } /* as wide as its summary needs */
+
+/* "Going to": Anywhere (we find the middle) or a city chosen in advance */
+.search-bar .field-going { flex: 0 0 210px; border-radius: 16px; transition: background 0.15s; }
+.field-going.has-destination { background: var(--going-fill); }
+.going-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; min-height: 20px; }
+.search-bar .going-head label { margin: 0; }
+.going-row { display: flex; align-items: center; gap: 8px; }
+.going-icon { flex: none; display: inline-flex; color: var(--peach); }
+.field-going.has-destination .going-icon { color: var(--accent); }
+.going-row input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; padding: 0;
+  color: var(--ink); font-family: var(--font-display); font-size: 18px; font-weight: 700;
+}
+.going-sub { margin-top: 7px; color: var(--soft); font-size: 12px; font-weight: 700; white-space: nowrap; }
 
 .search-bar label {
   margin-bottom: 4px; color: var(--soft);
@@ -147,8 +165,8 @@ button, input, select { font-family: inherit; }
 .origin-cell.has-top { border-top: 1px solid var(--line); }
 .origin-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; min-height: 20px; }
 .search-bar .origin-head label { margin: 0; white-space: nowrap; }
-.origin-remove { width: 20px; height: 20px; border: 0; border-radius: 50%; padding: 0; cursor: pointer; background: transparent; color: var(--soft); font-size: 17px; font-weight: 800; line-height: 1; }
-.origin-remove:hover { background: var(--tint); }
+.origin-remove, .going-clear { width: 20px; height: 20px; border: 0; border-radius: 50%; padding: 0; cursor: pointer; background: transparent; color: var(--soft); font-size: 17px; font-weight: 800; line-height: 1; }
+.origin-remove:hover, .going-clear:hover { background: var(--tint); }
 
 /* People per departure: little avatars in that traveller's colour */
 .people { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
@@ -185,9 +203,24 @@ button, input, select { font-family: inherit; }
   color: var(--ink); font-family: var(--font-display); font-size: 18px; font-weight: 700;
 }
 .search-bar input::placeholder { color: var(--placeholder); font-weight: 600; }
+
+/* Narrow departure cells (several side by side): a little tighter, so the names still fit */
+@media (min-width: 861px) {
+  .origins.is-dense .origin-cell { padding: 10px 14px; }
+  .origins.is-dense .origin-cell input[type="text"] { font-size: 16px; }
+  .origins.is-dense .people-text { display: none; } /* the avatars already show how many */
+}
+
+/* Medium screens: departures on the first row of the bar, the rest on a second row */
+@media (min-width: 861px) and (max-width: 1320px) {
+  .search-bar { flex-wrap: wrap; }
+  .search-bar .origins { flex: 0 0 100%; }
+  .search-bar .divider-origins { flex: 0 0 100%; width: auto; height: 1px; margin: 4px 0; }
+  .search-bar .field-going, .search-bar .field-when { flex: 1 1 0; }
+}
 .divider { width: 1px; margin: 8px 0; background: var(--line); }
 .when-button {
-  border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer;
+  border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; white-space: nowrap;
   color: var(--ink); font-family: var(--font-display); font-size: 18px; font-weight: 700;
 }
 .search-btn {
@@ -312,11 +345,88 @@ button, input, select { font-family: inherit; }
 .inline-retry { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 .table-note { margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--tint); color: var(--soft); font-size: 12px; }
 
-/* Globe — it stays in view while you scroll through a long list of results */
-.globe-col { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 24px; }
+/* ---------- One destination: the weekends strip, the other days, the trip ---------- */
+
+.trip { border-top: 1px solid var(--line); padding-top: 18px; }
+.weeks { display: flex; gap: 2px; margin: 0 16px; overflow-x: auto; }
+.wk {
+  flex: 1 0 62px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border: 0; border-radius: 16px; padding: 10px 2px; cursor: pointer;
+  background: transparent; color: var(--ink); font: inherit;
+}
+.wk:hover { background: var(--row-hover); }
+.wk.is-selected { background: var(--tint-strong); box-shadow: inset 0 0 0 2px var(--accent); }
+.wk-tag { height: 16px; color: var(--good); font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
+.wk-price { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+.wk.is-selected .wk-price { color: var(--accent); }
+.wk-empty .wk-price { color: var(--placeholder); }
+.wk-bar-area { width: 100%; height: 110px; display: flex; align-items: flex-end; justify-content: center; }
+.wk-bar { width: 30px; border-radius: 10px 10px 4px 4px; background: var(--peach-soft); }
+.wk.is-cheap .wk-bar { background: var(--peach); }
+.wk.is-selected .wk-bar { background: var(--accent); }
+.wk-empty .wk-bar { height: 40px; border: 1px dashed var(--line); background: repeating-linear-gradient(135deg, var(--tint) 0 5px, #fff 5px 10px); }
+.wk-dates { color: var(--soft); font-size: 12px; font-weight: 800; line-height: 1.25; text-align: center; white-space: nowrap; }
+.wk-dates span { font-weight: 600; }
+.wk.is-selected .wk-dates { color: var(--ink); }
+.strip-note { margin: 6px 24px 20px; color: var(--soft); font-size: 12px; }
+
+.trip-section { border-top: 1px solid var(--line); padding-top: 20px; }
+.block-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 24px 12px; }
+.block-title strong { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+.block-title span { color: var(--soft); font-size: 13px; }
+
+.alts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin: 0 24px 20px; }
+.alt {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; cursor: pointer;
+  background: #fff; color: var(--ink); font: inherit;
+}
+.alt:hover { border-color: var(--pill-border); background: var(--row-hover); }
+.alt.is-selected { border: 2px solid var(--accent); padding: 13px 15px; background: var(--tint-strong); }
+.alt.is-off { cursor: default; background: #fff; opacity: 0.55; }
+.alt.is-off:hover { border-color: var(--line); }
+.alt-days { font-size: 14px; font-weight: 800; }
+.alt-dates { color: var(--soft); font-size: 12px; }
+.alt-bottom { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 6px; margin-top: 6px; }
+.alt-price { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
+.alt-why { color: var(--soft); font-size: 12px; font-weight: 700; }
+.badge { border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.badge-less { background: var(--good-tint); color: var(--good); }
+.badge-more { background: var(--tint); color: var(--accent); }
+.badge-plain { background: var(--tint); color: var(--soft); }
+
+.trip-box {
+  display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 18px; align-items: center;
+  margin: 0 24px 24px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 22px; background: var(--tint-strong);
+}
+.trip-box-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 12px; }
+.trip-box-title strong { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.trip-box-title .nights { color: var(--soft); font-size: 12px; }
+
+/* Globe — once it reaches the middle of the screen it stays there while you
+   scroll through the results (the column is ~625px tall, so 50vh − 312px
+   centres it; on short screens it sticks 24px from the top instead). */
+.globe-col { display: flex; flex-direction: column; gap: 20px; position: sticky; top: max(24px, calc(50vh - 312px)); }
 .globe-wrap { position: relative; width: 520px; height: 520px; }
 .globe-backdrop { position: absolute; inset: 0; border-radius: 50%; background: var(--peach-soft); opacity: 0.75; }
-#globe { position: absolute; left: 0; top: 0; }
+#globe { position: absolute; left: 0; top: 0; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.globe-wrap.is-dragging #globe, .globe-wrap.is-dragging #globe .dest-dot { cursor: grabbing; }
+.globe-zoom {
+  position: absolute; right: 28px; bottom: 28px; z-index: 3; display: flex; flex-direction: column;
+  border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 6px 16px rgba(var(--shadow), 0.14);
+}
+.globe-zoom button {
+  width: 36px; height: 34px; border: 0; background: #fff; cursor: pointer;
+  color: var(--ink); font-size: 19px; font-weight: 700; line-height: 1;
+}
+.globe-zoom button + button { border-top: 1px solid var(--line); }
+.globe-zoom button:hover:not(:disabled) { background: var(--row-hover); color: var(--accent); }
+.globe-zoom button:disabled { color: var(--placeholder); cursor: default; }
+.globe-reset {
+  position: absolute; right: 28px; top: 28px; z-index: 3; border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  background: #fff; color: var(--accent); font: inherit; font-size: 12px; font-weight: 800;
+  box-shadow: 0 6px 16px rgba(var(--shadow), 0.14);
+}
 #globe-labels { position: absolute; inset: 0; pointer-events: none; }
 .globe-label {
   position: absolute; z-index: 3; border-radius: 999px; padding: 7px 14px; white-space: nowrap;
@@ -383,5 +493,8 @@ button, input, select { font-family: inherit; }
   .row { grid-template-columns: 36px minmax(0, 1fr); row-gap: 14px; }
   .row .journeys, .row .total-cell { grid-column: 1 / -1; }
   .total-cell { text-align: left; }
+  .trip-box { grid-template-columns: minmax(0, 1fr); }
+  .alts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .globe-wrap { transform: scale(0.62); transform-origin: top center; margin-bottom: -190px; }
+  #globe { touch-action: pan-y; } /* on phones, swiping up/down over the globe still scrolls the page */
 }
