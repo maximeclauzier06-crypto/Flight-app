@@ -247,6 +247,7 @@ button, input, select { font-family: inherit; }
 
 .state-message { padding: 36px 24px; color: var(--soft); font-size: 15px; line-height: 1.6; border-top: 1px solid var(--line); }
 .state-message.is-error { color: #A8431F; }
+.inline-retry { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 .table-note { margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--tint); color: var(--soft); font-size: 12px; }
 
 /* Globe */

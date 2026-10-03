@@ -41,6 +41,7 @@ const state = {
   selected: null,    // destination code of the highlighted row
   maxGapHours: 3,    // the arrival/return time rule used by the last search
   debug: null,       // the function's report on the last search (counts, failures...)
+  currency: "usd",   // the currency the prices in `results` are actually in
   lastSearch: null,  // so a currency change or "Try again" can re-run the same search
 };
 
@@ -211,9 +212,13 @@ function detectDefaultCurrency() {
 const currencySelect = $("currency");
 currencySelect.value = detectDefaultCurrency();
 
-// Prices come back already converted, so a new currency means a new search.
+// Prices come back already converted, so a new currency means asking again.
+// (The server remembers its answers, so this is quick and costs no extra
+// flight-data calls.)
 currencySelect.addEventListener("change", () => {
-  if (state.lastSearch) runSearch(state.lastSearch.codeA, state.lastSearch.codeB, state.lastSearch.params);
+  if (!state.lastSearch) return;
+  const params = { ...state.lastSearch.params, currency: currencySelect.value };
+  runSearch(state.lastSearch.codeA, state.lastSearch.codeB, params);
 });
 
 
@@ -335,6 +340,10 @@ function explainEmptyResult(debug, gapHours) {
     const reason = !debug.originAOk ? debug.originAError : debug.originBError;
     return `Travelpayouts rejected the request for ${esc(broken)}${reason ? ` (${esc(reason)})` : ""} — likely the token isn't set correctly in Edge Function Secrets.`;
   }
+  // Is Travelpayouts rate-limiting us? Then "no results" would be misleading.
+  if (debug.rateLimited) {
+    return `The flight-data service is limiting how many requests we can make (too many in a short time). This is temporary — wait about a minute, then <button type="button" id="retry-search" class="inline-retry">try again</button>. Searches get faster and use fewer requests as the server remembers more answers.`;
+  }
   // Did Travelpayouts simply not answer? Then "no results" would be misleading.
   const tp = debug.travelpayouts;
   if (tp && tp.calls > 0 && tp.failed / tp.calls >= 0.1) {
@@ -375,6 +384,7 @@ async function runSearch(codeA, codeB, params) {
 
     state.results = json.results;
     state.debug = json.debug;
+    state.currency = json.currency || params.currency; // what the prices are really in
     state.selected = null;
 
     if (json.results.length === 0) {
@@ -477,13 +487,14 @@ function renderTable() {
   const list = sortedResults();
   if (!list.some((r) => r.destination === state.selected)) state.selected = list[0].destination;
 
-  const currency = state.lastSearch.params.currency;
+  const currency = state.currency;
   rowsEl.innerHTML = list.map((r, i) => rowHtml(r, i, currency)).join("");
 
   const gapText = state.maxGapHours > 0 ? ` · arrivals and returns within ${state.maxGapHours}h of each other` : "";
   const d = state.debug;
   const checkedText = d && d.sharedDestinations ? ` (checked ${d.candidatesConsidered} of the ${d.sharedDestinations} you can both reach)` : "";
-  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for both of you${gapText}`;
+  const currencyText = d && d.currencyConverted === false ? " · prices shown in USD (exchange rates unavailable)" : "";
+  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for both of you${gapText}${currencyText}`;
   updateWarning();
   renderGlobe();
 }
@@ -493,7 +504,10 @@ function renderTable() {
 function updateWarning() {
   const box = $("results-warning");
   const tp = state.debug?.travelpayouts;
-  if (tp && tp.failed > 0 && state.results.length > 0) {
+  if (state.results.length > 0 && state.debug?.rateLimited) {
+    box.innerHTML = `<span>Heads-up: the flight-data service is limiting our requests, so this list is incomplete. Wait about a minute and try again for more options.</span><button type="button" id="retry-search">Try again</button>`;
+    box.hidden = false;
+  } else if (tp && tp.failed > 0 && state.results.length > 0) {
     box.innerHTML = `<span>Heads-up: the flight-data service didn't answer ${tp.failed} of ${tp.calls} requests, so a few options may be missing.</span><button type="button" id="retry-search">Try again</button>`;
     box.hidden = false;
   } else {
@@ -502,7 +516,8 @@ function updateWarning() {
   }
 }
 
-$("results-warning").addEventListener("click", (event) => {
+// "Try again" buttons (in the warning, or inside a "nothing found" message)
+document.addEventListener("click", (event) => {
   if (event.target.id === "retry-search" && state.lastSearch) runSearch(state.lastSearch.codeA, state.lastSearch.codeB, state.lastSearch.params);
 });
 

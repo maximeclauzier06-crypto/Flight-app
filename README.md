@@ -18,6 +18,7 @@ The page talks to the Supabase function below, so you need internet.
 | `index.html` | The page structure | Texts, headline, labels |
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-1`, `--accent`, `--peach`...). Change them and the whole site follows. |
 | `app.js` | The behaviour: autocomplete, the "When" pop-up, the search, the table, the globe | Settings are in section 1 at the top |
+| `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
 | `geo.js` | Draws the dot-matrix globe (rough land outlines, no map library) | Rarely needs changes |
 | `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | `DEFAULT_MAX_GAP_HOURS`, `MAX_CANDIDATES`, `FLEXIBLE_SEARCH_MONTHS` at the top |
 
@@ -48,13 +49,26 @@ and you need one for *both* travelers on the *same* day. On top of that the
 time rule removes more. With the rule off, a Stockholm–Brussels week search
 typically has only a handful of usable days.
 
-A different problem is **failed calls**: Travelpayouts sometimes doesn't
-answer a request. The function now limits parallel calls, retries failures,
-and remembers answers for 30 minutes (while the function stays warm). If
-some calls still fail, the page says so ("the flight-data service didn't
-answer N of M requests") instead of pretending there are no flights. Add
-`&debug=1` to a request to see the full report (`debug.travelpayouts`,
-`debug.stages`, raw example fares).
+A different problem is **rate limiting**: Travelpayouts answers
+`HTTP 429 – too many requests` when we ask for too much too fast (a wide
+search can need hundreds of calls). The function protects itself:
+
+- **It remembers every answer** — in memory, and permanently in a small
+  database table (`supabase/calendar_cache.sql`) for 12 hours — so repeating
+  or varying a search costs few or no new calls, and the memory fills up as
+  more searches are made.
+- **It caps one search at 260 new calls** and stops widening once it hits
+  that, or runs out of time.
+- **After a few 429s it stops immediately** and tells you ("the flight-data
+  service is limiting our requests — wait about a minute"), instead of
+  retrying for ages. If it is only partly blocked you get the options it
+  found, plus a "Try again" notice.
+- All lookups are made in **USD** and converted to your currency at the end
+  (using the free open.er-api.com rates), so switching currency uses the
+  same remembered answers and is quick.
+
+Add `&debug=1` to a request to see the full report (`debug.travelpayouts`,
+`debug.database`, `debug.stages`, raw example fares).
 
 ### Important: arrival times are estimates
 
@@ -82,6 +96,13 @@ So the real request happens on a small server we control instead:
 4. Put the function URL (looks like
    `https://abcdefgh.supabase.co/functions/v1/search-flights`) into
    `SEARCH_FUNCTION_URL` at the top of `app.js`.
+5. **Create the memory table (once):** in the Supabase dashboard open
+   **SQL Editor → New query**, paste the contents of
+   `supabase/calendar_cache.sql`, and press **Run**. Without it everything
+   still works, but nothing is remembered between searches and you will hit
+   Travelpayouts' rate limit much sooner. (The function reads the secret
+   service key Supabase gives every Edge Function automatically — you don't
+   add anything.)
 
 **Whenever `index.ts` changes, redeploy it the same way** (paste the new code
 into the dashboard's editor). If the page shows "the deployed function is
