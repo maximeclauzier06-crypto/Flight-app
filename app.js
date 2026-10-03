@@ -189,13 +189,7 @@ const originsEl = $("origins");
 let originCounter = 0;
 
 const PERSON_ICON =
-  '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="3.5" r="2.2" fill="currentColor"></circle><path d="M1.8 10.6c.4-2.3 2.1-3.4 4.2-3.4s3.8 1.1 4.2 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"></path></svg>';
-
-// The "+ Add a departure" cell always sits last.
-originsEl.insertAdjacentHTML(
-  "beforeend",
-  `<div class="origin-cell origin-add"><button type="button" class="add-departure" id="add-departure">+ Add a departure <small id="add-departure-note"></small></button></div>`
-);
+  '<svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="3.5" r="2.4" fill="currentColor"></circle><path d="M1.6 11c.4-2.5 2.2-3.7 4.4-3.7s4 1.2 4.4 3.7" fill="currentColor"></path></svg>';
 
 function addOrigin() {
   const id = ++originCounter;
@@ -205,52 +199,72 @@ function addOrigin() {
   cell.innerHTML = `
     <div class="origin-head">
       <label for="origin-${id}"></label>
-      <div class="origin-tools">
-        <span class="people" title="How many people leave from here">
-          ${PERSON_ICON}
-          <button type="button" class="people-btn" data-delta="-1" aria-label="Fewer people">−</button>
-          <span class="people-count">1</span>
-          <button type="button" class="people-btn" data-delta="1" aria-label="More people">+</button>
-        </span>
-        <button type="button" class="origin-remove" aria-label="Remove this departure" title="Remove this departure">×</button>
-      </div>
+      <button type="button" class="origin-remove" aria-label="Remove this departure" title="Remove this departure">×</button>
     </div>
     <input type="text" id="origin-${id}" placeholder="City or airport" autocomplete="off" required>
+    <div class="people" title="How many people leave from here">
+      <span class="avatars"></span>
+      <span class="people-text"></span>
+      <button type="button" class="people-btn" data-delta="-1" aria-label="One person less">−</button>
+      <button type="button" class="people-btn" data-delta="1" aria-label="One person more">+</button>
+    </div>
     <ul class="suggestions" role="listbox"></ul>`;
-  originsEl.insertBefore(cell, originsEl.querySelector(".origin-add"));
+  originsEl.appendChild(cell);
   setupAutocomplete(cell.querySelector("input"), cell.querySelector(".suggestions"));
   refreshOrigins();
   return cell;
 }
 
-// Re-number the labels, hide "×" on the first two, and hide "+ Add" at the maximum.
+// The little row of people under each airport: one avatar per person (up to 4,
+// then "+N"), in that departure's colour, and "1 traveller / 2 travellers".
+function renderPeople(cell) {
+  const count = Number(cell.dataset.count);
+  const shown = Math.min(count, 4);
+  let avatars = "";
+  for (let k = 0; k < shown; k++) avatars += `<span class="avatar">${PERSON_ICON}</span>`;
+  if (count > 4) avatars += `<span class="avatar avatar-more">+${count - 4}</span>`;
+  cell.querySelector(".avatars").innerHTML = avatars;
+  cell.querySelector(".people-text").textContent = `${count} traveller${count === 1 ? "" : "s"}`;
+  cell.querySelector('.people-btn[data-delta="-1"]').disabled = count <= 1;
+  cell.querySelector('.people-btn[data-delta="1"]').disabled = count >= 9;
+}
+
+// Re-number the labels, colour each departure, hide "×" on the first two,
+// lay the cells out in sensible rows, and update the "+ Add" box.
 function refreshOrigins() {
-  const cells = [...originsEl.querySelectorAll(".origin-cell:not(.origin-add)")];
+  const cells = [...originsEl.querySelectorAll(".origin-cell")];
+  const n = cells.length;
+  const cols = n <= 3 ? n : n === 4 ? 2 : n <= 6 ? 3 : 4;
+  originsEl.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   cells.forEach((cell, i) => {
     cell.querySelector("label").textContent = i === 0 ? "Your airport" : i === 1 ? "Their airport" : `Departure ${i + 1}`;
     cell.querySelector(".origin-remove").hidden = i < 2;
+    cell.style.setProperty("--who", `var(--c${i % 8})`); // same colour as in the table and on the globe
+    cell.classList.toggle("has-left", i % cols !== 0);
+    cell.classList.toggle("has-top", i >= cols);
+    renderPeople(cell);
   });
-  originsEl.querySelector(".origin-add").hidden = cells.length >= MAX_ORIGINS;
-  $("add-departure-note").textContent = `(${cells.length}/${MAX_ORIGINS})`;
+  $("add-departure").hidden = n >= MAX_ORIGINS;
+  $("add-departure-note").textContent = `(${n}/${MAX_ORIGINS})`;
 }
+
+$("add-departure").addEventListener("click", () => addOrigin().querySelector("input").focus());
 
 originsEl.addEventListener("click", (event) => {
   const cell = event.target.closest(".origin-cell");
-  if (event.target.closest("#add-departure")) {
-    addOrigin().querySelector("input").focus();
-  } else if (event.target.closest(".origin-remove")) {
+  if (event.target.closest(".origin-remove")) {
     cell.remove();
     refreshOrigins();
   } else if (event.target.closest(".people-btn")) {
-    const count = Math.min(9, Math.max(1, Number(cell.dataset.count) + Number(event.target.closest(".people-btn").dataset.delta)));
-    cell.dataset.count = String(count);
-    cell.querySelector(".people-count").textContent = String(count);
+    const delta = Number(event.target.closest(".people-btn").dataset.delta);
+    cell.dataset.count = String(Math.min(9, Math.max(1, Number(cell.dataset.count) + delta)));
+    renderPeople(cell);
   }
 });
 
 // What the visitor typed/picked, one entry per departure.
 function readDepartures() {
-  return [...originsEl.querySelectorAll(".origin-cell:not(.origin-add)")].map((cell) => {
+  return [...originsEl.querySelectorAll(".origin-cell")].map((cell) => {
     const input = cell.querySelector("input[type=text]");
     return {
       code: input.dataset.code,
@@ -611,11 +625,12 @@ document.addEventListener("click", (event) => {
   if (event.target.id === "retry-search" && state.lastSearch) runSearch(state.lastSearch.origins, state.lastSearch.params);
 });
 
-function selectDestination(code) {
+function selectDestination(code, { scrollToRow = false } = {}) {
   if (code === state.selected) return;
   state.selected = code;
   rowsEl.querySelectorAll(".row").forEach((row) => row.classList.toggle("is-selected", row.dataset.code === code));
   renderGlobe();
+  if (scrollToRow) rowsEl.querySelector(`.row[data-code="${CSS.escape(code)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 rowsEl.addEventListener("click", (event) => {
@@ -643,45 +658,76 @@ $("sort-chips").addEventListener("click", (event) => {
 // 8. THE GLOBE
 // ===========================================================================
 
-// Pin and flight-path colours for each departure on the dark globe
-// (the table uses the matching --c0 ... --c7 colours from styles.css).
-const GLOBE_COLORS = ["#FFFFFF", "#FFC9A8", "#9BE7D0", "#F9A8D4", "#A5B4FC", "#FDE68A", "#86EFAC", "#FCA5A5"];
+// The globe's colours come from the variables at the top of styles.css
+// (--ocean-a, --land, --pin0 ... --pin7, ...), so changing the theme there
+// re-colours the globe too.
+function themeColors() {
+  const style = getComputedStyle(document.documentElement);
+  const v = (name) => style.getPropertyValue(name).trim();
+  return {
+    oceanA: v("--ocean-a"), oceanB: v("--ocean-b"), land: v("--land"), orbit: v("--orbit"),
+    meet: v("--peach"), accent: v("--accent"),
+    pins: Array.from({ length: 8 }, (_, i) => v(`--pin${i}`)),
+  };
+}
+
+const hasCoords = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon);
 
 function renderGlobe() {
   const svg = $("globe");
   const labelsEl = $("globe-labels");
   const R = GLOBE_RADIUS;
+  const T = themeColors();
 
-  const selected = state.results.find((r) => r.destination === state.selected);
   const origins = state.origins ?? [];
-  const havePlaces =
-    selected && origins.length > 0 && origins.every((o) => Number.isFinite(o.lat) && Number.isFinite(o.lon)) && Number.isFinite(selected.lat) && Number.isFinite(selected.lon);
+  const destinations = state.results.filter(hasCoords);
+  const selected = destinations.find((r) => r.destination === state.selected);
+  const ready = selected && origins.length > 0 && origins.every(hasCoords);
 
-  // No search yet (or no positions): a calm empty globe over the Atlantic.
-  const dest = havePlaces ? { lat: selected.lat, lon: selected.lon } : null;
-  const g = Geo.createGlobe(havePlaces ? [...origins, dest] : [], R, havePlaces ? null : { lat: 35, lon: -30 });
+  // The view fits every departure AND every result, so all the options are on
+  // the globe at once and it doesn't jump around when you pick another one.
+  // No search yet: a calm empty globe over the Atlantic.
+  const g = ready
+    ? Geo.createGlobe([...origins, ...destinations.map((r) => ({ lat: r.lat, lon: r.lon }))], R)
+    : Geo.createGlobe([], R, { lat: 35, lon: -30 });
   const { cx, cy } = g;
+  const inside = (p) => p.visible && Math.hypot(p.x - cx, p.y - cy) <= R - 4;
 
   let overlay = "";
   let labels = "";
-  if (havePlaces) {
+  if (ready) {
+    const dest = { lat: selected.lat, lon: selected.lon };
     const pd = g.project(dest.lat, dest.lon);
-    const pins = origins.map((o, i) => ({ o, i, p: g.project(o.lat, o.lon), color: GLOBE_COLORS[i % 8] }));
+    const pins = origins.map((o, i) => ({ o, i, p: g.project(o.lat, o.lon), color: T.pins[i % 8] }));
 
-    // Flight paths first (under the pins), then the pins.
+    // 1. Every other result: a small dot you can hover (name + price) and click.
+    for (const r of destinations) {
+      if (r.destination === selected.destination) continue;
+      const p = g.project(r.lat, r.lon);
+      if (!inside(p)) continue;
+      const left = p.x > cx; // put the hover label on the side facing the middle
+      overlay += `
+        <g class="dest-dot" data-code="${esc(r.destination)}">
+          <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="transparent"></circle>
+          <circle class="dot-core" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="${T.meet}" stroke="${T.oceanB}" stroke-width="2"></circle>
+          <text class="dot-label" x="${(p.x + (left ? -12 : 12)).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="${left ? "end" : "start"}">${esc(r.destinationName)} · ${formatPrice(r.total, state.currency)}</text>
+        </g>`;
+    }
+
+    // 2. The selected destination: flight paths from every departure, then the pins.
     for (const { o, color } of pins) {
       overlay += `<path d="${g.arc(o, dest)}" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none" opacity="0.95"></path>`;
     }
     for (const { p, color } of pins) {
       if (!p.visible) continue;
-      overlay += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="17" fill="none" stroke="${color}" stroke-width="2" opacity="0.5"></circle><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="${color}" stroke="#5B3FA8" stroke-width="3"></circle>`;
+      overlay += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="17" fill="none" stroke="${color}" stroke-width="2" opacity="0.5"></circle><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="${color}" stroke="${T.accent}" stroke-width="3"></circle>`;
     }
     if (pd.visible) {
-      overlay += `<circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="40" fill="#FFC9A8" opacity="0.14"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="25" fill="#FFC9A8" opacity="0.28"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="10" fill="#FFC9A8" stroke="#fff" stroke-width="3"></circle>`;
+      overlay += `<circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="40" fill="${T.meet}" opacity="0.14"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="25" fill="${T.meet}" opacity="0.28"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="10" fill="${T.meet}" stroke="#fff" stroke-width="3"></circle>`;
     }
 
-    // Labels: pins left of the meeting point get their label on the left, the
-    // others on the right; labels on the same side are nudged apart so they don't overlap.
+    // Labels: departures left of the meeting point get their label on the left,
+    // the others on the right; labels on one side are nudged apart.
     const place = (side) => {
       const group = pins.filter((pin) => pin.p.visible && (pin.p.x <= pd.x) === (side === "left")).sort((a, b) => a.p.y - b.p.y);
       let lastY = -999;
@@ -708,18 +754,25 @@ function renderGlobe() {
 
   svg.innerHTML = `
     <defs>
-      <radialGradient id="ocean" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#7B5BD0"></stop><stop offset="1" stop-color="#2E1B6B"></stop></radialGradient>
+      <radialGradient id="ocean" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="${T.oceanA}"></stop><stop offset="1" stop-color="${T.oceanB}"></stop></radialGradient>
       <clipPath id="globe-clip"><circle cx="${cx}" cy="${cy}" r="${R}"></circle></clipPath>
     </defs>
-    <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(-20 ${cx} ${cy})" stroke="rgba(91,63,168,0.35)" stroke-width="2" fill="none"></ellipse>
+    <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(-20 ${cx} ${cy})" stroke="${T.orbit}" stroke-width="2" fill="none"></ellipse>
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#ocean)"></circle>
     <g clip-path="url(#globe-clip)">
-      <path d="${g.dots}" stroke="#FFD9C7" stroke-width="3.6" stroke-linecap="round" fill="none" opacity="0.95"></path>
+      <path d="${g.dots}" stroke="${T.land}" stroke-width="3.6" stroke-linecap="round" fill="none" opacity="0.95"></path>
       ${overlay}
     </g>
-    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="2"></circle>
-    <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="7" fill="#FFC9A8"></circle>`;
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="2" pointer-events="none"></circle>
+    <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="7" fill="${T.meet}"></circle>`;
   labelsEl.innerHTML = labels;
+  $("map-hint").hidden = !(ready && destinations.length > 1);
 }
+
+// Clicking a dot on the globe selects that destination (and shows its row).
+$("globe").addEventListener("click", (event) => {
+  const dot = event.target.closest(".dest-dot");
+  if (dot) selectDestination(dot.dataset.code, { scrollToRow: true });
+});
 
 renderGlobe();

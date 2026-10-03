@@ -1,28 +1,52 @@
 /* ---------------------------------------------------------------------------
-   Flight Plan — "Lilac Dusk" theme
+   Flight Plan — "Terracotta & Sand" theme (design 19)
 
-   The colours live in the variables just below. Change them here and the
-   whole site follows (the banner gradient, the buttons, the table...).
+   EVERY colour of the site lives in the variables just below — the page, the
+   banner, the table, and the globe too (app.js reads the globe colours from
+   here). To re-colour the site, change these values and nothing else.
 --------------------------------------------------------------------------- */
 
 :root {
-  --page-top: #F3E8FF;      /* page background, top  */
-  --page-bottom: #FFEBDF;   /* page background, bottom */
-  --ink: #2E1B6B;           /* main text */
-  --soft: #6B5A9A;          /* secondary text */
-  --line: #E7DCF7;          /* thin borders */
-  --tint: #EFE6FC;          /* light purple fills */
-  --tint-strong: #F6F0FF;   /* selected-row fill */
-  --accent: #5B3FA8;        /* buttons, highlights */
-  --hero-1: #3B2A7A;        /* banner gradient, start */
-  --hero-2: #6C4BC1;        /* banner gradient, end */
-  --peach: #FFC9A8;         /* warm accent (meeting point, arcs) */
-  --peach-soft: #FFD9C7;
-  --good: #1F8A5B;          /* "Direct" */
+  /* Page */
+  --page-top: #FBF2E8;      /* page background, top */
+  --page-bottom: #F3DFCF;   /* page background, bottom */
+  --ink: #3D2218;           /* main text */
+  --soft: #7C5744;          /* secondary text */
+  --line: #EBD5C3;          /* thin borders */
+  --tint: #F4E1D2;          /* light fills (table header, chips) */
+  --tint-strong: #FBF0E6;   /* selected-row fill */
+  --row-hover: #FDF7F1;
+  --accent: #A9472F;        /* buttons, highlights */
+  --good: #2F7A4A;          /* "Direct" */
+  --pill-border: #E3C9B5;   /* outlines of the currency pill and sort chips */
+  --placeholder: #C2A493;   /* "City or airport" */
+  --shadow: 74, 29, 18;     /* colour of the soft shadows (red, green, blue) */
 
-  /* One colour per departure (1st = you, 2nd = them, ... up to 8) */
-  --c0: #5B3FA8; --c1: #E0803C; --c2: #1F9E89; --c3: #D6457F;
-  --c4: #4C6FE0; --c5: #C9A227; --c6: #2E9E5B; --c7: #D9534F;
+  /* Banner */
+  --hero-1: #7A2F20;        /* banner gradient, start */
+  --hero-2: #B5553B;        /* banner gradient, end */
+  --hero-text: #FFFFFF;
+  --hero-sub: #F9DCCB;      /* the sentence under the title */
+  --badge-text: #FFE9DA;
+  --bar-hint: #F3D2BF;      /* "Travelling as a group?" */
+  --bar-fade: rgba(251, 240, 230, 0.88); /* the soft fade at the right of the search bar */
+
+  /* Warm accent: the meeting point, flight paths, the globe's backdrop */
+  --peach: #F0C48A;
+  --peach-soft: #EFD3B8;
+
+  /* Globe */
+  --ocean-a: #B5553B;       /* sea, light side */
+  --ocean-b: #4A1D12;       /* sea, dark side */
+  --land: #F6D9B8;          /* the dots that draw the continents */
+  --orbit: rgba(169, 71, 47, 0.35);
+
+  /* One colour per departure (1st = you, 2nd = them, ... up to 8):
+     --c* in the table and search bar, --pin* for the pins on the dark globe */
+  --c0: #A9472F; --c1: #6F8F5E; --c2: #C28B2C; --c3: #4F7C8A;
+  --c4: #8E5B7A; --c5: #5E6FA3; --c6: #9A7B4F; --c7: #C2566E;
+  --pin0: #FFFFFF; --pin1: #F0C48A; --pin2: #B9D8A8; --pin3: #9FC6D1;
+  --pin4: #E0B3CF; --pin5: #AEB9E5; --pin6: #E3C99A; --pin7: #F2A9B8;
 
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Manrope', sans-serif;
@@ -46,10 +70,6 @@ a { color: inherit; text-decoration: none; }
 a:hover { opacity: 0.8; }
 button, input, select { font-family: inherit; }
 
-/* Round shapes behind everything */
-.bg-circle { position: fixed; border-radius: 50%; z-index: 0; pointer-events: none; }
-.bg-circle-1 { top: 140px; left: -200px; width: 560px; height: 560px; background: #E2D2FA; opacity: 0.6; }
-.bg-circle-2 { bottom: -160px; right: -200px; width: 620px; height: 620px; background: var(--peach-soft); opacity: 0.6; }
 
 /* ---------- Top navigation ---------- */
 
@@ -59,19 +79,21 @@ button, input, select { font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 26px 16px;
 }
+.logo-a { fill: var(--accent); }
+.logo-b { fill: var(--peach); }
 .brand { display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 23px; font-weight: 700; letter-spacing: -0.3px; }
 .nav-links { display: flex; align-items: center; gap: 26px; font-size: 15px; font-weight: 600; }
 
 .currency-pill {
   position: relative; display: inline-flex; align-items: center;
-  border: 1.5px solid #CDBBEB; border-radius: 999px; background: transparent;
+  border: 1.5px solid var(--pill-border); border-radius: 999px; background: transparent;
 }
 .currency-pill select {
   appearance: none; -webkit-appearance: none;
   border: 0; background: transparent; color: var(--ink);
   font-size: 14px; font-weight: 700; cursor: pointer;
   padding: 8px 32px 8px 16px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%232E1B6B' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%233D2218' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center;
 }
 .btn-signin { color: var(--accent); border: 1.5px solid var(--accent); border-radius: 999px; padding: 8px 22px; font-size: 14px; font-weight: 700; }
@@ -83,77 +105,86 @@ button, input, select { font-family: inherit; }
   width: var(--content); margin: 4px auto 0;
   border-radius: 36px;
   background: linear-gradient(135deg, var(--hero-1) 0%, var(--hero-2) 100%);
-  box-shadow: 0 26px 60px rgba(46, 27, 107, 0.3);
+  box-shadow: 0 26px 60px rgba(var(--shadow), 0.3);
   padding: 52px 64px 56px;
 }
-/* The round shapes live in their own wrapper so they get clipped to the
-   banner's rounded corners, while the search dropdowns can still hang out. */
-.hero-decor { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
-.hero-circle { position: absolute; border-radius: 50%; }
-.hero-circle-1 { top: -170px; right: -120px; width: 540px; height: 540px; background: #9B7DE8; opacity: 0.35; }
-.hero-circle-2 { top: 20px; right: 190px; width: 300px; height: 300px; border: 2px solid rgba(255, 255, 255, 0.18); }
-.hero-circle-3 { top: 84px; right: 410px; width: 24px; height: 24px; background: var(--peach); }
-.hero-circle-4 { top: 150px; right: 70px; width: 96px; height: 96px; background: rgba(255, 217, 199, 0.25); }
 .hero-content { position: relative; z-index: 2; }
 
 .badge {
   display: inline-block; margin-bottom: 20px; padding: 8px 18px; border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16); color: #F1E9FF;
+  background: rgba(255, 255, 255, 0.16); color: var(--badge-text);
   font-size: 12px; font-weight: 800; letter-spacing: 1.6px;
 }
 .hero h1 {
-  margin: 0 0 14px; max-width: 880px; color: #fff;
+  margin: 0 0 14px; max-width: 880px; color: var(--hero-text);
   font-family: var(--font-display); font-size: 58px; line-height: 1.06; font-weight: 600; letter-spacing: -1px;
 }
-.hero-sub { margin: 0 0 32px; max-width: 700px; color: #E6DCFB; font-size: 18px; line-height: 1.5; }
+.hero-sub { margin: 0 0 32px; max-width: 700px; color: var(--hero-sub); font-size: 18px; line-height: 1.5; }
 
 /* ---------- The search bar ---------- */
 
 .search-bar {
   position: relative;
   display: flex; align-items: stretch;
-  background: #fff; border-radius: 26px;
-  box-shadow: 0 22px 50px rgba(30, 15, 80, 0.4);
+  /* a soft fade instead of flat white: lets the banner colour show through a little */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, var(--bar-fade) 100%);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 26px;
+  box-shadow: 0 22px 50px rgba(var(--shadow), 0.4);
   padding: 12px 12px 12px 22px;
 }
 .search-bar .field { position: relative; flex: 1; padding: 10px 20px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
 .search-bar .field-when { flex: 0 0 240px; }
 
-/* The departures: three cells per row, so two departures + the "add" button
-   look just like the original bar, and more departures wrap onto new rows. */
-.origins { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.origin-cell { position: relative; padding: 10px 20px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-.origin-cell:not(:nth-child(3n + 1)) { border-left: 1px solid var(--line); }
-.origin-cell:nth-child(n + 4) { border-top: 1px solid var(--line); }
-.origin-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; min-height: 22px; }
-.search-bar .origin-head label { margin: 0; white-space: nowrap; }
-.origin-tools { display: flex; align-items: center; gap: 6px; }
-.people { display: inline-flex; align-items: center; gap: 2px; border-radius: 999px; background: var(--tint); padding: 1px 3px; color: var(--accent); font-size: 12px; font-weight: 800; }
-.people svg { margin: 0 2px 0 4px; }
-.people-btn, .origin-remove {
-  width: 20px; height: 20px; border: 0; border-radius: 50%; padding: 0; cursor: pointer;
-  background: transparent; color: var(--accent); font-size: 15px; font-weight: 800; line-height: 1;
-}
-.people-btn:hover, .origin-remove:hover { background: #fff; }
-.origin-remove { color: var(--soft); font-size: 17px; }
-.people-count { min-width: 12px; text-align: center; }
-.origin-add { align-items: center; justify-content: center; }
-.add-departure {
-  display: inline-flex; align-items: center; gap: 8px; border: 1.5px dashed #C7B6EA; border-radius: 999px; padding: 9px 16px; cursor: pointer;
-  background: transparent; color: var(--accent); font-size: 14px; font-weight: 800; white-space: nowrap;
-}
-.add-departure:hover { background: var(--tint-strong); }
-.add-departure small { color: var(--soft); font-weight: 600; font-size: 12px; }
 .search-bar label {
   margin-bottom: 4px; color: var(--soft);
   font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase;
 }
 .search-bar .field input[type="text"],
+.origins { flex: 1; min-width: 0; display: grid; } /* columns set by app.js from the number of departures */
+.origin-cell { position: relative; padding: 10px 20px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.origin-cell.has-left { border-left: 1px solid var(--line); }
+.origin-cell.has-top { border-top: 1px solid var(--line); }
+.origin-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; min-height: 20px; }
+.search-bar .origin-head label { margin: 0; white-space: nowrap; }
+.origin-remove { width: 20px; height: 20px; border: 0; border-radius: 50%; padding: 0; cursor: pointer; background: transparent; color: var(--soft); font-size: 17px; font-weight: 800; line-height: 1; }
+.origin-remove:hover { background: var(--tint); }
+
+/* People per departure: little avatars in that traveller's colour */
+.people { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+.avatars { display: inline-flex; }
+.avatar {
+  width: 20px; height: 20px; margin-left: -6px; border-radius: 50%; border: 2px solid #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--who, var(--c0)); color: #fff;
+}
+.avatar:first-child { margin-left: 0; }
+.avatar-more { background: var(--tint); color: var(--accent); font-size: 9px; font-weight: 800; }
+.people-text { color: var(--soft); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.people-btn {
+  width: 22px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 50%; cursor: pointer;
+  background: #fff; color: var(--accent); font-size: 14px; font-weight: 800; line-height: 1;
+}
+.people-btn[data-delta="-1"] { margin-left: auto; }
+.people-btn:hover:not(:disabled) { border-color: var(--accent); }
+.people-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* The small "+ Add a departure" box under the bar */
+.bar-extras { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 14px; }
+.add-departure {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; cursor: pointer;
+  border: 1px dashed rgba(255, 255, 255, 0.55); border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 13px; font-weight: 800;
+}
+.add-departure:hover { background: rgba(255, 255, 255, 0.2); }
+.add-departure small { color: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 600; }
+.bar-hint { color: var(--bar-hint); font-size: 13px; }
+
 .origin-cell input[type="text"] {
   border: 0; outline: 0; background: transparent; width: 100%; padding: 0;
   color: var(--ink); font-family: var(--font-display); font-size: 18px; font-weight: 700;
 }
-.search-bar input::placeholder { color: #B3A6D1; font-weight: 600; }
+.search-bar input::placeholder { color: var(--placeholder); font-weight: 600; }
 .divider { width: 1px; margin: 8px 0; background: var(--line); }
 .when-button {
   border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer;
@@ -172,7 +203,7 @@ button, input, select { font-family: inherit; }
   list-style: none; margin: 0; padding: 0;
   position: absolute; top: calc(100% + 10px); left: 0; min-width: 360px; z-index: 40;
   background: #fff; border-radius: 16px; overflow: hidden;
-  box-shadow: 0 18px 40px rgba(46, 27, 107, 0.28);
+  box-shadow: 0 18px 40px rgba(var(--shadow), 0.28);
 }
 .suggestions:empty { display: none; }
 .suggestions li { padding: 11px 16px; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--line); }
@@ -185,7 +216,7 @@ button, input, select { font-family: inherit; }
 .when-popover {
   position: absolute; top: calc(100% + 16px); right: -8px; width: 380px; z-index: 40;
   background: #fff; border-radius: 22px; padding: 20px;
-  box-shadow: 0 24px 54px rgba(46, 27, 107, 0.3);
+  box-shadow: 0 24px 54px rgba(var(--shadow), 0.3);
 }
 .when-popover label { margin: 0 0 6px; display: block; }
 .toggle-group { display: flex; gap: 18px; margin-bottom: 14px; }
@@ -211,13 +242,13 @@ button, input, select { font-family: inherit; }
   display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 32px; align-items: start;
 }
 
-.table-box { background: #fff; border-radius: 30px; overflow: hidden; box-shadow: 0 24px 60px rgba(46, 27, 107, 0.14); }
+.table-box { background: #fff; border-radius: 30px; overflow: hidden; box-shadow: 0 24px 60px rgba(var(--shadow), 0.14); }
 .table-top { padding: 26px 24px 20px; }
 .table-top h2 { margin: 0 0 4px; font-family: var(--font-display); font-size: 30px; font-weight: 600; letter-spacing: -0.5px; }
 .table-top p { margin: 0 0 16px; color: var(--soft); font-size: 14px; }
 .chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .chip {
-  border: 1px solid #D4C4F0; border-radius: 999px; padding: 9px 18px; cursor: pointer;
+  border: 1px solid var(--pill-border); border-radius: 999px; padding: 9px 18px; cursor: pointer;
   background: transparent; color: var(--ink); font-size: 14px; font-weight: 800;
 }
 .chip.is-selected { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -230,7 +261,7 @@ button, input, select { font-family: inherit; }
 .table-head .right { text-align: right; }
 
 .row { padding-top: 20px; padding-bottom: 20px; border-top: 1px solid var(--line); background: #fff; cursor: pointer; }
-.row:hover { background: #FBF8FF; }
+.row:hover { background: var(--row-hover); }
 .row.is-selected { background: var(--tint-strong); }
 .rank {
   width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -243,9 +274,9 @@ button, input, select { font-family: inherit; }
 .dest-dates { margin-top: 6px; font-size: 13px; font-weight: 800; }
 .dest-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 5px; color: var(--soft); font-size: 12px; }
 .code-chip { border-radius: 999px; padding: 2px 8px; background: var(--tint); color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: 0.8px; }
-.tag { border-radius: 999px; padding: 2px 8px; background: #FFE3D2; color: #8A4A20; font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
+.tag { border-radius: 999px; padding: 2px 8px; background: var(--peach-soft); color: var(--ink); font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
 
-.traveler + .traveler { margin-top: 10px; }
+.traveler + .traveler { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .traveler-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .dot { width: 8px; height: 8px; border-radius: 50%; }
 .dot-0 { background: var(--c0); } .dot-1 { background: var(--c1); } .dot-2 { background: var(--c2); } .dot-3 { background: var(--c3); }
@@ -258,7 +289,7 @@ button, input, select { font-family: inherit; }
 .times { margin-top: 3px; color: var(--soft); font-size: 13px; }
 .times strong { color: var(--ink); font-weight: 800; }
 .times sup { color: var(--accent); font-size: 10px; font-weight: 800; }
-.gap-note { margin-top: 10px; color: var(--soft); font-size: 12px; }
+.gap-note { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--soft); font-size: 12px; }
 .gap-note b { color: var(--ink); }
 
 .total-cell { text-align: right; }
@@ -290,18 +321,31 @@ button, input, select { font-family: inherit; }
 .globe-label {
   position: absolute; z-index: 3; border-radius: 999px; padding: 7px 14px; white-space: nowrap;
   background: #fff; color: var(--ink); font-size: 13px; font-weight: 800;
-  box-shadow: 0 8px 18px rgba(30, 10, 40, 0.28);
+  box-shadow: 0 8px 18px rgba(var(--shadow), 0.28);
 }
-.globe-label.is-dest { background: var(--peach); color: #3B1A0E; }
+.globe-label.is-dest { background: var(--peach); color: var(--ink); }
 .live-pill {
   position: absolute; left: 28px; top: 28px; z-index: 3; display: flex; align-items: center; gap: 8px;
   border-radius: 999px; padding: 8px 14px; background: #fff; color: var(--ink);
-  font-size: 12px; font-weight: 800; letter-spacing: 0.6px; box-shadow: 0 6px 16px rgba(46, 27, 107, 0.14);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.6px; box-shadow: 0 6px 16px rgba(var(--shadow), 0.14);
+}
+#globe .dest-dot { cursor: pointer; }
+#globe .dest-dot:hover .dot-core { r: 7.5; }
+#globe .dot-label {
+  font-family: var(--font-body); font-size: 12px; font-weight: 800; fill: #fff;
+  paint-order: stroke; stroke: var(--ocean-b); stroke-width: 4px; stroke-linejoin: round;
+  opacity: 0; transition: opacity 0.15s; pointer-events: none;
+}
+#globe .dest-dot:hover .dot-label { opacity: 1; }
+.map-hint {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 3; white-space: nowrap;
+  border-radius: 999px; padding: 7px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);
+  font-size: 12px; font-weight: 700; box-shadow: 0 6px 16px rgba(var(--shadow), 0.14); pointer-events: none;
 }
 .live-pill span { width: 9px; height: 9px; border-radius: 50%; background: #FFB400; }
 .info-card {
   display: flex; align-items: center; gap: 18px; background: #fff; border-radius: 24px; padding: 20px 24px;
-  box-shadow: 0 16px 40px rgba(46, 27, 107, 0.1);
+  box-shadow: 0 16px 40px rgba(var(--shadow), 0.1);
 }
 .info-card p { margin: 0; font-size: 15px; line-height: 1.5; }
 
@@ -328,9 +372,9 @@ button, input, select { font-family: inherit; }
   .hero-sub { font-size: 16px; }
   .search-bar { flex-direction: column; padding: 12px; }
   .search-bar .field, .search-bar .field-when { flex: none; }
-  .origins { grid-template-columns: minmax(0, 1fr); }
-  .origin-cell:not(:nth-child(3n + 1)) { border-left: 0; }
-  .origin-cell:nth-child(n + 2) { border-top: 1px solid var(--line); }
+  .origins { grid-template-columns: minmax(0, 1fr) !important; }
+  .origin-cell.has-left { border-left: 0; }
+  .origin-cell + .origin-cell { border-top: 1px solid var(--line); }
   .divider { width: auto; height: 1px; margin: 0 12px; }
   .search-btn { justify-content: center; padding: 16px; margin-top: 8px; }
   .suggestions { min-width: 0; right: 0; }

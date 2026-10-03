@@ -11,15 +11,12 @@
 </head>
 <body>
 
-  <!-- Soft round shapes behind the page (purely decorative) -->
-  <div class="bg-circle bg-circle-1"></div>
-  <div class="bg-circle bg-circle-2"></div>
 
   <header class="nav">
     <a class="brand" href="#">
       <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <circle cx="14" cy="14" r="12" fill="#5B3FA8"></circle>
-        <circle cx="26" cy="14" r="12" fill="#FFC9A8"></circle>
+        <circle cx="14" cy="14" r="12" class="logo-a"></circle>
+        <circle cx="26" cy="14" r="12" class="logo-b"></circle>
         <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
       </svg>
       <span>Flight Plan</span>
@@ -56,12 +53,6 @@
   <main>
     <!-- ===== The big banner with the search bar ===== -->
     <section class="hero">
-      <div class="hero-decor">
-        <div class="hero-circle hero-circle-1"></div>
-        <div class="hero-circle hero-circle-2"></div>
-        <div class="hero-circle hero-circle-3"></div>
-        <div class="hero-circle hero-circle-4"></div>
-      </div>
 
       <div class="hero-content">
         <div class="badge">REAL PRICES · REAL DATES</div>
@@ -137,6 +128,12 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           </button>
         </form>
+
+        <!-- Small box under the bar: add more departures (friends, family...) -->
+        <div class="bar-extras">
+          <button type="button" class="add-departure" id="add-departure">+ Add a departure <small id="add-departure-note">(2/8)</small></button>
+          <span class="bar-hint">Travelling as a group? Add everyone's airport.</span>
+        </div>
       </div>
     </section>
 
@@ -174,11 +171,12 @@
           <svg id="globe" width="520" height="520" viewBox="0 0 520 520" aria-hidden="true"></svg>
           <div id="globe-labels"></div>
           <div class="live-pill"><span></span>LIVE MAP</div>
+          <div class="map-hint" id="map-hint" hidden>Tap a dot to see another destination</div>
         </div>
         <div class="info-card">
           <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="14" cy="14" r="12" fill="#5B3FA8"></circle>
-            <circle cx="26" cy="14" r="12" fill="#FFC9A8"></circle>
+            <circle cx="14" cy="14" r="12" class="logo-a"></circle>
+            <circle cx="26" cy="14" r="12" class="logo-b"></circle>
             <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
           </svg>
           <p><strong>Fly out and back on the same days.</strong> We only show dates that work for everyone.</p>

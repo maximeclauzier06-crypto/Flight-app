@@ -4,9 +4,10 @@ Add two or more departures (yours, a partner's, friends', family's — up to 8,
 with how many people leave from each) and get a ranked list of places you could
 all fly to **on the same dates**, cheapest first — with flight times for each
 traveller and a globe, which stays in view as you scroll the results, showing
-where everyone would meet.
+where everyone would meet. Every result is also a dot on the globe: hover it
+for the city and total price, click it to select that destination.
 
-The look is the "Lilac Dusk" design.
+The look is design 19, "Terracotta & Sand". All its colours are the variables at the top of `styles.css` (the globe reads them too), so trying another palette is a single edit there.
 
 ## Running it
 
@@ -45,8 +46,9 @@ The page talks to the Supabase function below, so you need internet.
 
 ### Searching from more than two places
 
-Press **+ Add a departure** (up to 8); use the little **people counter** on a
-departure when several people leave from the same place (prices are
+Press **+ Add a departure** (the small box under the search bar, up to 8); use
+the **− / +** next to the little avatars on a departure when several people
+leave from the same place (prices are
 multiplied by it). Every extra departure needs a cached fare on the *same
 day*, so with the free data results get rare quickly beyond 3 departures
 (the page says so when that happens). A live flight-search API would remove
