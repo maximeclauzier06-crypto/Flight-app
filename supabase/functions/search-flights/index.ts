@@ -6,50 +6,68 @@
 // instead, holds the token as a secret, and the browser talks to THIS
 // function rather than to Travelpayouts directly.
 //
-// What it does, in two phases:
+// What it does:
 //   1. Asks Travelpayouts for each origin's cheapest cached fare to every
 //      destination (no dates yet) and intersects the two lists to find
-//      candidate shared destinations, then keeps the cheapest handful.
-//   2. For each candidate, calls Travelpayouts' day-by-day calendar endpoint
-//      for both origins with the requested stay length (or exact dates),
-//      and looks for a departure day BOTH origins have a cached fare for —
-//      AND where the two travelers' arrival times (and their return-flight
-//      times) are no more than `maxGapHours` apart, so nobody waits alone
-//      for a day. That time rule is the MAX_GAP_HOURS setting below.
+//      destinations you can both reach.
+//   2. For the cheapest of those, calls Travelpayouts' day-by-day calendar
+//      endpoint for both origins with the requested stay length, and looks
+//      for a departure day BOTH origins have a cached fare for — AND where
+//      the two travelers' arrival times (and their return-flight times) are
+//      no more than `maxGapHours` apart, so nobody waits alone for a day.
+//   3. If that finds only a few matches, it widens the search in stages
+//      (stay length +/- 1 night, then more destinations) until it has enough
+//      or runs out of time.
 //
 // IMPORTANT about times: the free Travelpayouts price data only contains the
-// DEPARTURE time of each flight — no arrival time and no duration. So
-// arrival times here are ESTIMATES (distance-based flight time + time-zone
-// conversion). Good enough for a "within 3 hours" rule, not for booking.
-// A live flight-search API would give exact times (see README).
+// DEPARTURE time of each flight (with its real UTC offset, e.g. +02:00) —
+// no arrival time and no duration. So arrival times here are ESTIMATES
+// (distance-based flight time + time-zone conversion). Good enough for a
+// "within 3 hours" rule, not for booking. A live flight-search API would
+// give exact times (see README).
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*", // fine while testing; can be narrowed to your real domain later
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// How many of the cheapest shared destinations get a deeper, date-aware
-// look in phase 2. More = better odds of a match, but more API calls.
-const MAX_CANDIDATES = 15;
+// --- Search size ------------------------------------------------------------
+
+// Destinations checked in the first pass (the cheapest ones both can reach).
+const FIRST_PASS_CANDIDATES = 15;
+
+// If the first passes find fewer than MIN_RESULTS matches, this many MORE
+// destinations are checked (only if there is still time left).
+const EXTRA_CANDIDATES = 25;
+const MIN_RESULTS = 6;
 
 // How many months ahead (including the current month) a "flexible dates"
 // search scans.
 const FLEXIBLE_SEARCH_MONTHS = 4;
 
-// The rule you asked for: the two travelers' ARRIVAL times at the
-// destination, and their RETURN-flight departure times, may differ by at
-// most this many hours. The page can override it per search (`maxGapHours`
-// query parameter); 0 (or negative) means "no limit".
+// Stop starting new search stages after this long (milliseconds).
+const TIME_BUDGET_MS = 20_000;
+
+// --- The time rule ------------------------------------------------------------
+
+// The two travelers' ARRIVAL times at the destination, and their RETURN-flight
+// departure times, may differ by at most this many hours. The page can
+// override it per search (`maxGapHours` query parameter); 0 = no limit.
 const DEFAULT_MAX_GAP_HOURS = 3;
 
-// Travelpayouts' docs say departure_at / return_at are UTC (the trailing
-// "Z"). If real data turns out to be local clock time with a misleading "Z",
-// flip this to false and the code will treat them as local time instead.
-// (Add ?debug=1 to a request to see raw examples and check.)
-const TIMES_ARE_UTC = true;
+// --- Being gentle with Travelpayouts -------------------------------------------
+
+// Calendar calls running at the same time (a search can need hundreds).
+const CALL_CONCURRENCY = 12;
+// Failed calls (network error, 429, 5xx) are retried this many times.
+const CALL_RETRIES = 2;
+// Identical calendar lookups are remembered for this long while the function
+// stays warm, so repeating a search is fast and doesn't use up API calls.
+const CACHE_TTL_MS = 30 * 60_000;
 
 type Fare = { price: number; departureAt: string | null; returnAt: string | null; transfers: number };
 type Place = { code: string; name: string; country: string; lat: number; lon: number; tz: string };
+type CallStats = { calls: number; cached: number; failed: number; retried: number; statuses: Record<string, number>; firstError: string | null };
 
 /* ---------------------------------------------------------------------------
    Reference data (names, coordinates, time zones) — free public files from
@@ -136,9 +154,12 @@ function utcToLocalIso(ms: number, tz: string): string {
   return new Date(ms + offsetMinutes(tz, ms) * 60000).toISOString().slice(0, 16);
 }
 
-// A fare timestamp from Travelpayouts -> UTC milliseconds.
+// A fare timestamp from Travelpayouts -> UTC milliseconds. Real examples look
+// like "2026-10-06T06:25:00+02:00" (local time + its UTC offset) or "...Z",
+// which Date.parse understands. If a timestamp ever arrives with no offset at
+// all, it is read as local time at `clockTz` instead.
 function fareTimeToUtcMs(iso: string, clockTz: string): number {
-  return TIMES_ARE_UTC ? Date.parse(iso) : localToUtcMs(iso, clockTz);
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(iso) ? Date.parse(iso) : localToUtcMs(iso, clockTz);
 }
 
 function haversineKm(a: Place, b: Place): number {
@@ -157,8 +178,50 @@ function estimateMinutes(km: number, transfers: number): number {
 }
 
 /* ---------------------------------------------------------------------------
-   Travelpayouts calls
+   Travelpayouts calls — limited, retried, cached, and counted
 --------------------------------------------------------------------------- */
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A tiny gate so only CALL_CONCURRENCY calls are in flight at once.
+let inFlight = 0;
+const waiting: Array<() => void> = [];
+async function limited<T>(task: () => Promise<T>): Promise<T> {
+  if (inFlight >= CALL_CONCURRENCY) await new Promise<void>((resolve) => waiting.push(resolve));
+  inFlight++;
+  try {
+    return await task();
+  } finally {
+    inFlight--;
+    waiting.shift()?.();
+  }
+}
+
+// GET a Travelpayouts URL as JSON. Retries network errors, 429 and 5xx. Returns
+// null (and counts it in `stats`) if it still fails — so callers can tell
+// "no data" apart from "the call failed".
+async function getJson(url: string, stats: CallStats): Promise<Record<string, unknown> | null> {
+  stats.calls++;
+  for (let attempt = 0; attempt <= CALL_RETRIES; attempt++) {
+    try {
+      const response = await limited(() => fetch(url));
+      if (response.ok) return (await response.json()) as Record<string, unknown>;
+      const key = String(response.status);
+      stats.statuses[key] = (stats.statuses[key] ?? 0) + 1;
+      stats.firstError ??= `HTTP ${response.status}`;
+      if (response.status !== 429 && response.status < 500) break; // not worth retrying
+    } catch (error) {
+      stats.statuses.network = (stats.statuses.network ?? 0) + 1;
+      stats.firstError ??= String(error).slice(0, 120);
+    }
+    if (attempt < CALL_RETRIES) {
+      stats.retried++;
+      await sleep(250 * (attempt + 1) + Math.random() * 200);
+    }
+  }
+  stats.failed++;
+  return null;
+}
 
 // Travelpayouts sometimes returns { DEST: { price, ... } } and sometimes
 // { DEST: { "0": { price, ... }, "1": { price, ... } } } for the same
@@ -181,19 +244,21 @@ function extractPrices(data: Record<string, unknown>): Record<string, number> {
 
 // Phase 1: cheapest cached fare from `origin` to every destination, no date
 // filtering — used only to discover which destinations are worth a closer look.
-async function fetchCheapestByDestination(origin: string, currency: string, token: string) {
+async function fetchCheapestByDestination(origin: string, currency: string, token: string, stats: CallStats) {
   const params = new URLSearchParams({ origin, destination: "-", currency, token });
-  const response = await fetch(`https://api.travelpayouts.com/v1/prices/cheap?${params}`);
-  const json = await response.json();
-
+  const json = await getJson(`https://api.travelpayouts.com/v1/prices/cheap?${params}`, stats);
+  if (!json) return { prices: {} as Record<string, number>, success: false, rawError: stats.firstError ?? "request failed" };
   return {
-    prices: extractPrices(json.data ?? {}),
+    prices: extractPrices((json.data ?? {}) as Record<string, unknown>),
     // If success is false, the token or request was rejected, and any "0
     // destinations found" result is actually THIS, not a lack of overlap.
     success: json.success !== false,
-    rawError: json.error ?? null,
+    rawError: (json.error as string | undefined) ?? null,
   };
 }
+
+// Remembered calendar lookups (see CACHE_TTL_MS).
+const calendarCache = new Map<string, { at: number; fares: Record<string, Fare> }>();
 
 // Phase 2: day-by-day cached fares for one origin/destination pair, all with
 // the same fixed stay length. `departDateParam` is either an exact
@@ -204,8 +269,16 @@ async function fetchCalendarFares(
   currency: string,
   departDateParam: string,
   lengthOfStay: number,
-  token: string
+  token: string,
+  stats: CallStats
 ): Promise<Record<string, Fare>> {
+  const cacheKey = [origin, destination, currency, departDateParam, lengthOfStay].join("|");
+  const hit = calendarCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    stats.cached++;
+    return hit.fares;
+  }
+
   const params = new URLSearchParams({
     origin,
     destination,
@@ -215,14 +288,11 @@ async function fetchCalendarFares(
     length: String(lengthOfStay),
     token,
   });
+  const json = await getJson(`https://api.travelpayouts.com/v1/prices/calendar?${params}`, stats);
+  if (!json) return {}; // failed (already counted) — not cached, so a retry can succeed later
 
-  try {
-    const response = await fetch(`https://api.travelpayouts.com/v1/prices/calendar?${params}`);
-    if (!response.ok) return {};
-    const json = await response.json();
-    if (json.success === false || !json.data) return {};
-
-    const fares: Record<string, Fare> = {};
+  const fares: Record<string, Fare> = {};
+  if (json.success !== false && json.data) {
     for (const [date, entry] of Object.entries(json.data as Record<string, Record<string, unknown>>)) {
       if (!entry || typeof entry.price !== "number") continue;
       fares[date] = {
@@ -232,11 +302,9 @@ async function fetchCalendarFares(
         transfers: typeof entry.transfers === "number" ? entry.transfers : 0,
       };
     }
-    return fares;
-  } catch {
-    // A single failed calendar call shouldn't take down the whole search.
-    return {};
   }
+  calendarCache.set(cacheKey, { at: Date.now(), fares });
+  return fares;
 }
 
 /* ---------------------------------------------------------------------------
@@ -266,24 +334,26 @@ function upcomingMonths(count: number): string[] {
 }
 
 type SearchOptions =
-  | { mode: "specific"; departDate: string; nights: number }
-  | { mode: "flexible"; nights: number; weekendOnly: boolean };
+  | { mode: "specific"; departDate: string }
+  | { mode: "flexible"; weekendOnly: boolean };
 
-// All cached departure-day fares for one origin/destination pair, given the
-// search mode (narrowed to Fri/Sat departures for weekend trips).
+// All cached departure-day fares for one origin/destination pair and stay
+// length, given the search mode (narrowed to Fri/Sat departures for weekends).
 async function faresForOriginDestination(
   origin: string,
   destination: string,
   currency: string,
   token: string,
-  options: SearchOptions
+  options: SearchOptions,
+  length: number,
+  stats: CallStats
 ): Promise<Record<string, Fare>> {
   if (options.mode === "specific") {
-    return await fetchCalendarFares(origin, destination, currency, options.departDate, options.nights, token);
+    return await fetchCalendarFares(origin, destination, currency, options.departDate, length, token, stats);
   }
   const perMonth = await Promise.all(
     upcomingMonths(FLEXIBLE_SEARCH_MONTHS).map((month) =>
-      fetchCalendarFares(origin, destination, currency, month, options.nights, token)
+      fetchCalendarFares(origin, destination, currency, month, length, token, stats)
     )
   );
   let fares: Record<string, Fare> = Object.assign({}, ...perMonth);
@@ -398,6 +468,8 @@ Deno.serve(async (req) => {
   }
 
   const jsonHeaders = { ...CORS_HEADERS, "Content-Type": "application/json" };
+  const fail = (message: string, status = 400) => new Response(JSON.stringify({ error: message }), { status, headers: jsonHeaders });
+  const startedAt = Date.now();
 
   try {
     const url = new URL(req.url);
@@ -408,171 +480,173 @@ Deno.serve(async (req) => {
     const debugOn = url.searchParams.get("debug") === "1";
     const gapParam = url.searchParams.get("maxGapHours");
     const maxGapHours = gapParam === null ? DEFAULT_MAX_GAP_HOURS : Number(gapParam);
+    const flexNights = Math.min(2, Math.max(0, Number(url.searchParams.get("flexNights") ?? "0") || 0));
 
-    if (!originA || !originB) {
-      return new Response(JSON.stringify({ error: "originA and originB query parameters are required" }), {
-        status: 400,
-        headers: jsonHeaders,
-      });
-    }
-    if (!Number.isFinite(maxGapHours)) {
-      return new Response(JSON.stringify({ error: "maxGapHours must be a number (0 = no limit)" }), {
-        status: 400,
-        headers: jsonHeaders,
-      });
-    }
+    if (!originA || !originB) return fail("originA and originB query parameters are required");
+    if (!Number.isFinite(maxGapHours)) return fail("maxGapHours must be a number (0 = no limit)");
 
     const token = Deno.env.get("TRAVELPAYOUTS_TOKEN");
-    if (!token) {
-      return new Response(
-        JSON.stringify({ error: "Server is missing TRAVELPAYOUTS_TOKEN — add it under Edge Function Secrets" }),
-        { status: 500, headers: jsonHeaders }
-      );
-    }
+    if (!token) return fail("Server is missing TRAVELPAYOUTS_TOKEN — add it under Edge Function Secrets", 500);
 
     let searchOptions: SearchOptions;
+    let baseNights: number;
     if (mode === "specific") {
       const departDate = url.searchParams.get("departDate");
       const returnDate = url.searchParams.get("returnDate");
-      if (!departDate || !returnDate) {
-        return new Response(JSON.stringify({ error: "departDate and returnDate are required when mode=specific" }), {
-          status: 400,
-          headers: jsonHeaders,
-        });
-      }
-      const nights = Math.round((Date.parse(returnDate) - Date.parse(departDate)) / 86_400_000);
-      if (!Number.isFinite(nights) || nights < 1) {
-        return new Response(JSON.stringify({ error: "returnDate must be at least one day after departDate" }), {
-          status: 400,
-          headers: jsonHeaders,
-        });
-      }
-      searchOptions = { mode: "specific", departDate, nights };
+      if (!departDate || !returnDate) return fail("departDate and returnDate are required when mode=specific");
+      baseNights = Math.round((Date.parse(returnDate) - Date.parse(departDate)) / 86_400_000);
+      if (!Number.isFinite(baseNights) || baseNights < 1) return fail("returnDate must be at least one day after departDate");
+      searchOptions = { mode: "specific", departDate };
     } else {
-      const nights = Number(url.searchParams.get("nights") ?? "7");
-      if (!Number.isInteger(nights) || nights < 1 || nights > 30) {
-        return new Response(JSON.stringify({ error: "nights must be a whole number between 1 and 30" }), {
-          status: 400,
-          headers: jsonHeaders,
-        });
-      }
-      searchOptions = { mode: "flexible", nights, weekendOnly: url.searchParams.get("weekendOnly") === "true" };
+      baseNights = Number(url.searchParams.get("nights") ?? "7");
+      if (!Number.isInteger(baseNights) || baseNights < 1 || baseNights > 30) return fail("nights must be a whole number between 1 and 30");
+      searchOptions = { mode: "flexible", weekendOnly: url.searchParams.get("weekendOnly") === "true" };
     }
 
-    // Phase 1: broad, dateless candidate discovery (cheap — 2 calls total).
+    const callStats: CallStats = { calls: 0, cached: 0, failed: 0, retried: 0, statuses: {}, firstError: null };
+
+    // Phase 1: broad, dateless candidate discovery (2 calls).
     const [a, b] = await Promise.all([
-      fetchCheapestByDestination(originA, currency, token),
-      fetchCheapestByDestination(originB, currency, token),
+      fetchCheapestByDestination(originA, currency, token, callStats),
+      fetchCheapestByDestination(originB, currency, token, callStats),
     ]);
 
-    const candidates = Object.keys(a.prices)
+    const shared = Object.keys(a.prices)
       .filter((destination) => destination in b.prices)
       .map((destination) => ({ destination, baseline: a.prices[destination] + b.prices[destination] }))
       .sort((x, y) => x.baseline - y.baseline)
-      .slice(0, MAX_CANDIDATES);
+      .map((c) => c.destination);
 
-    // Names / coordinates / time zones for both origins and every candidate.
-    const places = await resolvePlaces([originA, originB, ...candidates.map((c) => c.destination)]);
+    const firstPass = shared.slice(0, FIRST_PASS_CANDIDATES);
+    const extraPass = shared.slice(FIRST_PASS_CANDIDATES, FIRST_PASS_CANDIDATES + EXTRA_CANDIDATES);
+
+    // Names / coordinates / time zones for both origins and every destination we may check.
+    const places = await resolvePlaces([originA, originB, ...firstPass, ...extraPass]);
     const placeA = places[originA];
     const placeB = places[originB];
 
-    // Phase 2: date-aware lookup, only for the cheapest candidates.
+    // Accumulators for the debug block.
     const totals = { sameDayPairs: 0, rejectedByGap: 0, withoutTimes: 0 };
-    let candidatesWithOriginAData = 0;
-    let candidatesWithOriginBData = 0;
+    const withDataA = new Set<string>();
+    const withDataB = new Set<string>();
     const samples: unknown[] = [];
+    const checked = new Set<string>();
+    const best = new Map<string, NonNullable<Awaited<ReturnType<typeof evaluate>>>>();
+    const stages: Array<{ stage: string; destinations: number; stayLengths: number[]; matchesAfter: number }> = [];
 
-    const matched = await Promise.all(
-      candidates.map(async ({ destination }) => {
-        const dest = places[destination];
-        const [faresA, faresB] = await Promise.all([
-          faresForOriginDestination(originA, destination, currency, token, searchOptions),
-          faresForOriginDestination(originB, destination, currency, token, searchOptions),
-        ]);
-        if (Object.keys(faresA).length > 0) candidatesWithOriginAData++;
-        if (Object.keys(faresB).length > 0) candidatesWithOriginBData++;
+    // One destination, one stay length -> the best matching day (or null).
+    async function evaluate(destination: string, length: number) {
+      const dest = places[destination];
+      const [faresA, faresB] = await Promise.all([
+        faresForOriginDestination(originA!, destination, currency, token!, searchOptions, length, callStats),
+        faresForOriginDestination(originB!, destination, currency, token!, searchOptions, length, callStats),
+      ]);
+      if (Object.keys(faresA).length > 0) withDataA.add(destination);
+      if (Object.keys(faresB).length > 0) withDataB.add(destination);
 
-        if (debugOn && samples.length < 8) {
-          for (const [who, fares] of [["A", faresA], ["B", faresB]] as const) {
-            const first = Object.entries(fares).slice(0, 2);
-            for (const [date, f] of first) samples.push({ who, destination, date, ...f });
-          }
+      if (debugOn && samples.length < 8) {
+        for (const [who, fares] of [["A", faresA], ["B", faresB]] as const) {
+          for (const [date, f] of Object.entries(fares).slice(0, 2)) samples.push({ who, destination, date, length, ...f });
         }
+      }
 
-        // Without coordinates / time zones we can't estimate times; fall back
-        // to the old behaviour (same day only, no time rule).
-        if (!placeA || !placeB || !dest) {
-          let cheapest: { date: string; total: number; priceA: number; priceB: number } | null = null;
-          for (const date in faresA) {
-            if (!(date in faresB)) continue;
-            const total = faresA[date].price + faresB[date].price;
-            if (!cheapest || total < cheapest.total) {
-              cheapest = { date, total, priceA: faresA[date].price, priceB: faresB[date].price };
-            }
-          }
-          if (!cheapest) return null;
-          return {
-            destination,
-            destinationName: destination,
-            country: "",
-            lat: null,
-            lon: null,
-            priceA: cheapest.priceA,
-            priceB: cheapest.priceB,
-            total: cheapest.total,
-            departDate: cheapest.date,
-            returnDate: addDays(cheapest.date, searchOptions.nights),
-            nights: searchOptions.nights,
-            a: null,
-            b: null,
-            arrivalGapHours: null,
-            returnGapHours: null,
-          };
+      // Without coordinates / time zones we can't estimate times; fall back to
+      // "same day only", no time rule.
+      if (!placeA || !placeB || !dest) {
+        let cheapest: { date: string; total: number; priceA: number; priceB: number } | null = null;
+        for (const date in faresA) {
+          if (!(date in faresB)) continue;
+          const total = faresA[date].price + faresB[date].price;
+          if (!cheapest || total < cheapest.total) cheapest = { date, total, priceA: faresA[date].price, priceB: faresB[date].price };
         }
-
-        const { best, stats } = bestPairing(faresA, faresB, placeA, placeB, dest, maxGapHours);
-        totals.sameDayPairs += stats.sameDayPairs;
-        totals.rejectedByGap += stats.rejectedByGap;
-        totals.withoutTimes += stats.withoutTimes;
-        if (!best) return null;
-
-        const leg = (origin: string, fare: Fare, d: ReturnType<typeof describeLeg>): Leg => ({
-          origin,
-          price: fare.price,
-          transfers: fare.transfers,
-          timesKnown: d.timesKnown,
-          outDepart: d.leg?.outDepart ?? null,
-          outArrive: d.leg?.outArrive ?? null,
-          outMinutes: d.minutes,
-          retDepart: d.leg?.retDepart ?? null,
-          retArrive: d.leg?.retArrive ?? null,
-          retMinutes: d.minutes,
-        });
-
+        if (!cheapest) return null;
         return {
           destination,
-          destinationName: dest.name,
-          country: dest.country,
-          lat: dest.lat,
-          lon: dest.lon,
-          priceA: best.fareA.price,
-          priceB: best.fareB.price,
-          total: best.total,
-          departDate: best.date,
-          returnDate: addDays(best.date, searchOptions.nights),
-          nights: searchOptions.nights,
-          a: leg(originA, best.fareA, best.a),
-          b: leg(originB, best.fareB, best.b),
-          arrivalGapHours: best.arrivalGapH,
-          returnGapHours: best.returnGapH,
+          destinationName: destination,
+          country: "",
+          lat: null as number | null,
+          lon: null as number | null,
+          priceA: cheapest.priceA,
+          priceB: cheapest.priceB,
+          total: cheapest.total,
+          departDate: cheapest.date,
+          returnDate: addDays(cheapest.date, length),
+          nights: length,
+          a: null as Leg | null,
+          b: null as Leg | null,
+          arrivalGapHours: null as number | null,
+          returnGapHours: null as number | null,
         };
-      })
-    );
+      }
 
-    const results = matched
-      .filter((result): result is NonNullable<typeof result> => result !== null)
-      .sort((x, y) => x.total - y.total);
+      const { best: pick, stats } = bestPairing(faresA, faresB, placeA, placeB, dest, maxGapHours);
+      totals.sameDayPairs += stats.sameDayPairs;
+      totals.rejectedByGap += stats.rejectedByGap;
+      totals.withoutTimes += stats.withoutTimes;
+      if (!pick) return null;
 
+      const leg = (origin: string, fare: Fare, d: ReturnType<typeof describeLeg>): Leg => ({
+        origin,
+        price: fare.price,
+        transfers: fare.transfers,
+        timesKnown: d.timesKnown,
+        outDepart: d.leg?.outDepart ?? null,
+        outArrive: d.leg?.outArrive ?? null,
+        outMinutes: d.minutes,
+        retDepart: d.leg?.retDepart ?? null,
+        retArrive: d.leg?.retArrive ?? null,
+        retMinutes: d.minutes,
+      });
+
+      return {
+        destination,
+        destinationName: dest.name,
+        country: dest.country,
+        lat: dest.lat as number | null,
+        lon: dest.lon as number | null,
+        priceA: pick.fareA.price,
+        priceB: pick.fareB.price,
+        total: pick.total,
+        departDate: pick.date,
+        returnDate: addDays(pick.date, length),
+        nights: length,
+        a: leg(originA!, pick.fareA, pick.a) as Leg | null,
+        b: leg(originB!, pick.fareB, pick.b) as Leg | null,
+        arrivalGapHours: pick.arrivalGapH as number | null,
+        returnGapHours: pick.returnGapH as number | null,
+      };
+    }
+
+    // Runs one stage: every destination x every stay length, keeping the cheapest match per destination.
+    async function runStage(stage: string, destinations: string[], lengths: number[]) {
+      destinations.forEach((d) => checked.add(d));
+      const jobs = destinations.flatMap((d) => lengths.map((length) => evaluate(d, length)));
+      for (const result of await Promise.all(jobs)) {
+        if (!result) continue;
+        const current = best.get(result.destination);
+        if (!current || result.total < current.total) best.set(result.destination, result);
+      }
+      stages.push({ stage, destinations: destinations.length, stayLengths: lengths, matchesAfter: best.size });
+    }
+    const timeLeft = () => Date.now() - startedAt < TIME_BUDGET_MS;
+
+    // Stage 1: the cheapest destinations, the exact stay length asked for.
+    await runStage("exact stay length", firstPass, [baseNights]);
+
+    // Stage 2 (flexible mode only): few matches? also try one night shorter / longer.
+    if (mode === "flexible" && flexNights > 0 && best.size < MIN_RESULTS && timeLeft()) {
+      const lengths: number[] = [];
+      for (let k = 1; k <= flexNights; k++) lengths.push(baseNights - k, baseNights + k);
+      const wanted = lengths.filter((n) => n >= 1 && n <= 30);
+      await runStage("stay length ± nights", firstPass.filter((d) => !best.has(d)), wanted);
+    }
+
+    // Stage 3: still few matches? look at more destinations (exact length only, to keep the number of calls down).
+    if (best.size < MIN_RESULTS && extraPass.length > 0 && timeLeft()) {
+      await runStage("more destinations", extraPass, [baseNights]);
+    }
+
+    const results = [...best.values()].sort((x, y) => x.total - y.total);
     const placeOut = (p: Place | null | undefined) => (p ? { code: p.code, name: p.name, country: p.country, lat: p.lat, lon: p.lon } : null);
 
     return new Response(
@@ -588,15 +662,20 @@ Deno.serve(async (req) => {
           originBOk: b.success,
           originBError: b.rawError,
           originBDestinationsFound: Object.keys(b.prices).length,
-          candidatesConsidered: candidates.length,
+          sharedDestinations: shared.length,
+          candidatesConsidered: checked.size,
           candidatesWithDateMatch: results.length,
-          candidatesWithOriginAData,
-          candidatesWithOriginBData,
+          candidatesWithOriginAData: withDataA.size,
+          candidatesWithOriginBData: withDataB.size,
           maxGapHours,
           sameDayPairs: totals.sameDayPairs,
           rejectedByTimeGap: totals.rejectedByGap,
           pairsWithoutTimes: totals.withoutTimes,
-          timesAreUtcAssumed: TIMES_ARE_UTC,
+          stages,
+          // How the calls to Travelpayouts went. `failed` > 0 means some data is
+          // missing because Travelpayouts didn't answer, NOT because no fares exist.
+          travelpayouts: callStats,
+          elapsedMs: Date.now() - startedAt,
           ...(debugOn ? { samples } : {}),
         },
       }),

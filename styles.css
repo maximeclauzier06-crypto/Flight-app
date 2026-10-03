@@ -168,6 +168,9 @@ button, input, select { font-family: inherit; }
 .date-row { display: flex; align-items: center; gap: 8px; }
 .date-row span { color: var(--soft); font-size: 13px; }
 .pop-hint { margin: 6px 0 0; color: var(--soft); font-size: 12px; }
+.check-option { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); cursor: pointer; }
+.check-option input { margin-top: 3px; accent-color: var(--accent); }
+.check-option small { color: var(--soft); font-weight: 600; }
 .pop-done { width: 100%; border: 0; border-radius: 14px; padding: 12px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; }
 
 /* ---------- Results: table (left) + globe (right) ---------- */
@@ -234,6 +237,13 @@ button, input, select { font-family: inherit; }
   display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 12px; padding: 9px 14px; cursor: pointer;
   background: var(--accent); color: #fff; font-size: 13px; font-weight: 800;
 }
+
+.warning {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 0 24px 16px; padding: 12px 16px; border-radius: 14px;
+  background: #FFF3E6; color: #7A4410; font-size: 13px; line-height: 1.45;
+}
+.warning button { flex-shrink: 0; border: 0; border-radius: 10px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff; font-size: 13px; font-weight: 800; }
 
 .state-message { padding: 36px 24px; color: var(--soft); font-size: 15px; line-height: 1.6; border-top: 1px solid var(--line); }
 .state-message.is-error { color: #A8431F; }

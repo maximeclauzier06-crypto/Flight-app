@@ -40,7 +40,8 @@ const state = {
   sort: "cheapest",  // cheapest | fastest | stops
   selected: null,    // destination code of the highlighted row
   maxGapHours: 3,    // the arrival/return time rule used by the last search
-  lastSearch: null,  // so a currency change can re-run the same search
+  debug: null,       // the function's report on the last search (counts, failures...)
+  lastSearch: null,  // so a currency change or "Try again" can re-run the same search
 };
 
 
@@ -237,6 +238,7 @@ function updateWhenFields() {
   $("specific-fields").hidden = !specific;
   $("flexible-fields").hidden = specific;
   $("custom-nights-field").hidden = specific || durationSelect.value !== "custom";
+  $("flex-nights-field").hidden = specific; // "±1 night" only makes sense with flexible dates
   $("when-summary").textContent = describeWhen();
 }
 
@@ -276,12 +278,13 @@ function collectSearchParams() {
     return { ...common, mode: "specific", departDate: departDateInput.value, returnDate: returnDateInput.value };
   }
 
-  if (durationSelect.value === "weekend") return { ...common, mode: "flexible", nights: "2", weekendOnly: "true" };
-  if (durationSelect.value === "week") return { ...common, mode: "flexible", nights: "7" };
+  const flexible = { ...common, mode: "flexible", flexNights: $("flex-nights").checked ? "1" : "0" };
+  if (durationSelect.value === "weekend") return { ...flexible, nights: "2", weekendOnly: "true" };
+  if (durationSelect.value === "week") return { ...flexible, nights: "7" };
 
   const nights = Number($("custom-nights").value);
   if (!Number.isInteger(nights) || nights < 1 || nights > 30) throw new Error("Enter a whole number of nights between 1 and 30.");
-  return { ...common, mode: "flexible", nights: String(nights) };
+  return { ...flexible, nights: String(nights) };
 }
 
 
@@ -332,6 +335,11 @@ function explainEmptyResult(debug, gapHours) {
     const reason = !debug.originAOk ? debug.originAError : debug.originBError;
     return `Travelpayouts rejected the request for ${esc(broken)}${reason ? ` (${esc(reason)})` : ""} — likely the token isn't set correctly in Edge Function Secrets.`;
   }
+  // Did Travelpayouts simply not answer? Then "no results" would be misleading.
+  const tp = debug.travelpayouts;
+  if (tp && tp.calls > 0 && tp.failed / tp.calls >= 0.1) {
+    return `The flight-data service didn't answer ${tp.failed} of ${tp.calls} requests. That is a temporary glitch, not proof that there are no flights — press <strong>Find destinations</strong> again in a moment.`;
+  }
   if (!debug.candidatesConsidered) {
     return `No overlap: ${esc(debug.originA)} found ${debug.originADestinationsFound} destinations, ${esc(debug.originB)} found ${debug.originBDestinationsFound}. Try two origins with more cached search volume, like STO and LON.`;
   }
@@ -348,7 +356,9 @@ function explainEmptyResult(debug, gapHours) {
 async function runSearch(codeA, codeB, params) {
   state.lastSearch = { codeA, codeB, params };
   state.maxGapHours = Number(params.maxGapHours);
-  showMessage("Searching…");
+  state.debug = null;
+  updateWarning();
+  showMessage("Searching… (this can take a few seconds)");
   searchButton.disabled = true;
 
   try {
@@ -364,6 +374,7 @@ async function runSearch(codeA, codeB, params) {
     state.origins = { a: pick(originAInput, "a"), b: pick(originBInput, "b") };
 
     state.results = json.results;
+    state.debug = json.debug;
     state.selected = null;
 
     if (json.results.length === 0) {
@@ -470,9 +481,30 @@ function renderTable() {
   rowsEl.innerHTML = list.map((r, i) => rowHtml(r, i, currency)).join("");
 
   const gapText = state.maxGapHours > 0 ? ` · arrivals and returns within ${state.maxGapHours}h of each other` : "";
-  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"} · same dates for both of you${gapText}`;
+  const d = state.debug;
+  const checkedText = d && d.sharedDestinations ? ` (checked ${d.candidatesConsidered} of the ${d.sharedDestinations} you can both reach)` : "";
+  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for both of you${gapText}`;
+  updateWarning();
   renderGlobe();
 }
+
+// A small notice when Travelpayouts didn't answer some requests, so a short
+// list isn't mistaken for "that's all there is".
+function updateWarning() {
+  const box = $("results-warning");
+  const tp = state.debug?.travelpayouts;
+  if (tp && tp.failed > 0 && state.results.length > 0) {
+    box.innerHTML = `<span>Heads-up: the flight-data service didn't answer ${tp.failed} of ${tp.calls} requests, so a few options may be missing.</span><button type="button" id="retry-search">Try again</button>`;
+    box.hidden = false;
+  } else {
+    box.innerHTML = "";
+    box.hidden = true;
+  }
+}
+
+$("results-warning").addEventListener("click", (event) => {
+  if (event.target.id === "retry-search" && state.lastSearch) runSearch(state.lastSearch.codeA, state.lastSearch.codeB, state.lastSearch.params);
+});
 
 function selectDestination(code) {
   if (code === state.selected) return;

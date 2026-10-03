@@ -107,6 +107,11 @@
                 </select>
               </div>
 
+              <label class="check-option" id="flex-nights-field">
+                <input type="checkbox" id="flex-nights" checked>
+                <span>If there are few options, also try 1 night shorter or longer <small>(finds more)</small></span>
+              </label>
+
               <div class="pop-field" id="custom-nights-field" hidden>
                 <label for="custom-nights">How many nights?</label>
                 <input type="number" id="custom-nights" min="1" max="30" value="5">
@@ -157,6 +162,9 @@
             <button type="button" class="chip" data-sort="stops">Fewest stops</button>
           </div>
         </div>
+
+        <!-- Shown when Travelpayouts didn't answer some requests (filled by app.js) -->
+        <div class="warning" id="results-warning" hidden></div>
 
         <div class="table-head">
           <span>#</span><span>Destination</span><span>Journeys</span><span class="right">Total</span>

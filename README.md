@@ -25,37 +25,47 @@ The page talks to the Supabase function below, so you need internet.
 
 1. **Phase 1 (broad):** the function asks Travelpayouts for each person's
    cheapest cached fare to every destination and keeps the destinations
-   you can both reach (the cheapest 15).
-2. **Phase 2 (dates):** for each, it looks day by day for a departure date
-   **both** of you have a cached fare for ("Flexible" scans the next
-   4 months; "Specific dates" checks just your dates).
+   you can both reach.
+2. **Phase 2 (dates):** for the 15 cheapest of those, it looks day by day for
+   a departure date **both** of you have a cached fare for ("Flexible" scans
+   the next 4 months; "Specific dates" checks just your dates).
 3. **The time rule:** among those days it keeps only the ones where your
    **arrival times** at the destination, and your **return-flight times**,
    are within **3 hours** of each other — so nobody waits alone for a day.
-   You can change the limit in the "When" pop-up (2h, 3h, 4h, 6h, or no
-   limit), and the default in `DEFAULT_MAX_GAP_HOURS` (server) and the
-   `selected` option of `#max-gap` (page).
+   Change the limit in the "When" pop-up (2h, 3h, 4h, 6h, or no limit), or
+   the default in `DEFAULT_MAX_GAP_HOURS` (server) / the `selected` option
+   of `#max-gap` (page).
+4. **Widening (only if fewer than 6 matches):** it also tries a stay one night
+   shorter/longer (the "±1 night" checkbox), then checks 25 more destinations.
+   Rows show the real number of nights, so a "full week" search can return 6,
+   7 or 8 nights.
+
+### Why you can get few results (or none)
+
+The free Travelpayouts data is a **cache of other people's past searches**.
+For a given route, stay length and day, there is often simply no cached fare,
+and you need one for *both* travelers on the *same* day. On top of that the
+time rule removes more. With the rule off, a Stockholm–Brussels week search
+typically has only a handful of usable days.
+
+A different problem is **failed calls**: Travelpayouts sometimes doesn't
+answer a request. The function now limits parallel calls, retries failures,
+and remembers answers for 30 minutes (while the function stays warm). If
+some calls still fail, the page says so ("the flight-data service didn't
+answer N of M requests") instead of pretending there are no flights. Add
+`&debug=1` to a request to see the full report (`debug.travelpayouts`,
+`debug.stages`, raw example fares).
 
 ### Important: arrival times are estimates
 
-The free Travelpayouts price data only contains each flight's **departure**
-time — no arrival time, no duration. So the function **estimates** flights
-times from the distance between the airports (plus ~2h per connection) and
-converts between time zones using Travelpayouts' free airport list. It is
-accurate enough for a "within 3 hours" rule (we checked: Stockholm–Dubai
-≈ 6h 40, Tokyo–Dubai ≈ 10h 45) but not exact, which is why the page shows
-`≈` in front of arrival times and durations. A live flight-search API
-would give exact times (see the memory notes on the API comparison).
-
-Travelpayouts says its fare times are UTC. If real data shows they are
-actually local clock times, flip `TIMES_ARE_UTC` at the top of the function
-(add `?debug=1` to a request to see raw example fares).
-
-### Other limits of the free data
-
-It is a *cache* of other people's past searches, so a rare route or a very
-specific date can come back empty even when flights exist. The page says
-why instead of just "nothing found".
+The free price data only contains each flight's **departure** time (with its
+UTC offset, e.g. `+02:00`) — no arrival time, no duration. So the function
+**estimates** flight times from the distance between the airports (plus ~2h
+per connection) and converts between time zones using Travelpayouts' free
+airport list. It is accurate enough for a "within 3 hours" rule (checked:
+Stockholm–Dubai ≈ 6h 40, Tokyo–Dubai ≈ 10h 45) but not exact, which is why
+the page shows `≈` in front of arrival times and durations. A live
+flight-search API would give exact times.
 
 ## Setting up the flight data
 
