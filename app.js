@@ -2,14 +2,15 @@
 // Flight Plan — the page's behaviour
 //
 // How it fits together:
-//   * You pick two airports (live autocomplete) and when you want to travel.
+//   * You pick two or more departures (live autocomplete, with how many people leave
+//     from each) and when you want to travel.
 //   * The page asks our small Supabase Edge Function (supabase/functions/
 //     search-flights) for matching destinations. That function holds the
 //     Travelpayouts token safely on the server — this file never sees it.
 //   * The results fill the table; the globe on the right shows the selected
 //     destination (geo.js draws the globe).
 //
-// Sections:  1 Settings · 2 Small helpers · 3 Airport autocomplete ·
+// Sections:  1 Settings · 2 Small helpers · 3 Airport autocomplete + 3b Departures ·
 //            4 Currency · 5 The "When" pop-up · 6 Searching ·
 //            7 The results table · 8 The globe
 // ---------------------------------------------------------------------------
@@ -36,7 +37,7 @@ const GLOBE_RADIUS = 210; // size of the globe window, in pixels
 // What the page remembers between actions.
 const state = {
   results: [],       // destinations returned by the last search
-  origins: null,     // { a: {label, lat, lon}, b: {...} }
+  origins: [],       // one { label, lat, lon, count } per departure of the last search
   sort: "cheapest",  // cheapest | fastest | stops
   selected: null,    // destination code of the highlighted row
   maxGapHours: 3,    // the arrival/return time rule used by the last search
@@ -179,10 +180,90 @@ function setupAutocomplete(input, list) {
   input.addEventListener("blur", () => setTimeout(close, 100));
 }
 
-const originAInput = $("origin-a");
-const originBInput = $("origin-b");
-setupAutocomplete(originAInput, $("origin-a-suggestions"));
-setupAutocomplete(originBInput, $("origin-b-suggestions"));
+// ===========================================================================
+// 3b. THE DEPARTURES (2 to 8 cells in the search bar)
+// ===========================================================================
+
+const MAX_ORIGINS = 8;
+const originsEl = $("origins");
+let originCounter = 0;
+
+const PERSON_ICON =
+  '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="3.5" r="2.2" fill="currentColor"></circle><path d="M1.8 10.6c.4-2.3 2.1-3.4 4.2-3.4s3.8 1.1 4.2 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"></path></svg>';
+
+// The "+ Add a departure" cell always sits last.
+originsEl.insertAdjacentHTML(
+  "beforeend",
+  `<div class="origin-cell origin-add"><button type="button" class="add-departure" id="add-departure">+ Add a departure <small id="add-departure-note"></small></button></div>`
+);
+
+function addOrigin() {
+  const id = ++originCounter;
+  const cell = document.createElement("div");
+  cell.className = "origin-cell";
+  cell.dataset.count = "1";
+  cell.innerHTML = `
+    <div class="origin-head">
+      <label for="origin-${id}"></label>
+      <div class="origin-tools">
+        <span class="people" title="How many people leave from here">
+          ${PERSON_ICON}
+          <button type="button" class="people-btn" data-delta="-1" aria-label="Fewer people">−</button>
+          <span class="people-count">1</span>
+          <button type="button" class="people-btn" data-delta="1" aria-label="More people">+</button>
+        </span>
+        <button type="button" class="origin-remove" aria-label="Remove this departure" title="Remove this departure">×</button>
+      </div>
+    </div>
+    <input type="text" id="origin-${id}" placeholder="City or airport" autocomplete="off" required>
+    <ul class="suggestions" role="listbox"></ul>`;
+  originsEl.insertBefore(cell, originsEl.querySelector(".origin-add"));
+  setupAutocomplete(cell.querySelector("input"), cell.querySelector(".suggestions"));
+  refreshOrigins();
+  return cell;
+}
+
+// Re-number the labels, hide "×" on the first two, and hide "+ Add" at the maximum.
+function refreshOrigins() {
+  const cells = [...originsEl.querySelectorAll(".origin-cell:not(.origin-add)")];
+  cells.forEach((cell, i) => {
+    cell.querySelector("label").textContent = i === 0 ? "Your airport" : i === 1 ? "Their airport" : `Departure ${i + 1}`;
+    cell.querySelector(".origin-remove").hidden = i < 2;
+  });
+  originsEl.querySelector(".origin-add").hidden = cells.length >= MAX_ORIGINS;
+  $("add-departure-note").textContent = `(${cells.length}/${MAX_ORIGINS})`;
+}
+
+originsEl.addEventListener("click", (event) => {
+  const cell = event.target.closest(".origin-cell");
+  if (event.target.closest("#add-departure")) {
+    addOrigin().querySelector("input").focus();
+  } else if (event.target.closest(".origin-remove")) {
+    cell.remove();
+    refreshOrigins();
+  } else if (event.target.closest(".people-btn")) {
+    const count = Math.min(9, Math.max(1, Number(cell.dataset.count) + Number(event.target.closest(".people-btn").dataset.delta)));
+    cell.dataset.count = String(count);
+    cell.querySelector(".people-count").textContent = String(count);
+  }
+});
+
+// What the visitor typed/picked, one entry per departure.
+function readDepartures() {
+  return [...originsEl.querySelectorAll(".origin-cell:not(.origin-add)")].map((cell) => {
+    const input = cell.querySelector("input[type=text]");
+    return {
+      code: input.dataset.code,
+      label: input.dataset.label || input.value,
+      lat: Number(input.dataset.lat) || null,
+      lon: Number(input.dataset.lon) || null,
+      count: Number(cell.dataset.count) || 1,
+    };
+  });
+}
+
+addOrigin();
+addOrigin();
 
 
 // ===========================================================================
@@ -217,8 +298,7 @@ currencySelect.value = detectDefaultCurrency();
 // flight-data calls.)
 currencySelect.addEventListener("change", () => {
   if (!state.lastSearch) return;
-  const params = { ...state.lastSearch.params, currency: currencySelect.value };
-  runSearch(state.lastSearch.codeA, state.lastSearch.codeB, params);
+  runSearch(state.lastSearch.origins, { ...state.lastSearch.params, currency: currencySelect.value });
 });
 
 
@@ -304,9 +384,13 @@ function showMessage(html, isError = false) {
   rowsEl.innerHTML = `<div class="state-message${isError ? " is-error" : ""}">${html}</div>`;
 }
 
-// Calls the Edge Function and returns { results, origins, debug }.
-async function callSearchFunction(codeA, codeB, params) {
-  const query = new URLSearchParams({ originA: codeA, originB: codeB, ...params });
+// Calls the Edge Function and returns { results, currency, origins, debug }.
+async function callSearchFunction(origins, params) {
+  const query = new URLSearchParams({
+    origins: origins.map((o) => o.code).join(","),
+    counts: origins.map((o) => o.count).join(","),
+    ...params,
+  });
   const response = await fetch(`${SEARCH_FUNCTION_URL}?${query}`, {
     // Supabase requires these on every call to an Edge Function.
     headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
@@ -326,7 +410,7 @@ async function callSearchFunction(codeA, codeB, params) {
   if (!response.ok) throw new Error(`Request rejected: ${json.message || json.msg || json.error || `HTTP ${response.status}`}`);
   if (json.error) throw new Error(json.error);
   if (!Array.isArray(json.results)) throw new Error("The server replied, but without a results list — the function may not be deployed correctly.");
-  if (json.results.length > 0 && !("a" in json.results[0])) {
+  if (json.results.length > 0 && !("travelers" in json.results[0])) {
     throw new Error("The deployed search-flights function is running older code — redeploy supabase/functions/search-flights/index.ts in your Supabase dashboard.");
   }
   return json;
@@ -335,35 +419,39 @@ async function callSearchFunction(codeA, codeB, params) {
 // Turns the function's `debug` block into a plain-English reason for "nothing found".
 function explainEmptyResult(debug, gapHours) {
   if (!debug) return "No shared destinations found.";
-  if (!debug.originAOk || !debug.originBOk) {
-    const broken = !debug.originAOk ? debug.originA : debug.originB;
-    const reason = !debug.originAOk ? debug.originAError : debug.originBError;
-    return `Travelpayouts rejected the request for ${esc(broken)}${reason ? ` (${esc(reason)})` : ""} — likely the token isn't set correctly in Edge Function Secrets.`;
+  const reports = debug.originReports ?? [];
+  const n = debug.travelerCount ?? reports.length;
+
+  const broken = reports.find((r) => !r.ok);
+  if (broken) {
+    return `Travelpayouts rejected the request for ${esc(broken.code)}${broken.error ? ` (${esc(broken.error)})` : ""} — likely the token isn't set correctly in Edge Function Secrets.`;
   }
   // Is Travelpayouts rate-limiting us? Then "no results" would be misleading.
   if (debug.rateLimited) {
     return `The flight-data service is limiting how many requests we can make (too many in a short time). This is temporary — wait about a minute, then <button type="button" id="retry-search" class="inline-retry">try again</button>. Searches get faster and use fewer requests as the server remembers more answers.`;
   }
-  // Did Travelpayouts simply not answer? Then "no results" would be misleading.
+  // Did Travelpayouts simply not answer?
   const tp = debug.travelpayouts;
   if (tp && tp.calls > 0 && tp.failed / tp.calls >= 0.1) {
     return `The flight-data service didn't answer ${tp.failed} of ${tp.calls} requests. That is a temporary glitch, not proof that there are no flights — press <strong>Find destinations</strong> again in a moment.`;
   }
   if (!debug.candidatesConsidered) {
-    return `No overlap: ${esc(debug.originA)} found ${debug.originADestinationsFound} destinations, ${esc(debug.originB)} found ${debug.originBDestinationsFound}. Try two origins with more cached search volume, like STO and LON.`;
+    const counts = reports.map((r) => `${esc(r.code)}: ${r.destinations}`).join(", ");
+    return `No destination is reachable from all ${n} departures (cached routes found — ${counts}). Try a bigger city or a different airport for one of them.`;
   }
   if (debug.rejectedByTimeGap > 0 && gapHours > 0) {
-    return `There are ${debug.rejectedByTimeGap} dates where you both have a fare, but your arrival or return times are more than ${gapHours} hours apart. Open <strong>When</strong> and allow a bigger gap, or try other dates.`;
+    return `There are ${debug.rejectedByTimeGap} dates where everyone has a fare, but the arrival or return times are more than ${gapHours} hours apart. Open <strong>When</strong> and allow a bigger gap, or try other dates.`;
   }
-  const foundNeither = !debug.candidatesWithOriginAData && !debug.candidatesWithOriginBData;
-  const hint = foundNeither
-    ? "Travelpayouts has no cached fares at all for that stay length on either side — try a different trip length."
-    : "Both sides have some cached fares, they just never land on the same day — try a more common trip length (a full week tends to have more cached data than an odd number of nights).";
-  return `Found ${debug.candidatesConsidered} destination${debug.candidatesConsidered === 1 ? "" : "s"} you can both reach, but no cached fare matches your dates. ${hint}`;
+  const foundNone = reports.every((r) => !r.destinationsWithFares);
+  const hint = foundNone
+    ? "Travelpayouts has no cached fares at all for that stay length — try a different trip length."
+    : "Everyone has some cached fares, they just never land on the same day — try a more common trip length (a full week tends to have more cached data than an odd number of nights).";
+  const groupHint = n >= 3 ? ` With ${n} departures it is much harder for everyone to have a cached fare on the same day; fewer departures, or the ±1 night option, usually helps.` : "";
+  return `Found ${debug.candidatesConsidered} destination${debug.candidatesConsidered === 1 ? "" : "s"} everyone can reach, but no cached fare matches your dates. ${hint}${groupHint}`;
 }
 
-async function runSearch(codeA, codeB, params) {
-  state.lastSearch = { codeA, codeB, params };
+async function runSearch(origins, params) {
+  state.lastSearch = { origins, params };
   state.maxGapHours = Number(params.maxGapHours);
   state.debug = null;
   updateWarning();
@@ -371,17 +459,13 @@ async function runSearch(codeA, codeB, params) {
   searchButton.disabled = true;
 
   try {
-    const json = await callSearchFunction(codeA, codeB, params);
+    const json = await callSearchFunction(origins, params);
 
-    // Names and positions for the two starting points (for the globe's labels).
-    const fromServer = (side) => json.origins?.[side] ?? {};
-    const pick = (input, side) => ({
-      label: input.dataset.label || fromServer(side).name || input.value,
-      lat: Number(input.dataset.lat) || fromServer(side).lat,
-      lon: Number(input.dataset.lon) || fromServer(side).lon,
+    // Names and positions for the departures (for the table and the globe's labels).
+    state.origins = origins.map((o, i) => {
+      const server = json.origins?.[i] ?? {};
+      return { label: o.label || server.name || o.code, lat: o.lat ?? server.lat, lon: o.lon ?? server.lon, count: o.count };
     });
-    state.origins = { a: pick(originAInput, "a"), b: pick(originBInput, "b") };
-
     state.results = json.results;
     state.debug = json.debug;
     state.currency = json.currency || params.currency; // what the prices are really in
@@ -404,9 +488,11 @@ async function runSearch(codeA, codeB, params) {
 
 $("search-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const codeA = originAInput.dataset.code;
-  const codeB = originBInput.dataset.code;
-  if (!codeA || !codeB) return showMessage("Pick an airport or city from the dropdown for both fields.", true);
+  const departures = readDepartures();
+  if (departures.some((d) => !d.code)) return showMessage("Pick an airport or city from the dropdown for every departure (or remove the empty one with ×).", true);
+  if (new Set(departures.map((d) => d.code)).size !== departures.length) {
+    return showMessage("Two departures are the same place. For several travellers leaving from one place, use the people counter on that departure instead.", true);
+  }
 
   let params;
   try {
@@ -415,7 +501,7 @@ $("search-form").addEventListener("submit", (event) => {
     return showMessage(esc(error.message), true);
   }
   setWhenOpen(false);
-  runSearch(codeA, codeB, params);
+  runSearch(departures, params);
 });
 
 
@@ -424,8 +510,9 @@ $("search-form").addEventListener("submit", (event) => {
 // ===========================================================================
 
 const BIG = 1e9;
-const travelMinutes = (r) => (r.a && r.b ? r.a.outMinutes + r.b.outMinutes : BIG);
-const stopCount = (r) => (r.a && r.b ? r.a.transfers + r.b.transfers : BIG);
+const sumOver = (r, field) => r.travelers.reduce((total, t) => total + t[field], 0);
+const travelMinutes = (r) => (r.travelers.every((t) => t.timesKnown) ? sumOver(r, "outMinutes") : BIG);
+const stopCount = (r) => sumOver(r, "transfers");
 
 function sortedResults() {
   const list = [...state.results];
@@ -437,16 +524,17 @@ function sortedResults() {
 
 const TAG_FOR_SORT = { cheapest: "CHEAPEST", fastest: "FASTEST", stops: "FEWEST STOPS" };
 
-// One traveller's block inside a row: price, duration, stops, flight times.
-function travelerHtml(kind, cityLabel, leg, price, currency) {
-  const you = kind === "you";
-  const head = `<span class="dot ${you ? "dot-you" : "dot-them"}"></span><span class="who">${you ? "You" : "Them"} · ${esc(cityLabel)}</span><span class="traveler-price">${formatPrice(price, currency)}</span>`;
-  if (!leg) return `<div class="traveler"><div class="traveler-head">${head}</div><div class="times">Flight details not available</div></div>`;
+// One traveller's block inside a row: who, price, duration, stops, flight times.
+function travelerHtml(leg, index, info, totalTravelers, currency) {
+  const name = index === 0 ? `You · ${info.label}` : totalTravelers === 2 ? `Them · ${info.label}` : info.label;
+  const price =
+    leg.count > 1
+      ? `<span class="traveler-price">${formatPrice(leg.subtotal, currency)}</span><span class="traveler-sub">${leg.count} × ${formatPrice(leg.price, currency)}</span>`
+      : `<span class="traveler-price">${formatPrice(leg.price, currency)}</span>`;
+  const head = `<span class="dot dot-${index % 8}"></span><span class="who">${esc(name)}</span>${price}`;
 
-  const meta = leg.timesKnown
-    ? `<span class="traveler-meta">· ≈${durationLabel(leg.outMinutes)} · <span class="${leg.transfers === 0 ? "direct" : ""}">${stopsLabel(leg.transfers)}</span></span>`
-    : `<span class="traveler-meta">· <span class="${leg.transfers === 0 ? "direct" : ""}">${stopsLabel(leg.transfers)}</span></span>`;
-
+  const stops = `<span class="${leg.transfers === 0 ? "direct" : ""}">${stopsLabel(leg.transfers)}</span>`;
+  const meta = leg.timesKnown ? `<span class="traveler-meta">· ≈${durationLabel(leg.outMinutes)} · ${stops}</span>` : `<span class="traveler-meta">· ${stops}</span>`;
   const times = leg.timesKnown
     ? `Out <strong>${hhmm(leg.outDepart)} → ≈${hhmm(leg.outArrive)}</strong>${dayShiftMarker(leg.outDepart, leg.outArrive)} · Back <strong>${hhmm(leg.retDepart)} → ≈${hhmm(leg.retArrive)}</strong>${dayShiftMarker(leg.retDepart, leg.retArrive)}`
     : "Flight times not available for this fare";
@@ -455,9 +543,13 @@ function travelerHtml(kind, cityLabel, leg, price, currency) {
 }
 
 function rowHtml(r, index, currency) {
+  const n = r.travelers.length;
+  const people = r.travelers.reduce((total, t) => total + t.count, 0);
   const gapNote =
     r.arrivalGapHours != null
-      ? `<div class="gap-note">Your arrivals are <b>≈${hoursLabel(r.arrivalGapHours)}</b> apart · your return flights <b>≈${hoursLabel(r.returnGapHours)}</b> apart</div>`
+      ? n === 2
+        ? `<div class="gap-note">Your arrivals are <b>≈${hoursLabel(r.arrivalGapHours)}</b> apart · your return flights <b>≈${hoursLabel(r.returnGapHours)}</b> apart</div>`
+        : `<div class="gap-note">Everyone arrives within <b>≈${hoursLabel(r.arrivalGapHours)}</b> of each other · return flights within <b>≈${hoursLabel(r.returnGapHours)}</b></div>`
       : "";
   const selected = r.destination === state.selected;
 
@@ -471,13 +563,12 @@ function rowHtml(r, index, currency) {
         <div class="dest-meta"><span class="code-chip">${esc(r.destination)}</span><span>${r.nights} night${r.nights === 1 ? "" : "s"}</span>${index === 0 ? `<span class="tag">${TAG_FOR_SORT[state.sort]}</span>` : ""}</div>
       </div>
       <div class="journeys">
-        ${travelerHtml("you", state.origins.a.label, r.a, r.priceA, currency)}
-        ${travelerHtml("them", state.origins.b.label, r.b, r.priceB, currency)}
+        ${r.travelers.map((leg, i) => travelerHtml(leg, i, state.origins[i], n, currency)).join("")}
         ${gapNote}
       </div>
       <div class="total-cell">
         <div class="total">${formatPrice(r.total, currency)}</div>
-        <div class="total-sub">both of you</div>
+        <div class="total-sub">${people === 2 ? "both of you" : `${people} travellers`}</div>
         <span class="select-btn">Select</span>
       </div>
     </div>`;
@@ -487,14 +578,13 @@ function renderTable() {
   const list = sortedResults();
   if (!list.some((r) => r.destination === state.selected)) state.selected = list[0].destination;
 
-  const currency = state.currency;
-  rowsEl.innerHTML = list.map((r, i) => rowHtml(r, i, currency)).join("");
+  rowsEl.innerHTML = list.map((r, i) => rowHtml(r, i, state.currency)).join("");
 
   const gapText = state.maxGapHours > 0 ? ` · arrivals and returns within ${state.maxGapHours}h of each other` : "";
   const d = state.debug;
-  const checkedText = d && d.sharedDestinations ? ` (checked ${d.candidatesConsidered} of the ${d.sharedDestinations} you can both reach)` : "";
+  const checkedText = d && d.sharedDestinations ? ` (checked ${d.candidatesConsidered} of the ${d.sharedDestinations} everyone can reach)` : "";
   const currencyText = d && d.currencyConverted === false ? " · prices shown in USD (exchange rates unavailable)" : "";
-  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for both of you${gapText}${currencyText}`;
+  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for everyone${gapText}${currencyText}`;
   updateWarning();
   renderGlobe();
 }
@@ -518,7 +608,7 @@ function updateWarning() {
 
 // "Try again" buttons (in the warning, or inside a "nothing found" message)
 document.addEventListener("click", (event) => {
-  if (event.target.id === "retry-search" && state.lastSearch) runSearch(state.lastSearch.codeA, state.lastSearch.codeB, state.lastSearch.params);
+  if (event.target.id === "retry-search" && state.lastSearch) runSearch(state.lastSearch.origins, state.lastSearch.params);
 });
 
 function selectDestination(code) {
@@ -553,45 +643,62 @@ $("sort-chips").addEventListener("click", (event) => {
 // 8. THE GLOBE
 // ===========================================================================
 
+// Pin and flight-path colours for each departure on the dark globe
+// (the table uses the matching --c0 ... --c7 colours from styles.css).
+const GLOBE_COLORS = ["#FFFFFF", "#FFC9A8", "#9BE7D0", "#F9A8D4", "#A5B4FC", "#FDE68A", "#86EFAC", "#FCA5A5"];
+
 function renderGlobe() {
   const svg = $("globe");
   const labelsEl = $("globe-labels");
   const R = GLOBE_RADIUS;
 
   const selected = state.results.find((r) => r.destination === state.selected);
-  const a = state.origins?.a;
-  const b = state.origins?.b;
-  const havePlaces = selected && a && b && [a.lat, a.lon, b.lat, b.lon, selected.lat, selected.lon].every((n) => Number.isFinite(n));
+  const origins = state.origins ?? [];
+  const havePlaces =
+    selected && origins.length > 0 && origins.every((o) => Number.isFinite(o.lat) && Number.isFinite(o.lon)) && Number.isFinite(selected.lat) && Number.isFinite(selected.lon);
 
   // No search yet (or no positions): a calm empty globe over the Atlantic.
-  const points = havePlaces ? [a, b, { lat: selected.lat, lon: selected.lon }] : [];
-  const g = Geo.createGlobe(points, R, havePlaces ? null : { lat: 35, lon: -30 });
+  const dest = havePlaces ? { lat: selected.lat, lon: selected.lon } : null;
+  const g = Geo.createGlobe(havePlaces ? [...origins, dest] : [], R, havePlaces ? null : { lat: 35, lon: -30 });
   const { cx, cy } = g;
 
   let overlay = "";
   let labels = "";
   if (havePlaces) {
-    const dest = { lat: selected.lat, lon: selected.lon };
-    const pa = g.project(a.lat, a.lon);
-    const pb = g.project(b.lat, b.lon);
     const pd = g.project(dest.lat, dest.lon);
+    const pins = origins.map((o, i) => ({ o, i, p: g.project(o.lat, o.lon), color: GLOBE_COLORS[i % 8] }));
 
-    overlay += `<path d="${g.arc(a, dest)}" stroke="#FFC9A8" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none"></path>`;
-    overlay += `<path d="${g.arc(b, dest)}" stroke="#FFC9A8" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none"></path>`;
+    // Flight paths first (under the pins), then the pins.
+    for (const { o, color } of pins) {
+      overlay += `<path d="${g.arc(o, dest)}" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none" opacity="0.95"></path>`;
+    }
+    for (const { p, color } of pins) {
+      if (!p.visible) continue;
+      overlay += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="17" fill="none" stroke="${color}" stroke-width="2" opacity="0.5"></circle><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="${color}" stroke="#5B3FA8" stroke-width="3"></circle>`;
+    }
+    if (pd.visible) {
+      overlay += `<circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="40" fill="#FFC9A8" opacity="0.14"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="25" fill="#FFC9A8" opacity="0.28"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="10" fill="#FFC9A8" stroke="#fff" stroke-width="3"></circle>`;
+    }
 
-    const origin = (p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="17" fill="none" stroke="#fff" stroke-width="2" opacity="0.5"></circle><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="#fff" stroke="#5B3FA8" stroke-width="3"></circle>`;
-    const meeting = (p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="40" fill="#FFC9A8" opacity="0.14"></circle><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="25" fill="#FFC9A8" opacity="0.28"></circle><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="10" fill="#FFC9A8" stroke="#fff" stroke-width="3"></circle>`;
-    if (pa.visible) overlay += origin(pa);
-    if (pb.visible) overlay += origin(pb);
-    if (pd.visible) overlay += meeting(pd);
-
-    // Labels: the left-most traveller's label goes left, the other goes right.
-    const leftFirst = pa.x <= pb.x;
-    const label = (p, text, transform, dx, dy, extraClass = "") =>
-      p.visible ? `<div class="globe-label${extraClass}" style="left:${(p.x + dx).toFixed(0)}px;top:${(p.y + dy).toFixed(0)}px;transform:${transform}">${esc(text)}</div>` : "";
-    labels += label(pa, `${a.label} · You`, leftFirst ? "translate(-100%,-50%)" : "translate(0,-50%)", leftFirst ? -20 : 20, 0);
-    labels += label(pb, `${b.label} · Them`, leftFirst ? "translate(0,-50%)" : "translate(-100%,-50%)", leftFirst ? 20 : -20, 0);
-    labels += label(pd, `${selected.destinationName} — meet here`, "translate(-50%,0)", 0, 30, " is-dest");
+    // Labels: pins left of the meeting point get their label on the left, the
+    // others on the right; labels on the same side are nudged apart so they don't overlap.
+    const place = (side) => {
+      const group = pins.filter((pin) => pin.p.visible && (pin.p.x <= pd.x) === (side === "left")).sort((a, b) => a.p.y - b.p.y);
+      let lastY = -999;
+      for (const pin of group) {
+        const y = Math.max(pin.p.y, lastY + 32);
+        lastY = y;
+        const name = pin.i === 0 ? `${pin.o.label} · You` : pins.length === 2 ? `${pin.o.label} · Them` : pin.o.label;
+        const text = pin.o.count > 1 ? `${name} ×${pin.o.count}` : name;
+        const transform = side === "left" ? "translate(-100%,-50%)" : "translate(0,-50%)";
+        labels += `<div class="globe-label" style="left:${(pin.p.x + (side === "left" ? -20 : 20)).toFixed(0)}px;top:${y.toFixed(0)}px;transform:${transform}">${esc(text)}</div>`;
+      }
+    };
+    place("left");
+    place("right");
+    if (pd.visible) {
+      labels += `<div class="globe-label is-dest" style="left:${pd.x.toFixed(0)}px;top:${(pd.y + 30).toFixed(0)}px;transform:translate(-50%,0)">${esc(selected.destinationName)} — meet here</div>`;
+    }
   }
 
   // A thin orbit ring behind the globe, a satellite dot, then the globe itself.

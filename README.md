@@ -1,8 +1,10 @@
 # Flight Plan (v1 — local prototype)
 
-Type in two airports (yours and someone else's) and get a ranked list of
-places you could both fly to **on the same dates**, cheapest first — with
-flight times for each of you and a globe showing where you'd meet.
+Add two or more departures (yours, a partner's, friends', family's — up to 8,
+with how many people leave from each) and get a ranked list of places you could
+all fly to **on the same dates**, cheapest first — with flight times for each
+traveller and a globe, which stays in view as you scroll the results, showing
+where everyone would meet.
 
 The look is the "Lilac Dusk" design.
 
@@ -17,22 +19,22 @@ The page talks to the Supabase function below, so you need internet.
 |---|---|---|
 | `index.html` | The page structure | Texts, headline, labels |
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-1`, `--accent`, `--peach`...). Change them and the whole site follows. |
-| `app.js` | The behaviour: autocomplete, the "When" pop-up, the search, the table, the globe | Settings are in section 1 at the top |
+| `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the table, the globe | Settings are in section 1 at the top |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
 | `geo.js` | Draws the dot-matrix globe (rough land outlines, no map library) | Rarely needs changes |
 | `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | `DEFAULT_MAX_GAP_HOURS`, `MAX_CANDIDATES`, `FLEXIBLE_SEARCH_MONTHS` at the top |
 
 ## How a search works
 
-1. **Phase 1 (broad):** the function asks Travelpayouts for each person's
+1. **Phase 1 (broad):** the function asks Travelpayouts for each departure's
    cheapest cached fare to every destination and keeps the destinations
-   you can both reach.
+   **everyone** can reach.
 2. **Phase 2 (dates):** for the 15 cheapest of those, it looks day by day for
-   a departure date **both** of you have a cached fare for ("Flexible" scans
+   a departure date **all** of you have a cached fare for ("Flexible" scans
    the next 4 months; "Specific dates" checks just your dates).
-3. **The time rule:** among those days it keeps only the ones where your
-   **arrival times** at the destination, and your **return-flight times**,
-   are within **3 hours** of each other — so nobody waits alone for a day.
+3. **The time rule:** among those days it keeps only the ones where everyone's
+   **arrival times** at the destination, and everyone's **return-flight
+   times**, are within **3 hours** of each other (latest minus earliest) — so nobody waits alone for a day.
    Change the limit in the "When" pop-up (2h, 3h, 4h, 6h, or no limit), or
    the default in `DEFAULT_MAX_GAP_HOURS` (server) / the `selected` option
    of `#max-gap` (page).
@@ -40,6 +42,17 @@ The page talks to the Supabase function below, so you need internet.
    shorter/longer (the "±1 night" checkbox), then checks 25 more destinations.
    Rows show the real number of nights, so a "full week" search can return 6,
    7 or 8 nights.
+
+### Searching from more than two places
+
+Press **+ Add a departure** (up to 8); use the little **people counter** on a
+departure when several people leave from the same place (prices are
+multiplied by it). Every extra departure needs a cached fare on the *same
+day*, so with the free data results get rare quickly beyond 3 departures
+(the page says so when that happens). A live flight-search API would remove
+that limit — this is the main reason to move to one later. The function also
+checks fewer destinations when there are many departures, to stay within
+Travelpayouts' rate limit.
 
 ### Why you can get few results (or none)
 

@@ -7,14 +7,15 @@
 // function rather than to Travelpayouts directly.
 //
 // What it does:
-//   1. Asks Travelpayouts for each origin's cheapest cached fare to every
-//      destination (no dates yet) and intersects the two lists to find
-//      destinations you can both reach.
+//   1. Takes 2 to 8 departures (`origins=STO,BRU,LON`, optionally with how
+//      many people leave from each: `counts=2,1,1`), asks Travelpayouts for
+//      each one's cheapest cached fare to every destination (no dates yet)
+//      and intersects the lists: destinations EVERYONE can reach.
 //   2. For the cheapest of those, calls Travelpayouts' day-by-day calendar
-//      endpoint for both origins with the requested stay length, and looks
-//      for a departure day BOTH origins have a cached fare for — AND where
-//      the two travelers' arrival times (and their return-flight times) are
-//      no more than `maxGapHours` apart, so nobody waits alone for a day.
+//      endpoint for every departure with the requested stay length, and looks
+//      for a departure day ALL of them have a cached fare for — AND where
+//      everyone's arrival times (and everyone's return-flight times) are
+//      within `maxGapHours` of each other, so nobody waits alone for a day.
 //   3. If that finds only a few matches, it widens the search in stages
 //      (stay length +/- 1 night, then more destinations).
 //
@@ -65,7 +66,15 @@ const CACHE_TTL_MS = 12 * 3_600_000; // how long a remembered answer stays valid
 
 const BASE_CURRENCY = "usd"; // everything is fetched in this, then converted
 
+// --- Group size ---------------------------------------------------------------
+
+// How many different departure airports/cities one search may have. With the
+// free cached data, the more departures there are, the less likely it is that
+// EVERYONE has a cached fare on the same day — a live flight API fixes that.
+const MAX_ORIGINS = 8;
+
 type Fare = { price: number; departureAt: string | null; returnAt: string | null; transfers: number };
+type Traveler = { origin: string; count: number };
 type Place = { code: string; name: string; country: string; lat: number; lon: number; tz: string };
 type CallStats = {
   calls: number;      // new calls attempted
@@ -470,12 +479,14 @@ async function faresForOriginDestination(
 }
 
 /* ---------------------------------------------------------------------------
-   Matching two travelers
+   Matching a group of travelers (2 to MAX_ORIGINS departures)
 --------------------------------------------------------------------------- */
 
 type Leg = {
   origin: string;
-  price: number;
+  count: number;            // how many people travel from this departure
+  price: number;            // price per person
+  subtotal: number;         // price x count
   transfers: number;
   timesKnown: boolean;
   outDepart: string | null; // local time at the origin
@@ -510,14 +521,15 @@ function describeLeg(fare: Fare, origin: Place, dest: Place) {
   };
 }
 
-// The cheapest departure day that BOTH origins have a cached fare for AND
-// where the arrival / return times are close enough (maxGapHours).
-function bestPairing(
-  faresA: Record<string, Fare>,
-  faresB: Record<string, Fare>,
-  placeA: Place,
-  placeB: Place,
+// The cheapest departure day that EVERY origin has a cached fare for AND where
+// everyone's arrival times (and everyone's return-flight times) fall within
+// maxGapHours of each other. Prices are weighted by how many people travel
+// from each departure.
+function bestGroupPairing(
+  faresList: Array<Record<string, Fare>>,
+  originPlaces: Place[],
   dest: Place,
+  counts: number[],
   maxGapHours: number
 ) {
   const stats = { sameDayPairs: 0, rejectedByGap: 0, withoutTimes: 0 };
@@ -525,27 +537,25 @@ function bestPairing(
     date: string;
     total: number;
     gapScore: number;
-    a: ReturnType<typeof describeLeg>;
-    b: ReturnType<typeof describeLeg>;
-    fareA: Fare;
-    fareB: Fare;
+    fares: Fare[];
+    described: Array<ReturnType<typeof describeLeg>>;
     arrivalGapH: number | null;
     returnGapH: number | null;
   } = null;
 
-  for (const date in faresA) {
-    if (!(date in faresB)) continue;
+  for (const date in faresList[0]) {
+    if (!faresList.every((fares) => date in fares)) continue;
     stats.sameDayPairs++;
-    const fareA = faresA[date];
-    const fareB = faresB[date];
-    const a = describeLeg(fareA, placeA, dest);
-    const b = describeLeg(fareB, placeB, dest);
+    const fares = faresList.map((f) => f[date]);
+    const described = fares.map((fare, i) => describeLeg(fare, originPlaces[i], dest));
 
     let arrivalGapH: number | null = null;
     let returnGapH: number | null = null;
-    if (a.timesKnown && b.timesKnown) {
-      arrivalGapH = Math.abs(a.outArriveMs - b.outArriveMs) / 3_600_000;
-      returnGapH = Math.abs(a.retDepartMs - b.retDepartMs) / 3_600_000;
+    if (described.every((d) => d.timesKnown)) {
+      const arrivals = described.map((d) => d.outArriveMs);
+      const returns = described.map((d) => d.retDepartMs);
+      arrivalGapH = (Math.max(...arrivals) - Math.min(...arrivals)) / 3_600_000;
+      returnGapH = (Math.max(...returns) - Math.min(...returns)) / 3_600_000;
       if (maxGapHours > 0 && (arrivalGapH > maxGapHours || returnGapH > maxGapHours)) {
         stats.rejectedByGap++;
         continue;
@@ -554,10 +564,10 @@ function bestPairing(
       stats.withoutTimes++; // can't check the rule, so it is allowed through
     }
 
-    const total = fareA.price + fareB.price;
+    const total = fares.reduce((sum, fare, i) => sum + fare.price * counts[i], 0);
     const gapScore = (arrivalGapH ?? 0) + (returnGapH ?? 0);
     if (!best || total < best.total || (total === best.total && gapScore < best.gapScore)) {
-      best = { date, total, gapScore, a, b, fareA, fareB, arrivalGapH, returnGapH };
+      best = { date, total, gapScore, fares, described, arrivalGapH, returnGapH };
     }
   }
   return { best, stats };
@@ -579,8 +589,6 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const originA = url.searchParams.get("originA");
-    const originB = url.searchParams.get("originB");
     const wantedCurrency = (url.searchParams.get("currency") ?? BASE_CURRENCY).toLowerCase();
     const mode = url.searchParams.get("mode") === "specific" ? "specific" : "flexible";
     const debugOn = url.searchParams.get("debug") === "1";
@@ -588,8 +596,21 @@ Deno.serve(async (req) => {
     const maxGapHours = gapParam === null ? DEFAULT_MAX_GAP_HOURS : Number(gapParam);
     const flexNights = Math.min(2, Math.max(0, Number(url.searchParams.get("flexNights") ?? "0") || 0));
 
-    if (!originA || !originB) return fail("originA and originB query parameters are required");
+    // The departures: `origins=STO,BRU,LON` (+ optional `counts=2,1,1` = people from each).
+    // The old `originA` / `originB` parameters still work.
+    const codes = (url.searchParams.get("origins") ?? [url.searchParams.get("originA"), url.searchParams.get("originB")].filter(Boolean).join(","))
+      .split(",")
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean);
+    const countList = (url.searchParams.get("counts") ?? "").split(",");
+    const travelers: Traveler[] = codes.map((origin, i) => ({ origin, count: Math.min(9, Math.max(1, Math.floor(Number(countList[i])) || 1)) }));
+
+    if (travelers.length < 2) return fail("Give at least two departures (origins=STO,BRU)");
+    if (travelers.length > MAX_ORIGINS) return fail(`At most ${MAX_ORIGINS} departures are supported`);
+    if (new Set(codes).size !== codes.length) return fail("Each departure must be a different airport or city (use the people count for several travellers from one place)");
     if (!Number.isFinite(maxGapHours)) return fail("maxGapHours must be a number (0 = no limit)");
+    const N = travelers.length;
+    const counts = travelers.map((t) => t.count);
 
     const token = Deno.env.get("TRAVELPAYOUTS_TOKEN");
     if (!token) return fail("Server is missing TRAVELPAYOUTS_TOKEN — add it under Edge Function Secrets", 500);
@@ -611,34 +632,36 @@ Deno.serve(async (req) => {
 
     const callStats: CallStats = { calls: 0, cached: 0, failed: 0, retried: 0, skipped: 0, statuses: {}, firstError: null, rateLimited: false, budgetExhausted: false };
 
-    // Phase 1: broad, dateless candidate discovery (2 calls), plus the exchange rate.
-    const [a, b, rate] = await Promise.all([
-      fetchCheapestByDestination(originA, token, callStats),
-      fetchCheapestByDestination(originB, token, callStats),
+    // Phase 1: broad, dateless candidate discovery (one call per departure), plus the exchange rate.
+    const [reports, rate] = await Promise.all([
+      Promise.all(travelers.map((t) => fetchCheapestByDestination(t.origin, token, callStats))),
       usdRate(wantedCurrency),
     ]);
     // If we can't convert, answer in USD and say so (the page reads `currency`).
     const currency = rate === null ? BASE_CURRENCY : wantedCurrency;
     const toWanted = (usd: number) => Math.round(usd * (rate ?? 1));
 
-    const shared = Object.keys(a.prices)
-      .filter((destination) => destination in b.prices)
-      .map((destination) => ({ destination, baseline: a.prices[destination] + b.prices[destination] }))
+    // Destinations everyone can reach, cheapest combined first.
+    const shared = Object.keys(reports[0].prices)
+      .filter((destination) => reports.every((r) => destination in r.prices))
+      .map((destination) => ({ destination, baseline: reports.reduce((sum, r, i) => sum + r.prices[destination] * counts[i], 0) }))
       .sort((x, y) => x.baseline - y.baseline)
       .map((c) => c.destination);
 
-    const firstPass = shared.slice(0, FIRST_PASS_CANDIDATES);
-    const extraPass = shared.slice(FIRST_PASS_CANDIDATES, FIRST_PASS_CANDIDATES + EXTRA_CANDIDATES);
+    // More departures = more calls per destination, so check fewer destinations first.
+    const lookupsPerCheck = lookupsFor(searchOptions).length;
+    const firstPassSize = Math.max(4, Math.min(FIRST_PASS_CANDIDATES, Math.floor((MAX_CALLS_PER_SEARCH - N) / (N * lookupsPerCheck))));
+    const firstPass = shared.slice(0, firstPassSize);
+    const extraPass = shared.slice(firstPassSize, firstPassSize + EXTRA_CANDIDATES);
 
-    // Names / coordinates / time zones for both origins and every destination we may check.
-    const places = await resolvePlaces([originA, originB, ...firstPass, ...extraPass]);
-    const placeA = places[originA];
-    const placeB = places[originB];
+    // Names / coordinates / time zones for every departure and every destination we may check.
+    const places = await resolvePlaces([...codes, ...firstPass, ...extraPass]);
+    const originPlaces = codes.map((c) => places[c]);
+    const havePlaces = (dest: Place | null | undefined) => !!dest && originPlaces.every(Boolean);
 
     // Accumulators for the debug block.
     const totals = { sameDayPairs: 0, rejectedByGap: 0, withoutTimes: 0 };
-    const withDataA = new Set<string>();
-    const withDataB = new Set<string>();
+    const withData = codes.map(() => new Set<string>());
     const samples: unknown[] = [];
     const checked = new Set<string>();
     const best = new Map<string, NonNullable<Awaited<ReturnType<typeof evaluate>>>>();
@@ -647,85 +670,87 @@ Deno.serve(async (req) => {
     // One destination, one stay length -> the best matching day (or null).
     async function evaluate(destination: string, length: number) {
       const dest = places[destination];
-      const [faresA, faresB] = await Promise.all([
-        faresForOriginDestination(originA!, destination, token!, searchOptions, length, callStats),
-        faresForOriginDestination(originB!, destination, token!, searchOptions, length, callStats),
-      ]);
-      if (Object.keys(faresA).length > 0) withDataA.add(destination);
-      if (Object.keys(faresB).length > 0) withDataB.add(destination);
+      const faresList = await Promise.all(
+        codes.map((origin) => faresForOriginDestination(origin, destination, token!, searchOptions, length, callStats))
+      );
+      faresList.forEach((fares, i) => {
+        if (Object.keys(fares).length > 0) withData[i].add(destination);
+      });
 
       if (debugOn && samples.length < 8) {
-        for (const [who, fares] of [["A", faresA], ["B", faresB]] as const) {
-          for (const [date, f] of Object.entries(fares).slice(0, 2)) samples.push({ who, destination, date, length, ...f });
-        }
+        faresList.forEach((fares, i) => {
+          for (const [date, f] of Object.entries(fares).slice(0, 2)) samples.push({ who: codes[i], destination, date, length, ...f });
+        });
       }
 
       // Without coordinates / time zones we can't estimate times; fall back to
       // "same day only", no time rule.
-      if (!placeA || !placeB || !dest) {
-        let cheapest: { date: string; total: number; priceA: number; priceB: number } | null = null;
-        for (const date in faresA) {
-          if (!(date in faresB)) continue;
-          const total = faresA[date].price + faresB[date].price;
-          if (!cheapest || total < cheapest.total) cheapest = { date, total, priceA: faresA[date].price, priceB: faresB[date].price };
+      if (!havePlaces(dest)) {
+        let cheapest: { date: string; fares: Fare[] } | null = null;
+        let cheapestTotal = Infinity;
+        for (const date in faresList[0]) {
+          if (!faresList.every((f) => date in f)) continue;
+          const fares = faresList.map((f) => f[date]);
+          const total = fares.reduce((s, f, i) => s + f.price * counts[i], 0);
+          if (total < cheapestTotal) { cheapestTotal = total; cheapest = { date, fares }; }
         }
         if (!cheapest) return null;
-        const pa = toWanted(cheapest.priceA);
-        const pb = toWanted(cheapest.priceB);
+        const legs: Leg[] = cheapest.fares.map((fare, i) => {
+          const price = toWanted(fare.price);
+          return { origin: codes[i], count: counts[i], price, subtotal: price * counts[i], transfers: fare.transfers, timesKnown: false, outDepart: null, outArrive: null, outMinutes: 0, retDepart: null, retArrive: null, retMinutes: 0 };
+        });
         return {
           destination,
           destinationName: destination,
           country: "",
           lat: null as number | null,
           lon: null as number | null,
-          priceA: pa,
-          priceB: pb,
-          total: pa + pb,
+          total: legs.reduce((s, l) => s + l.subtotal, 0),
           departDate: cheapest.date,
           returnDate: addDays(cheapest.date, length),
           nights: length,
-          a: null as Leg | null,
-          b: null as Leg | null,
+          travelers: legs,
           arrivalGapHours: null as number | null,
           returnGapHours: null as number | null,
         };
       }
 
-      const { best: pick, stats } = bestPairing(faresA, faresB, placeA, placeB, dest, maxGapHours);
+      const { best: pick, stats } = bestGroupPairing(faresList, originPlaces as Place[], dest as Place, counts, maxGapHours);
       totals.sameDayPairs += stats.sameDayPairs;
       totals.rejectedByGap += stats.rejectedByGap;
       totals.withoutTimes += stats.withoutTimes;
       if (!pick) return null;
 
-      const leg = (origin: string, fare: Fare, d: ReturnType<typeof describeLeg>): Leg => ({
-        origin,
-        price: toWanted(fare.price),
-        transfers: fare.transfers,
-        timesKnown: d.timesKnown,
-        outDepart: d.leg?.outDepart ?? null,
-        outArrive: d.leg?.outArrive ?? null,
-        outMinutes: d.minutes,
-        retDepart: d.leg?.retDepart ?? null,
-        retArrive: d.leg?.retArrive ?? null,
-        retMinutes: d.minutes,
+      const legs: Leg[] = pick.fares.map((fare, i) => {
+        const d = pick.described[i];
+        const price = toWanted(fare.price);
+        return {
+          origin: codes[i],
+          count: counts[i],
+          price,
+          subtotal: price * counts[i],
+          transfers: fare.transfers,
+          timesKnown: d.timesKnown,
+          outDepart: d.leg?.outDepart ?? null,
+          outArrive: d.leg?.outArrive ?? null,
+          outMinutes: d.minutes,
+          retDepart: d.leg?.retDepart ?? null,
+          retArrive: d.leg?.retArrive ?? null,
+          retMinutes: d.minutes,
+        };
       });
-      const pa = toWanted(pick.fareA.price);
-      const pb = toWanted(pick.fareB.price);
 
       return {
         destination,
-        destinationName: dest.name,
-        country: dest.country,
-        lat: dest.lat as number | null,
-        lon: dest.lon as number | null,
-        priceA: pa,
-        priceB: pb,
-        total: pa + pb,
+        destinationName: (dest as Place).name,
+        country: (dest as Place).country,
+        lat: (dest as Place).lat as number | null,
+        lon: (dest as Place).lon as number | null,
+        total: legs.reduce((s, l) => s + l.subtotal, 0),
         departDate: pick.date,
         returnDate: addDays(pick.date, length),
         nights: length,
-        a: leg(originA!, pick.fareA, pick.a) as Leg | null,
-        b: leg(originB!, pick.fareB, pick.b) as Leg | null,
+        travelers: legs,
         arrivalGapHours: pick.arrivalGapH as number | null,
         returnGapHours: pick.returnGapH as number | null,
       };
@@ -736,7 +761,7 @@ Deno.serve(async (req) => {
       destinations.forEach((d) => checked.add(d));
       // Pull anything we already remember from the database in a few big requests.
       const keys = destinations.flatMap((d) =>
-        lengths.flatMap((length) => [originA!, originB!].flatMap((o) => lookupsFor(searchOptions).map((p) => cacheKey(o, d, p, length))))
+        lengths.flatMap((length) => codes.flatMap((o) => lookupsFor(searchOptions).map((p) => cacheKey(o, d, p, length))))
       );
       await loadFromDatabase(keys);
 
@@ -768,27 +793,20 @@ Deno.serve(async (req) => {
     await flushToDatabase(); // remember what we learned for next time
 
     const results = [...best.values()].sort((x, y) => x.total - y.total);
-    const placeOut = (p: Place | null | undefined) => (p ? { code: p.code, name: p.name, country: p.country, lat: p.lat, lon: p.lon } : null);
+    const placeOut = (p: Place | null | undefined, i: number) => (p ? { code: p.code, name: p.name, country: p.country, lat: p.lat, lon: p.lon, count: counts[i] } : { code: codes[i], count: counts[i] });
 
     return new Response(
       JSON.stringify({
         results,
         currency, // the currency the prices above are in (USD if we couldn't convert)
-        origins: { a: placeOut(placeA), b: placeOut(placeB) },
+        origins: originPlaces.map(placeOut),
         debug: {
-          originA,
-          originAOk: a.success,
-          originAError: a.rawError,
-          originADestinationsFound: Object.keys(a.prices).length,
-          originB,
-          originBOk: b.success,
-          originBError: b.rawError,
-          originBDestinationsFound: Object.keys(b.prices).length,
+          travelerCount: N,
+          people: counts.reduce((a, b) => a + b, 0),
+          originReports: reports.map((r, i) => ({ code: codes[i], ok: r.success, error: r.rawError, destinations: Object.keys(r.prices).length, destinationsWithFares: withData[i].size })),
           sharedDestinations: shared.length,
           candidatesConsidered: checked.size,
           candidatesWithDateMatch: results.length,
-          candidatesWithOriginAData: withDataA.size,
-          candidatesWithOriginBData: withDataB.size,
           maxGapHours,
           sameDayPairs: totals.sameDayPairs,
           rejectedByTimeGap: totals.rejectedByGap,

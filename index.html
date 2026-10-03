@@ -69,19 +69,9 @@
         <p class="hero-sub">For long-distance love, friends and family — see where you can meet, cheapest first.</p>
 
         <form id="search-form" class="search-bar" autocomplete="off">
-          <div class="field">
-            <label for="origin-a">Your airport</label>
-            <input type="text" id="origin-a" placeholder="City or airport" autocomplete="off" required>
-            <ul class="suggestions" id="origin-a-suggestions" role="listbox"></ul>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="field">
-            <label for="origin-b">Their airport</label>
-            <input type="text" id="origin-b" placeholder="City or airport" autocomplete="off" required>
-            <ul class="suggestions" id="origin-b-suggestions" role="listbox"></ul>
-          </div>
+          <!-- The departures. app.js creates one cell per departure (2 to 8) and the
+               "+ Add a departure" button at the end. -->
+          <div class="origins" id="origins"></div>
 
           <div class="divider"></div>
 
@@ -155,7 +145,7 @@
       <div class="table-box">
         <div class="table-top">
           <h2>Ranked meeting spots</h2>
-          <p id="results-subtitle">Same dates for both of you · cheapest total first</p>
+          <p id="results-subtitle">Same dates for everyone · cheapest total first</p>
           <div class="chips" id="sort-chips">
             <button type="button" class="chip is-selected" data-sort="cheapest">Cheapest</button>
             <button type="button" class="chip" data-sort="fastest">Fastest</button>
@@ -172,7 +162,7 @@
 
         <!-- Rows are drawn here by app.js -->
         <div id="table-rows" aria-live="polite">
-          <div class="state-message">Enter both airports above and press <strong>Find destinations</strong> to see where you can meet.</div>
+          <div class="state-message">Enter your departures above (add more with <strong>+ Add a departure</strong>) and press <strong>Find destinations</strong> to see where you can meet.</div>
         </div>
 
         <p class="table-note">≈ means estimated. The free price data only has departure times, so arrival times and flight durations are worked out from distance and time zones.</p>
@@ -191,7 +181,7 @@
             <circle cx="26" cy="14" r="12" fill="#FFC9A8"></circle>
             <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
           </svg>
-          <p><strong>Fly out and back on the same days.</strong> We only show dates that work for both of you.</p>
+          <p><strong>Fly out and back on the same days.</strong> We only show dates that work for everyone.</p>
         </div>
       </aside>
     </section>
