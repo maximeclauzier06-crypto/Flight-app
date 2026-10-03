@@ -4,105 +4,197 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flight Plan — find where to meet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=Manrope:wght@400;600;700;800&amp;display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <header class="page-header">
-    <h1>Flight Plan</h1>
-    <p>Enter both your airports. We'll find the cheapest places you can both fly to.</p>
+  <!-- Soft round shapes behind the page (purely decorative) -->
+  <div class="bg-circle bg-circle-1"></div>
+  <div class="bg-circle bg-circle-2"></div>
+
+  <header class="nav">
+    <a class="brand" href="#">
+      <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="14" cy="14" r="12" fill="#5B3FA8"></circle>
+        <circle cx="26" cy="14" r="12" fill="#FFC9A8"></circle>
+        <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
+      </svg>
+      <span>Flight Plan</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#">How it works</a>
+      <a href="#">Destinations</a>
+      <!-- Currency: starts from your browser's language, change it any time -->
+      <label class="currency-pill" title="Currency">
+        <select id="currency" aria-label="Currency">
+          <option value="usd">USD</option>
+          <option value="eur">EUR</option>
+          <option value="gbp">GBP</option>
+          <option value="sek">SEK</option>
+          <option value="nok">NOK</option>
+          <option value="dkk">DKK</option>
+          <option value="chf">CHF</option>
+          <option value="pln">PLN</option>
+          <option value="cad">CAD</option>
+          <option value="aud">AUD</option>
+          <option value="nzd">NZD</option>
+          <option value="jpy">JPY</option>
+          <option value="rub">RUB</option>
+          <option value="try">TRY</option>
+          <option value="inr">INR</option>
+          <option value="brl">BRL</option>
+          <option value="mxn">MXN</option>
+        </select>
+      </label>
+      <a class="btn-signin" href="#">Sign in</a>
+    </nav>
   </header>
 
   <main>
-    <!-- The search form: this is all the input we need for v1 -->
-    <form id="search-form" class="search-form">
-      <div class="field">
-        <label for="origin-a">Your airport</label>
-        <div class="autocomplete">
-          <input type="text" id="origin-a" placeholder="Start typing a city or airport…" autocomplete="off" required>
-          <ul class="suggestions" id="origin-a-suggestions" role="listbox"></ul>
+    <!-- ===== The big banner with the search bar ===== -->
+    <section class="hero">
+      <div class="hero-decor">
+        <div class="hero-circle hero-circle-1"></div>
+        <div class="hero-circle hero-circle-2"></div>
+        <div class="hero-circle hero-circle-3"></div>
+        <div class="hero-circle hero-circle-4"></div>
+      </div>
+
+      <div class="hero-content">
+        <div class="badge">REAL PRICES · REAL DATES</div>
+        <h1>Find where to meet in the middle</h1>
+        <p class="hero-sub">For long-distance love, friends and family — see where you can meet, cheapest first.</p>
+
+        <form id="search-form" class="search-bar" autocomplete="off">
+          <div class="field">
+            <label for="origin-a">Your airport</label>
+            <input type="text" id="origin-a" placeholder="City or airport" autocomplete="off" required>
+            <ul class="suggestions" id="origin-a-suggestions" role="listbox"></ul>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field">
+            <label for="origin-b">Their airport</label>
+            <input type="text" id="origin-b" placeholder="City or airport" autocomplete="off" required>
+            <ul class="suggestions" id="origin-b-suggestions" role="listbox"></ul>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="field field-when">
+            <label for="when-button">When</label>
+            <button type="button" id="when-button" class="when-button" aria-expanded="false" aria-controls="when-popover">
+              <span id="when-summary">Full week · Flexible</span>
+            </button>
+
+            <!-- The "When" settings pop up under the bar -->
+            <div class="when-popover" id="when-popover" hidden>
+              <div class="toggle-group" role="radiogroup" aria-label="Date mode">
+                <label class="toggle-option"><input type="radio" name="date-mode" id="mode-flexible" value="flexible" checked> Flexible — lowest price</label>
+                <label class="toggle-option"><input type="radio" name="date-mode" id="mode-specific" value="specific"> Specific dates</label>
+              </div>
+
+              <div class="pop-field" id="flexible-fields">
+                <label for="duration">Trip length</label>
+                <select id="duration">
+                  <option value="weekend">A weekend (2 nights, Fri/Sat departure)</option>
+                  <option value="week" selected>A full week (7 nights)</option>
+                  <option value="custom">Custom number of nights</option>
+                </select>
+              </div>
+
+              <div class="pop-field" id="custom-nights-field" hidden>
+                <label for="custom-nights">How many nights?</label>
+                <input type="number" id="custom-nights" min="1" max="30" value="5">
+              </div>
+
+              <div class="pop-field" id="specific-fields" hidden>
+                <label>Dates</label>
+                <div class="date-row">
+                  <input type="date" id="depart-date" aria-label="Depart date">
+                  <span>to</span>
+                  <input type="date" id="return-date" aria-label="Return date">
+                </div>
+              </div>
+
+              <div class="pop-field">
+                <label for="max-gap">Max time between your arrivals (and your returns)</label>
+                <select id="max-gap">
+                  <option value="2">2 hours</option>
+                  <option value="3" selected>3 hours</option>
+                  <option value="4">4 hours</option>
+                  <option value="6">6 hours</option>
+                  <option value="0">No limit</option>
+                </select>
+                <p class="pop-hint">So nobody waits alone for hours. Arrival times are estimates.</p>
+              </div>
+
+              <button type="button" id="when-done" class="pop-done">Done</button>
+            </div>
+          </div>
+
+          <button type="submit" class="search-btn">
+            Find destinations
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===== Results: one table box on the left, the globe on the right ===== -->
+    <section class="results-grid">
+      <div class="table-box">
+        <div class="table-top">
+          <h2>Ranked meeting spots</h2>
+          <p id="results-subtitle">Same dates for both of you · cheapest total first</p>
+          <div class="chips" id="sort-chips">
+            <button type="button" class="chip is-selected" data-sort="cheapest">Cheapest</button>
+            <button type="button" class="chip" data-sort="fastest">Fastest</button>
+            <button type="button" class="chip" data-sort="stops">Fewest stops</button>
+          </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label for="origin-b">Their airport</label>
-        <div class="autocomplete">
-          <input type="text" id="origin-b" placeholder="Start typing a city or airport…" autocomplete="off" required>
-          <ul class="suggestions" id="origin-b-suggestions" role="listbox"></ul>
+        <div class="table-head">
+          <span>#</span><span>Destination</span><span>Journeys</span><span class="right">Total</span>
         </div>
-      </div>
 
-      <div class="field">
-        <label for="currency">Currency</label>
-        <select id="currency">
-          <option value="usd">USD — US Dollar</option>
-          <option value="eur">EUR — Euro</option>
-          <option value="gbp">GBP — British Pound</option>
-          <option value="sek">SEK — Swedish Krona</option>
-          <option value="nok">NOK — Norwegian Krone</option>
-          <option value="dkk">DKK — Danish Krone</option>
-          <option value="chf">CHF — Swiss Franc</option>
-          <option value="pln">PLN — Polish Złoty</option>
-          <option value="cad">CAD — Canadian Dollar</option>
-          <option value="aud">AUD — Australian Dollar</option>
-          <option value="nzd">NZD — New Zealand Dollar</option>
-          <option value="jpy">JPY — Japanese Yen</option>
-          <option value="rub">RUB — Russian Ruble</option>
-          <option value="try">TRY — Turkish Lira</option>
-          <option value="inr">INR — Indian Rupee</option>
-          <option value="brl">BRL — Brazilian Real</option>
-          <option value="mxn">MXN — Mexican Peso</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>When?</label>
-        <div class="toggle-group" role="radiogroup" aria-label="Date mode">
-          <label class="toggle-option">
-            <input type="radio" name="date-mode" id="mode-flexible" value="flexible" checked>
-            Flexible — lowest price
-          </label>
-          <label class="toggle-option">
-            <input type="radio" name="date-mode" id="mode-specific" value="specific">
-            Specific dates
-          </label>
+        <!-- Rows are drawn here by app.js -->
+        <div id="table-rows" aria-live="polite">
+          <div class="state-message">Enter both airports above and press <strong>Find destinations</strong> to see where you can meet.</div>
         </div>
+
+        <p class="table-note">≈ means estimated. The free price data only has departure times, so arrival times and flight durations are worked out from distance and time zones.</p>
       </div>
 
-      <div class="field" id="flexible-fields">
-        <label for="duration">Trip length</label>
-        <select id="duration">
-          <option value="weekend">A weekend (2 nights, Fri/Sat departure)</option>
-          <option value="week" selected>A full week (7 nights)</option>
-          <option value="custom">Custom number of nights</option>
-        </select>
-      </div>
-
-      <div class="field" id="custom-nights-field" hidden>
-        <label for="custom-nights">How many nights?</label>
-        <input type="number" id="custom-nights" min="1" max="30" value="5">
-      </div>
-
-      <div class="field" id="specific-fields" hidden>
-        <label>Dates</label>
-        <div class="date-row">
-          <input type="date" id="depart-date" aria-label="Depart date">
-          <span>to</span>
-          <input type="date" id="return-date" aria-label="Return date">
+      <aside class="globe-col">
+        <div class="globe-wrap" id="globe-wrap">
+          <div class="globe-backdrop"></div>
+          <svg id="globe" width="520" height="520" viewBox="0 0 520 520" aria-hidden="true"></svg>
+          <div id="globe-labels"></div>
+          <div class="live-pill"><span></span>LIVE MAP</div>
         </div>
-      </div>
-
-      <button type="submit">Find destinations</button>
-    </form>
-
-    <!-- Results get inserted here by app.js -->
-    <section id="results" class="results" aria-live="polite"></section>
+        <div class="info-card">
+          <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="14" cy="14" r="12" fill="#5B3FA8"></circle>
+            <circle cx="26" cy="14" r="12" fill="#FFC9A8"></circle>
+            <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
+          </svg>
+          <p><strong>Fly out and back on the same days.</strong> We only show dates that work for both of you.</p>
+        </div>
+      </aside>
+    </section>
   </main>
 
   <footer class="page-footer">
-    <p>Real flight prices via Travelpayouts. See README.md for setup.</p>
+    <span>Flight Plan — find where you and someone else can meet.</span>
+    <span class="footer-links"><a href="#">Privacy</a><a href="#">Contact</a></span>
   </footer>
 
+  <script src="geo.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
