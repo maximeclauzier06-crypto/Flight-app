@@ -28,7 +28,7 @@ The page talks to the Supabase function below, so you need internet.
 |---|---|---|
 | `index.html` | The page structure | Texts, headline, labels |
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-1`, `--accent`, `--peach`...). Change them and the whole site follows. |
-| `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the table, the globe | Settings are in section 1 at the top |
+| `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the table, the trip page after "Select" (with the "Book on Aviasales" buttons), the globe | Settings are in section 1 at the top; the trip page is section 7d |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
 | `geo.js` | The world map on the globe: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--land`, `--borders`, `--grid`, `--ocean-a/b` in `styles.css` |
 | `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | `DEFAULT_MAX_GAP_HOURS`, `FIRST_PASS_CANDIDATES`, `FLEXIBLE_SEARCH_MONTHS` at the top; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
@@ -143,6 +143,28 @@ So the real request happens on a small server we control instead:
    Travelpayouts' rate limit much sooner. (The function reads the secret
    service key Supabase gives every Edge Function automatically — you don't
    add anything.)
+
+6. **Booking links (how the site earns):** pressing **Select** on a result
+   opens the trip page (everyone's flights, "where to stay", and room for
+   more), where every traveller gets a **Book on Aviasales** button. When
+   pressed, the function turns that
+   Aviasales search into your Travelpayouts **partner link**, so a booking
+   made after the click is credited to you (Travelpayouts requires this step;
+   just adding your ID to an Aviasales address isn't enough). For that, add
+   two more **Edge Function Secrets**, next to the token:
+   - `TRAVELPAYOUTS_MARKER` — your Travelpayouts partner ID (a number, shown
+     in your Travelpayouts account/profile).
+   - `TRAVELPAYOUTS_TRS` — the ID of your Travelpayouts **project** (in the
+     project list). That project must be connected to the **Aviasales**
+     program.
+
+   To check: press a Book button. The new tab should pass through a
+   Travelpayouts address (e.g. `tp.media`) before landing on Aviasales. If it
+   goes straight to `aviasales.com/search/...`, the booking would NOT be
+   credited; open the browser console (F12) on the Flight Plan page — it says
+   why (missing secret, wrong token, project not connected to Aviasales...).
+   Bookings show up in your Travelpayouts statistics with the sub ID
+   `book-button`.
 
 **Whenever `index.ts` changes, redeploy it the same way** (paste the new code
 into the dashboard's editor). If the page shows "the deployed function is

@@ -325,6 +325,20 @@ button, input, select { font-family: inherit; }
 .gap-note { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--soft); font-size: 12px; }
 .gap-note b { color: var(--ink); }
 
+/* "Book on Aviasales" — one per traveller, since each person buys their own
+   ticket from their own airport. Quiet by default so it doesn't shout over the
+   prices; it fills in on hover. */
+.book-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 13px;
+  background: #fff; color: var(--accent);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.2px; text-decoration: none; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.book-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.book-btn:disabled { cursor: progress; opacity: 0.7; } /* while the link is being fetched */.book-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.book-arrow { font-size: 11px; }
+
 .total-cell { text-align: right; }
 .total { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1; }
 .total-sub { margin: 3px 0 10px; color: var(--soft); font-size: 11px; }
@@ -402,6 +416,44 @@ button, input, select { font-family: inherit; }
 .trip-box-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 12px; }
 .trip-box-title strong { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
 .trip-box-title .nights { color: var(--soft); font-size: 12px; }
+
+/* ---------- The trip page (after "Select"): book the flights, where to stay ---------- */
+
+.trip-page { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.back-link { align-self: flex-start; border: 0; padding: 4px 0; background: none; cursor: pointer; color: var(--accent); font-size: 14px; font-weight: 800; }
+.back-link:hover { text-decoration: underline; }
+.tp-head {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;
+  border-radius: 30px; padding: 30px 32px; color: var(--hero-text);
+  background: linear-gradient(135deg, var(--hero-1) 0%, var(--hero-2) 100%);
+  box-shadow: 0 24px 60px rgba(var(--shadow), 0.2);
+}
+.tp-head .badge { margin-bottom: 14px; }
+.tp-head h2 { margin: 0; font-family: var(--font-display); font-size: 44px; font-weight: 600; line-height: 1.05; letter-spacing: -0.8px; }
+.tp-country { margin-top: 4px; color: var(--hero-sub); font-size: 15px; }
+.tp-when { margin-top: 14px; font-size: 16px; font-weight: 700; }
+.tp-total { text-align: right; }
+.tp-total strong { display: block; font-family: var(--font-display); font-size: 40px; font-weight: 700; line-height: 1; }
+.tp-total span { color: var(--hero-sub); font-size: 13px; }
+
+.tp-card { border-radius: 30px; padding: 24px; background: #fff; box-shadow: 0 24px 60px rgba(var(--shadow), 0.14); }
+.tp-card h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 24px; font-weight: 600; }
+.tp-sub { margin: 0 0 14px; color: var(--soft); font-size: 14px; }
+.tp-flight { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: center; padding: 18px 0; border-top: 1px solid var(--line); }
+.tp-route { margin-top: 4px; font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.tp-legs { margin-top: 6px; color: var(--soft); font-size: 13px; line-height: 1.7; }
+.tp-legs strong { color: var(--ink); font-weight: 800; }
+.tp-legs sup { color: var(--accent); font-size: 10px; font-weight: 800; }
+.tp-buy { text-align: right; }
+.tp-price { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1; }
+.tp-price-sub { margin: 3px 0 10px; color: var(--soft); font-size: 12px; }
+.book-btn.is-primary { padding: 10px 18px; border-color: var(--accent); background: var(--accent); color: #fff; font-size: 14px; }
+.book-btn.is-primary:hover { border-color: var(--hero-1); background: var(--hero-1); }
+.tp-disclosure { margin: 14px 0 0; color: var(--soft); font-size: 12px; }
+.tp-placeholder {
+  padding: 22px; border: 1.5px dashed var(--pill-border); border-radius: 20px;
+  background: var(--tint-strong); color: var(--soft); font-size: 14px; text-align: center;
+}
 
 /* Globe — once it reaches the middle of the screen it stays there while you
    scroll through the results (the column is ~625px tall, so 50vh − 312px
@@ -494,6 +546,11 @@ button, input, select { font-family: inherit; }
   .row .journeys, .row .total-cell { grid-column: 1 / -1; }
   .total-cell { text-align: left; }
   .trip-box { grid-template-columns: minmax(0, 1fr); }
+  .tp-head { padding: 24px; }
+  .tp-head h2 { font-size: 34px; }
+  .tp-total { text-align: left; }
+  .tp-flight { grid-template-columns: minmax(0, 1fr); }
+  .tp-buy { text-align: left; }
   .alts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .globe-wrap { transform: scale(0.62); transform-origin: top center; margin-bottom: -190px; }
   #globe { touch-action: pan-y; } /* on phones, swiping up/down over the globe still scrolls the page */

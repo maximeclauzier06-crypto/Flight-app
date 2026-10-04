@@ -14,7 +14,8 @@
 //
 // Sections:  1 Settings · 2 Small helpers · 3 Airport autocomplete + 3b Departures +
 //            3c Going to · 4 Currency · 5 The "When" pop-up · 6 Searching ·
-//            7 The results table · 7b One destination · 8 The globe
+//            7 The results table · 7b One destination · 7c Booking ·
+//            7d The trip page (after "Select") · 8 The globe
 // ---------------------------------------------------------------------------
 
 
@@ -33,6 +34,11 @@ const SUPABASE_ANON_KEY =
 
 // Free, public airport/city lookup from Travelpayouts (no token needed).
 const AUTOCOMPLETE_URL = "https://autocomplete.travelpayouts.com/places2";
+
+// Booking links (the "Book on Aviasales" buttons) are made by the search
+// function, which turns each Aviasales search into your Travelpayouts partner
+// link — your marker and project ID live there, as Edge Function Secrets.
+// See section 7c.
 
 const GLOBE_RADIUS = 210; // size of the globe window, in pixels
 const GLOBE_MAX_ZOOM = 4;  // how far you can zoom in (1 = the whole Earth)
@@ -541,6 +547,11 @@ function explainEmptyResult(debug, gapHours) {
 }
 
 async function runSearch(origins, params) {
+  // A new search (e.g. another currency) while a trip page is open: back to the list.
+  if (!tripPageEl.hidden) {
+    closeTripPage();
+    if (history.state?.tripPage) history.replaceState(null, "", location.pathname + location.search);
+  }
   state.lastSearch = { origins, params };
   state.maxGapHours = Number(params.maxGapHours);
   state.debug = null;
@@ -556,7 +567,7 @@ async function runSearch(origins, params) {
     // Names and positions for the departures (for the table and the globe's labels).
     state.origins = origins.map((o, i) => {
       const server = json.origins?.[i] ?? {};
-      return { label: o.label || server.name || o.code, lat: o.lat ?? server.lat, lon: o.lon ?? server.lon, count: o.count };
+      return { label: o.label || server.name || o.code, code: o.code, lat: o.lat ?? server.lat, lon: o.lon ?? server.lon, count: o.count };
     });
     state.debug = json.debug;
     state.currency = json.currency || params.currency; // what the prices are really in
@@ -629,6 +640,7 @@ function sortedResults() {
 const TAG_FOR_SORT = { cheapest: "CHEAPEST", fastest: "FASTEST", stops: "FEWEST STOPS" };
 
 // One traveller's block inside a row: who, price, duration, stops, flight times.
+// (Booking happens on the trip page, after "Select" — section 7d.)
 function travelerHtml(leg, index, info, totalTravelers, currency) {
   const name = index === 0 ? `You · ${info.label}` : totalTravelers === 2 ? `Them · ${info.label}` : info.label;
   const price =
@@ -678,7 +690,7 @@ function rowHtml(r, index, currency) {
       <div class="total-cell">
         <div class="total">${formatPrice(r.total, currency)}</div>
         <div class="total-sub">${peopleLabel(people)}</div>
-        <span class="select-btn">Select</span>
+        <button type="button" class="select-btn" data-dest="${esc(r.destination)}">Select</button>
       </div>
     </div>`;
 }
@@ -746,6 +758,7 @@ rowsEl.addEventListener("click", (event) => {
   if (row) selectDestination(row.dataset.code);
 });
 rowsEl.addEventListener("keydown", (event) => {
+  if (event.target.closest("button")) return; // Enter on "Select" presses the button, as usual
   const row = event.target.closest(".row");
   if (row && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
@@ -930,7 +943,7 @@ function tripBoxHtml(o) {
       <div class="total-cell">
         <div class="total">${formatPrice(o.total, state.currency)}</div>
         <div class="total-sub">${peopleLabel(people)}</div>
-        <span class="select-btn">Select</span>
+        <button type="button" class="select-btn">Select</button>
       </div>
     </div>`;
 }
@@ -1016,6 +1029,193 @@ $("trip-chips").addEventListener("click", (event) => {
   const { departDate, returnDate, ...params } = state.lastSearch.params;
   runSearch(state.lastSearch.origins, { ...params, mode: "flexible", trip: type, nights: String(TRIP_NIGHTS[type]) });
 });
+
+
+// ===========================================================================
+// 7c. BOOKING ON AVIASALES
+// ===========================================================================
+// Each traveller books their own flight, from their own airport. Pressing
+// "Book on Aviasales" asks the search function for that traveller's partner
+// link (the Aviasales search, turned into a Travelpayouts link that credits
+// the booking to you) and opens it in a new tab.
+
+const bookingLinks = new Map(); // the same button twice = no second request
+
+// The plain Aviasales search, only used if the partner link can't be fetched:
+// the visitor still gets their flights, the booking just isn't credited.
+function plainAviasalesUrl({ from, to, depart, return: back, adults }) {
+  const ddmm = (iso) => iso.slice(8, 10) + iso.slice(5, 7);
+  return `https://www.aviasales.com/search/${from}${ddmm(depart)}${to}${back ? ddmm(back) : ""}${adults}`;
+}
+
+async function fetchBookingLink(trip) {
+  const key = JSON.stringify(trip);
+  if (bookingLinks.has(key)) return bookingLinks.get(key);
+  try {
+    const response = await fetch(`${SEARCH_FUNCTION_URL}?${new URLSearchParams({ book: "1", ...trip })}`, {
+      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
+    });
+    const json = await response.json();
+    if (!json.url) throw new Error(`${json.error || json.message || `HTTP ${response.status}`} — is the latest search-flights function deployed?`);
+    if (json.tracked) bookingLinks.set(key, json);
+    else console.warn(`This booking link is NOT credited to you: ${json.reason}`);
+    return json;
+  } catch (error) {
+    console.warn(`Couldn't get the partner link (${error.message}), opening the plain Aviasales search instead.`);
+    return { url: plainAviasalesUrl(trip), tracked: false };
+  }
+}
+
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest(".book-btn");
+  if (!button || button.disabled) return;
+  const { from, to, depart, return: back, adults } = button.dataset;
+
+  // Browsers only allow a new tab straight after a click, so open it now and
+  // send it on once the link is ready.
+  const tab = window.open("", "_blank");
+  if (tab) {
+    tab.opener = null; // the new tab can't reach back into this page
+    try {
+      tab.document.title = "Opening Aviasales…";
+      tab.document.body.innerHTML = '<p style="font: 16px sans-serif; color: #7C5744; padding: 40px;">Opening Aviasales…</p>';
+    } catch {
+      // a blank tab is fine too
+    }
+  }
+  button.disabled = true;
+  const { url } = await fetchBookingLink({ from, to, depart, return: back, adults });
+  button.disabled = false;
+  if (tab) tab.location.href = url;
+  else window.location.href = url; // pop-ups blocked: go there in this tab instead
+});
+
+
+// ===========================================================================
+// 7d. THE TRIP PAGE (after "Select")
+// ===========================================================================
+// "Select" opens a page for that one trip: everyone's flights with their
+// "Book on Aviasales" buttons, and room for what goes with the trip (where to
+// stay...). It takes the place of the list (the globe stays); "Back to
+// results", or the browser's back button, returns to the list.
+
+const tripPageEl = $("trip-page");
+const listViewEls = [document.querySelector(".hero"), document.querySelector(".table-box")];
+let lastTrip = null; // so the browser's Forward button can reopen it
+
+// The trip behind a "Select" button, in one shape for both kinds of search.
+function tripFromSelect(button) {
+  if (button.dataset.dest) {
+    const r = state.results.find((x) => x.destination === button.dataset.dest);
+    return r ? { ...r, code: r.destination, name: r.destinationName } : null;
+  }
+  const option = state.trip?.windows[state.tripWindow]?.options[state.tripOption];
+  const d = state.trip?.destination;
+  return option?.status === "ok" ? { ...option, code: d.code, name: d.name, country: d.country } : null;
+}
+
+const travellersLabel = (people) => `${people} traveller${people === 1 ? "" : "s"}`;
+const dayLabel = (dateStr) => `${weekday(dateStr)} ${formatDay(dateStr)}`;
+
+// One traveller: their route and flight times, their price, their Book button.
+function tripFlightHtml(leg, i, n, t) {
+  const info = state.origins[i] ?? {};
+  const name = i === 0 ? `You · ${info.label}` : n === 2 ? `Them · ${info.label}` : info.label;
+  const stops = `<span class="${leg.transfers === 0 ? "direct" : ""}">${stopsLabel(leg.transfers)}</span>`;
+  const times = leg.timesKnown
+    ? `Out <strong>${dayLabel(leg.outDepart.slice(0, 10))} · ${hhmm(leg.outDepart)} → ≈${hhmm(leg.outArrive)}</strong>${dayShiftMarker(leg.outDepart, leg.outArrive)}<br>
+       Back <strong>${dayLabel(leg.retDepart.slice(0, 10))} · ${hhmm(leg.retDepart)} → ≈${hhmm(leg.retArrive)}</strong>${dayShiftMarker(leg.retDepart, leg.retArrive)}<br>
+       ≈${durationLabel(leg.outMinutes)} each way · ${stops}`
+    : `Out ${dayLabel(t.departDate)} · back ${dayLabel(t.returnDate)} · ${stops}<br>Flight times not available for this fare`;
+  const price = leg.count > 1
+    ? `<div class="tp-price">${formatPrice(leg.subtotal, state.currency)}</div><div class="tp-price-sub">${leg.count} × ${formatPrice(leg.price, state.currency)}</div>`
+    : `<div class="tp-price">${formatPrice(leg.price, state.currency)}</div><div class="tp-price-sub">1 traveller</div>`;
+  // The link itself is fetched when the button is pressed (section 7c).
+  const book = info.code
+    ? `<button type="button" class="book-btn is-primary" data-from="${esc(info.code)}" data-to="${esc(t.code)}" data-depart="${esc(t.departDate)}" data-return="${esc(t.returnDate ?? "")}" data-adults="${leg.count}">Book ${leg.count > 1 ? `${leg.count} seats ` : ""}on Aviasales<span class="book-arrow" aria-hidden="true">↗</span></button>`
+    : "";
+  return `
+    <div class="tp-flight">
+      <div>
+        <div class="traveler-head"><span class="dot dot-${i % 8}"></span><span class="who">${esc(name)}</span></div>
+        <div class="tp-route">${esc(info.label)} → ${esc(t.name)}</div>
+        <div class="tp-legs">${times}</div>
+      </div>
+      <div class="tp-buy">${price}${book}</div>
+    </div>`;
+}
+
+function tripPageHtml(t) {
+  const n = t.travelers.length;
+  const people = t.travelers.reduce((sum, leg) => sum + leg.count, 0);
+  return `
+    <button type="button" class="back-link" id="trip-back">← Back to results</button>
+    <div class="tp-head">
+      <div>
+        <div class="badge">YOUR TRIP</div>
+        <h2>${esc(t.name)}</h2>
+        ${t.country ? `<div class="tp-country">${esc(t.country)}</div>` : ""}
+        <div class="tp-when">${dayLabel(t.departDate)} → ${dayLabel(t.returnDate)} · ${nightsLabel(t.nights)} · ${travellersLabel(people)}</div>
+      </div>
+      <div class="tp-total"><strong>${formatPrice(t.total, state.currency)}</strong><span>in total, for ${peopleLabel(people)}</span></div>
+    </div>
+
+    <section class="tp-card">
+      <h3>Book your flights</h3>
+      <p class="tp-sub">Everyone books their own flight, from their own airport, on the same dates.</p>
+      ${t.travelers.map((leg, i) => tripFlightHtml(leg, i, n, t)).join("")}
+      ${gapNoteHtml(t)}
+      <p class="tp-disclosure">You book directly on Aviasales. Prices come from recent searches, so the live price can be a little different. If you book through these buttons we may earn a small commission, at no extra cost to you.</p>
+    </section>
+
+    <!-- Room for what goes with the trip: hotels for these dates, offers... -->
+    <section class="tp-card">
+      <h3>Where to stay in ${esc(t.name)}</h3>
+      <p class="tp-sub">${dateRange(t.departDate, t.returnDate)} · ${nightsLabel(t.nights)} · ${travellersLabel(people)}</p>
+      <div class="tp-placeholder">Hotel ideas for these dates will appear here.</div>
+    </section>`;
+}
+
+function openTripPage(trip) {
+  lastTrip = trip;
+  tripPageEl.innerHTML = tripPageHtml(trip);
+  listViewEls.forEach((el) => (el.hidden = true));
+  tripPageEl.hidden = false;
+  if (!history.state?.tripPage) history.pushState({ tripPage: true }, "", "#trip"); // so Back returns to the list
+  window.scrollTo({ top: 0 });
+  $("trip-back").focus({ preventScroll: true });
+}
+
+function closeTripPage() {
+  if (tripPageEl.hidden) return;
+  tripPageEl.hidden = true;
+  tripPageEl.innerHTML = "";
+  listViewEls.forEach((el) => (el.hidden = false));
+  // Back where you were: the selected row (or the trip box).
+  (rowsEl.querySelector(".row.is-selected") ?? rowsEl.querySelector(".trip-box"))?.scrollIntoView({ block: "center" });
+}
+
+document.addEventListener("click", (event) => {
+  const select = event.target.closest(".select-btn");
+  if (select) {
+    const trip = tripFromSelect(select);
+    if (trip) openTripPage(trip);
+  } else if (event.target.closest("#trip-back")) {
+    if (history.state?.tripPage) history.back(); // the popstate below closes the page
+    else closeTripPage();
+  }
+});
+
+// The browser's Back / Forward buttons. We place the scroll ourselves (top of
+// the trip page, or back on the selected row), so the browser shouldn't.
+history.scrollRestoration = "manual";
+window.addEventListener("popstate", () => {
+  if (!history.state?.tripPage) closeTripPage();
+  else if (lastTrip && tripPageEl.hidden) openTripPage(lastTrip);
+});
+
+// A reload on "#trip" has no trip to show any more: start from the search.
+if (location.hash === "#trip") history.replaceState(null, "", location.pathname + location.search);
 
 
 // ===========================================================================

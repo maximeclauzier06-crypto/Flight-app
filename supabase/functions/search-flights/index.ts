@@ -22,6 +22,8 @@
 //   compares DATES instead of places — the next TRIP_WEEKS weekends (or weeks),
 //   each with a few variations (leave a day earlier, come back a day later...),
 //   cheapest first. Same time rule, and far fewer calls.
+//   AND (`book=1`): makes the Travelpayouts partner link behind each
+//   "Book on Aviasales" button (see bookingLink below).
 //
 // Three things keep us inside Travelpayouts' rate limit (it answers HTTP 429
 // "too many requests" when we ask for too much):
@@ -740,6 +742,70 @@ const placeOut = (p: Place | null | undefined, code: string, count: number) =>
   p ? { code: p.code, name: p.name, country: p.country, lat: p.lat, lon: p.lon, count } : { code, count };
 
 /* ---------------------------------------------------------------------------
+   Booking links (`book=1`): one traveller's Aviasales search, turned into a
+   Travelpayouts PARTNER link so a booking made after the click is credited
+   to you. Travelpayouts says this conversion is required — just adding your
+   marker to an Aviasales address isn't enough. It needs the API token, which
+   is why it happens here and not in the page.
+   Needs two more Edge Function Secrets (not secret really, but kept with the
+   token): TRAVELPAYOUTS_MARKER (your partner ID) and TRAVELPAYOUTS_TRS (the
+   ID of your project that is connected to Aviasales).
+--------------------------------------------------------------------------- */
+
+const LINKS_API_URL = "https://api.travelpayouts.com/links/v1/create";
+const partnerLinkCache = new Map<string, { at: number; url: string }>();
+const BOOKING_SUB_ID = "book-button"; // shows up in your Travelpayouts statistics
+
+// Aviasales' search address: ORIGIN + DDMM + DESTINATION + DDMM + adults,
+// e.g. /search/STO0611LIS08112 = Stockholm to Lisbon, 6 Nov back 8 Nov, 2 adults.
+function aviasalesSearchUrl(from: string, to: string, departDate: string, returnDate: string | null, adults: number): string {
+  const ddmm = (iso: string) => iso.slice(8, 10) + iso.slice(5, 7);
+  return `https://www.aviasales.com/search/${from}${ddmm(departDate)}${to}${returnDate ? ddmm(returnDate) : ""}${adults}`;
+}
+
+// -> { url, tracked } where `tracked` says whether bookings through `url` are
+// credited to you. If the partner link can't be made, `url` is the plain
+// Aviasales search (so the visitor still gets their flights) and `reason` says why.
+async function bookingLink(params: URLSearchParams, token: string | undefined) {
+  const from = (params.get("from") ?? "").toUpperCase();
+  const to = (params.get("to") ?? "").toUpperCase();
+  const departDate = params.get("depart") ?? "";
+  const returnDate = params.get("return") || null;
+  const adults = Math.floor(Number(params.get("adults") ?? "1"));
+  const isDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+  if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) return { error: "from and to must be 3-letter airport or city codes" };
+  if (!isDate(departDate) || (returnDate !== null && !isDate(returnDate))) return { error: "depart (and return) must be dates like 2026-11-06" };
+  if (!(adults >= 1 && adults <= 9)) return { error: "adults must be between 1 and 9" };
+
+  const direct = aviasalesSearchUrl(from, to, departDate, returnDate, adults);
+  const marker = Number(Deno.env.get("TRAVELPAYOUTS_MARKER"));
+  const trs = Number(Deno.env.get("TRAVELPAYOUTS_TRS"));
+  if (!token || !marker || !trs) {
+    return { url: direct, tracked: false, reason: "Add the TRAVELPAYOUTS_MARKER and TRAVELPAYOUTS_TRS Edge Function Secrets to earn from bookings" };
+  }
+
+  const hit = partnerLinkCache.get(direct);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return { url: hit.url, tracked: true };
+  try {
+    const response = await fetch(LINKS_API_URL, {
+      method: "POST",
+      headers: { "X-Access-Token": token, "Content-Type": "application/json" },
+      body: JSON.stringify({ trs, marker, shorten: false, links: [{ url: direct, sub_id: BOOKING_SUB_ID }] }),
+    });
+    const json = await response.json().catch(() => null);
+    const link = json?.result?.links?.[0];
+    if (response.ok && link?.code === "success" && link.partner_url) {
+      partnerLinkCache.set(direct, { at: Date.now(), url: link.partner_url });
+      return { url: link.partner_url as string, tracked: true };
+    }
+    // e.g. "trs is not subscribed for brand", "incorrect marker in the request", HTTP 401 (token)
+    return { url: direct, tracked: false, reason: String(link?.message ?? json?.error ?? `HTTP ${response.status}`) };
+  } catch (error) {
+    return { url: direct, tracked: false, reason: String(error).slice(0, 120) };
+  }
+}
+
+/* ---------------------------------------------------------------------------
    The request handler
 --------------------------------------------------------------------------- */
 
@@ -755,6 +821,13 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
+
+    // A booking link for one traveller (the page's "Book on Aviasales" button).
+    if (url.searchParams.get("book") === "1") {
+      const answer = await bookingLink(url.searchParams, Deno.env.get("TRAVELPAYOUTS_TOKEN"));
+      return new Response(JSON.stringify(answer), { status: "error" in answer ? 400 : 200, headers: jsonHeaders });
+    }
+
     const wantedCurrency = (url.searchParams.get("currency") ?? BASE_CURRENCY).toLowerCase();
     const mode = url.searchParams.get("mode") === "specific" ? "specific" : "flexible";
     const debugOn = url.searchParams.get("debug") === "1";
