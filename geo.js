@@ -1,29 +1,30 @@
 // ---------------------------------------------------------------------------
-// geo.js — the world map on the globe: real countries and their borders.
+// geo.js — the flat world map behind the page: real countries and borders.
 //
-// It uses two small free libraries loaded in index.html (d3-geo turns the
-// round Earth into a picture, topojson-client unpacks the country shapes) and
-// the free Natural Earth country outlines ("world-atlas"), fetched once.
-// If any of that can't load (no internet...), the globe still works: you just
-// get the sea, the pins and the flight paths, without the countries.
+// It uses two small free libraries loaded in index.html (d3-geo draws the
+// round Earth flat — the "Natural Earth" projection — and topojson-client
+// unpacks the country shapes), plus the free Natural Earth outlines
+// ("world-atlas"), fetched once. If any of that can't load (no internet...),
+// the map still works: you just get the routes and pins, without countries.
+//
+// A map "view" is { k, tx, ty }: k is the zoom (the projection's scale) and
+// tx, ty are where longitude 0 / latitude 0 sits on the screen. Dragging the
+// map changes tx, ty; zooming changes k.
 //
 // app.js uses:
-//   Geo.load()                 fetch the countries once (a promise)
-//   Geo.fitView(points)        where to look so every point fits {lat, lon, zoom}
-//   Geo.createGlobe(view, R)   everything needed to draw one frame
+//   Geo.load()                          fetch the countries once (a promise)
+//   Geo.fitView(points, box, maxK)      the view that frames `points` inside `box`
+//   Geo.createMap(view, width, height)  everything needed to draw one frame
 // ---------------------------------------------------------------------------
 
 const Geo = (() => {
   const WORLD_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
-  const RAD = Math.PI / 180;
   const hasLibraries = typeof d3 !== "undefined" && typeof topojson !== "undefined";
   const graticule = hasLibraries ? d3.geoGraticule10() : null; // faint lines every 10°
 
-  let land = null;      // all land, as one shape
-  let borders = null;   // the lines between countries
-  let countries = null; // one shape per country (to light up the meeting country)
+  let land = null;    // all land, as one shape
+  let borders = null; // the lines between countries
   let loading = null;
-  const countryCache = new Map();
 
   function load() {
     if (!loading) {
@@ -35,104 +36,50 @@ const Geo = (() => {
         .then((world) => {
           land = topojson.feature(world, world.objects.land);
           borders = topojson.mesh(world, world.objects.countries, (a, b) => a !== b);
-          countries = topojson.feature(world, world.objects.countries).features;
         })
-        .catch((error) => console.warn("World map unavailable, showing the globe without countries:", error.message));
+        .catch((error) => console.warn("World map unavailable, showing the map without countries:", error.message));
     }
     return loading;
   }
 
-  // The country a place is in (or null: tiny islands aren't in this map).
-  function countryAt(lat, lon) {
-    if (!countries) return null;
-    const key = `${lat},${lon}`;
-    if (!countryCache.has(key)) countryCache.set(key, countries.find((c) => d3.geoContains(c, [lon, lat])) ?? null);
-    return countryCache.get(key);
-  }
+  const projectionFor = ({ k, tx, ty }) => d3.geoNaturalEarth1().scale(k).translate([tx, ty]);
 
-  const toVec = (lat, lon) => [Math.cos(lat * RAD) * Math.cos(lon * RAD), Math.cos(lat * RAD) * Math.sin(lon * RAD), Math.sin(lat * RAD)];
-  const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-
-  // Looks at the middle of `points` ([{lat, lon}, ...]) and zooms in (up to 2x)
-  // so the farthest point sits ~60% of the way to the edge.
-  function fitView(points) {
-    const sum = points.map((p) => toVec(p.lat, p.lon)).reduce((s, v) => [s[0] + v[0], s[1] + v[1], s[2] + v[2]], [0, 0, 0]);
-    const len = Math.hypot(...sum) || 1;
-    const c = sum.map((x) => x / len);
-    const theta = Math.max(...points.map((p) => Math.acos(Math.min(1, dot3(c, toVec(p.lat, p.lon))))));
-    return {
-      lat: Math.asin(c[2]) / RAD,
-      lon: Math.atan2(c[1], c[0]) / RAD,
-      zoom: Math.min(2, Math.max(1, 0.6 / Math.max(Math.sin(theta), 0.05))),
-    };
-  }
-
-  // One frame of the globe: a round window of radius windowR (pixels) onto
-  // a sphere of radius windowR × zoom, looking at view.lat / view.lon.
-  function createGlobe(view, windowR) {
-    const sphereR = windowR * view.zoom;
-    const cx = windowR + 50;
-    const cy = windowR + 50;
-    const p0 = view.lat * RAD;
-
-    // lat/lon -> pixel position. `r` lets flight paths float above the ground.
-    const project = (lat, lon, r = sphereR) => {
-      const p = lat * RAD;
-      const l = (lon - view.lon) * RAD;
-      const cosc = Math.sin(p0) * Math.sin(p) + Math.cos(p0) * Math.cos(p) * Math.cos(l);
-      return {
-        x: cx + r * Math.cos(p) * Math.sin(l),
-        y: cy - r * (Math.cos(p0) * Math.sin(p) - Math.sin(p0) * Math.cos(p) * Math.cos(l)),
-        visible: cosc > 0.02, // on the side facing us
-        cosc,
-      };
-    };
-
-    // On the visible side AND inside the round window.
-    const inside = (q) => q.visible && Math.hypot(q.x - cx, q.y - cy) <= windowR - 4;
-
-    // The map itself (empty strings until Geo.load() has finished).
-    let landPath = "", bordersPath = "", gridPath = "";
-    let countryPath = () => "";
-    if (land) {
-      const projection = d3.geoOrthographic()
-        .rotate([-view.lon, -view.lat])
-        .scale(sphereR)
-        .translate([cx, cy])
-        .clipExtent([[cx - windowR - 4, cy - windowR - 4], [cx + windowR + 4, cy + windowR + 4]]);
-      const path = d3.geoPath(projection);
-      landPath = path(land) ?? "";
-      bordersPath = path(borders) ?? "";
-      gridPath = path(graticule) ?? "";
-      countryPath = (lat, lon) => {
-        const country = countryAt(lat, lon);
-        return country ? path(country) ?? "" : "";
-      };
+  // The view that frames `points` ([{lat, lon}, ...]) inside `box`
+  // ([[left, top], [right, bottom]] in pixels), zooming in no further than maxK
+  // (so two nearby cities don't fill the whole screen).
+  function fitView(points, box, maxK) {
+    if (!hasLibraries) return { k: 200, tx: (box[0][0] + box[1][0]) / 2, ty: (box[0][1] + box[1][1]) / 2 };
+    const fitted = d3.geoNaturalEarth1().fitExtent(box, { type: "MultiPoint", coordinates: points.map((p) => [p.lon, p.lat]) });
+    let k = fitted.scale();
+    let [tx, ty] = fitted.translate();
+    if (!Number.isFinite(k) || k > maxK) {
+      // Zoom out around the middle of the box, so the points stay centred.
+      const cx = (box[0][0] + box[1][0]) / 2;
+      const cy = (box[0][1] + box[1][1]) / 2;
+      const f = Number.isFinite(k) ? maxK / k : 0;
+      tx = Number.isFinite(k) ? cx - (cx - tx) * f : cx;
+      ty = Number.isFinite(k) ? cy - (cy - ty) * f : cy;
+      k = maxK;
     }
-
-    // A curved flight path between two places, lifted above the surface.
-    // The parts hidden behind the Earth are left out.
-    const arc = (a, b, lift = 0.14, steps = 48) => {
-      const va = toVec(a.lat, a.lon);
-      const vb = toVec(b.lat, b.lon);
-      const th = Math.acos(Math.min(1, Math.max(-1, dot3(va, vb)))) || 0.0001;
-      let d = "";
-      let drawing = false;
-      for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const k1 = Math.sin((1 - t) * th) / Math.sin(th);
-        const k2 = Math.sin(t * th) / Math.sin(th);
-        const v = [k1 * va[0] + k2 * vb[0], k1 * va[1] + k2 * vb[1], k1 * va[2] + k2 * vb[2]];
-        const q = project(Math.asin(v[2]) / RAD, Math.atan2(v[1], v[0]) / RAD, sphereR * (1 + lift * Math.sin(Math.PI * t)));
-        const seen = q.cosc > 0 || Math.hypot(q.x - cx, q.y - cy) > sphereR;
-        if (seen) d += (drawing ? "L" : "M") + q.x.toFixed(1) + " " + q.y.toFixed(1);
-        drawing = seen;
-      }
-      return d;
-    };
-
-    return { cx, cy, windowR, sphereR, project, inside, arc, landPath, bordersPath, gridPath, countryPath };
+    return { k, tx, ty };
   }
 
-  return { load, fitView, createGlobe };
+  // One frame of the map, `width` x `height` pixels.
+  function createMap(view, width, height) {
+    if (!hasLibraries) {
+      // Without the libraries: a plain equirectangular guess, enough for the pins.
+      const project = (lat, lon) => [view.tx + (lon * Math.PI / 180) * view.k, view.ty - (lat * Math.PI / 180) * view.k];
+      return { project, landPath: "", bordersPath: "", gridPath: "" };
+    }
+    const projection = projectionFor(view).clipExtent([[-20, -20], [width + 20, height + 20]]);
+    const path = d3.geoPath(projection);
+    return {
+      project: (lat, lon) => projection([lon, lat]) ?? [-999, -999],
+      landPath: land ? path(land) ?? "" : "",
+      bordersPath: borders ? path(borders) ?? "" : "",
+      gridPath: path(graticule) ?? "",
+    };
+  }
+
+  return { load, fitView, createMap };
 })();

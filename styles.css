@@ -1,56 +1,61 @@
 /* ---------------------------------------------------------------------------
-   Flight Plan — "Terracotta & Sand" theme (design 19)
+   Flight Plan — "Retro Travel Poster" theme (design 57)
 
    EVERY colour of the site lives in the variables just below — the page, the
-   banner, the table, and the globe too (app.js reads the globe colours from
-   here). To re-colour the site, change these values and nothing else.
+   banner, the table, and the map too (app.js reads the map colours from here).
+   To re-colour the site, change these values and nothing else.
+
+   The idea: a terracotta banner with soft sun rays, a cream page and map, and
+   ONE warm colour — mustard — on everything you click.
 --------------------------------------------------------------------------- */
 
 :root {
   /* Page */
-  --page-top: #FBF2E8;      /* page background, top */
-  --page-bottom: #F3DFCF;   /* page background, bottom */
-  --ink: #3D2218;           /* main text */
-  --soft: #7C5744;          /* secondary text */
-  --line: #EBD5C3;          /* thin borders */
-  --tint: #F4E1D2;          /* light fills (table header, chips) */
-  --tint-strong: #FBF0E6;   /* selected-row fill */
-  --row-hover: #FDF7F1;
-  --accent: #A9472F;        /* buttons, highlights */
+  --page: #F5EEE3;          /* page background (also the sea on the map) */
+  --ink: #2A1D16;           /* main text */
+  --soft: #6A5E56;          /* secondary text */
+  --line: #ECE3D6;          /* thin borders */
+  --tint: #F6F0E7;          /* light fills (table header, chips) */
+  --tint-strong: #FCF5EA;   /* selected-row fill */
+  --row-hover: #FBF7F0;
+  --accent: #A8461C;        /* terracotta: links, outlines, small highlights */
   --good: #2F7A4A;          /* "Direct", "€23 less" */
   --good-tint: #E3EFDF;     /* behind "€23 less" */
-  --pill-border: #E3C9B5;   /* outlines of the currency pill and sort chips */
-  --placeholder: #C2A493;   /* "City or airport" */
-  --shadow: 74, 29, 18;     /* colour of the soft shadows (red, green, blue) */
+  --pill-border: #E6D9C6;   /* outlines of the currency pill and sort chips */
+  --placeholder: #B7A99A;   /* "City or airport" */
+  --shadow: 60, 40, 30;     /* colour of the soft shadows (red, green, blue) */
 
-  /* Banner */
-  --hero-1: #7A2F20;        /* banner gradient, start */
-  --hero-2: #B5553B;        /* banner gradient, end */
-  --hero-text: #FFFFFF;
-  --hero-sub: #F9DCCB;      /* the sentence under the title */
-  --badge-text: #FFE9DA;
-  --bar-hint: #F3D2BF;      /* "Travelling as a group?" */
-  --bar-fade: rgba(251, 240, 230, 0.88); /* the soft fade at the right of the search bar */
-  --going-fill: rgba(240, 196, 138, 0.24); /* the "Going to" box once a city is chosen */
+  /* The ONE colour for everything you click (search, Select, Book...) */
+  --action: #F2B33D;        /* mustard */
+  --action-hover: #E5A32B;
+  --action-ink: #2B1608;    /* text on mustard */
 
-  /* Warm accent: the meeting point, flight paths, the globe's backdrop */
-  --peach: #F0C48A;
-  --peach-soft: #EFD3B8;
+  /* Banner: terracotta with soft sun rays and a rising sun (bottom right) */
+  --hero-bg:
+    repeating-conic-gradient(from 0deg at 84% 125%, rgba(255, 236, 200, 0.10) 0deg 5deg, rgba(255, 236, 200, 0) 5deg 10deg),
+    radial-gradient(circle at 84% 125%, #F2B33D 0 13%, rgba(242, 179, 61, 0) 13.3%),
+    linear-gradient(160deg, #B5401F 0%, #D9612E 100%);
+  --hero-text: #FFF6E6;
+  --hero-sub: #FBE0C2;      /* the sentence under the title, the trust line */
+  --badge-bg: #F2C14E;      /* "REAL PRICES · REAL DATES" */
+  --badge-text: #3A1E10;
+  --going-fill: rgba(242, 179, 61, 0.18); /* the "Going to" box once a city is chosen */
 
-  /* Globe */
-  --ocean-a: #B5553B;       /* sea, light side */
-  --ocean-b: #4A1D12;       /* sea, dark side */
-  --land: #F6D9B8;          /* the countries */
-  --borders: rgba(122, 47, 32, 0.38); /* the lines between countries */
-  --grid: rgba(255, 233, 218, 0.13);  /* faint latitude/longitude lines on the sea */
-  --orbit: rgba(169, 71, 47, 0.35);
+  /* Small fills */
+  --tag-bg: #F8E2B0;        /* "CHEAPEST" */
+  --bar: #EDE0C8;           /* weekend bars */
+  --bar-cheap: #F2C878;     /* weekend bars, cheaper half */
+
+  /* Map */
+  --map-sea: #F5EEE3;
+  --map-land: #FFFDF8;
+  --map-borders: rgba(90, 60, 30, 0.15);
+  --map-grid: rgba(90, 60, 30, 0.05);
 
   /* One colour per departure (1st = you, 2nd = them, ... up to 8):
-     --c* in the table and search bar, --pin* for the pins on the dark globe */
-  --c0: #A9472F; --c1: #6F8F5E; --c2: #C28B2C; --c3: #4F7C8A;
-  --c4: #8E5B7A; --c5: #5E6FA3; --c6: #9A7B4F; --c7: #C2566E;
-  --pin0: #FFFFFF; --pin1: #F0C48A; --pin2: #B9D8A8; --pin3: #9FC6D1;
-  --pin4: #E0B3CF; --pin5: #AEB9E5; --pin6: #E3C99A; --pin7: #F2A9B8;
+     the dots in the table, the avatars, the routes and pins on the map */
+  --c0: #C24A1F; --c1: #5B6B2E; --c2: #D99A2B; --c3: #3F6E8C;
+  --c4: #8E4A6B; --c5: #4E7A5A; --c6: #9A6A3A; --c7: #6B5B9A;
 
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Manrope', sans-serif;
@@ -64,8 +69,7 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--ink);
-  background: linear-gradient(180deg, var(--page-top) 0%, var(--page-bottom) 100%);
-  background-attachment: fixed;
+  background: var(--page);
   line-height: 1.45;
   overflow-x: hidden;
 }
@@ -83,58 +87,65 @@ button, input, select { font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 26px 16px;
 }
-.logo-a { fill: var(--accent); }
-.logo-b { fill: var(--peach); }
+.logo-a { fill: var(--c0); }
+.logo-b { fill: var(--action); }
 .brand { display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 23px; font-weight: 700; letter-spacing: -0.3px; }
 .nav-links { display: flex; align-items: center; gap: 26px; font-size: 15px; font-weight: 600; }
 
 .currency-pill {
   position: relative; display: inline-flex; align-items: center;
-  border: 1.5px solid var(--pill-border); border-radius: 999px; background: transparent;
+  border: 1.5px solid var(--pill-border); border-radius: 999px; background: #fff;
 }
 .currency-pill select {
   appearance: none; -webkit-appearance: none;
   border: 0; background: transparent; color: var(--ink);
   font-size: 14px; font-weight: 700; cursor: pointer;
   padding: 8px 32px 8px 16px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%233D2218' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%232A1D16' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center;
 }
-.btn-signin { color: var(--accent); border: 1.5px solid var(--accent); border-radius: 999px; padding: 8px 22px; font-size: 14px; font-weight: 700; }
+.btn-signin { color: var(--ink); background: #fff; border: 1.5px solid var(--ink); border-radius: 999px; padding: 8px 22px; font-size: 14px; font-weight: 700; }
 
 /* ---------- The banner ---------- */
 
 .hero {
-  position: relative; z-index: 10; /* above the results, so dropdowns and the pop-up overlay them */
+  position: relative; z-index: 10; /* above the results (they slide in under it) and the map */
   width: var(--content); margin: 4px auto 0;
   border-radius: 36px;
-  background: linear-gradient(135deg, var(--hero-1) 0%, var(--hero-2) 100%);
-  box-shadow: 0 26px 60px rgba(var(--shadow), 0.3);
-  padding: 52px 64px 56px;
+  background: var(--hero-bg);
+  box-shadow: 0 26px 50px rgba(var(--shadow), 0.28);
+  padding: 44px 56px 52px;
 }
 .hero-content { position: relative; z-index: 2; }
 
-.badge {
-  display: inline-block; margin-bottom: 20px; padding: 8px 18px; border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16); color: var(--badge-text);
+.hero-badge {
+  display: inline-block; margin-bottom: 18px; padding: 8px 18px; border-radius: 999px;
+  background: var(--badge-bg); color: var(--badge-text);
   font-size: 12px; font-weight: 800; letter-spacing: 1.6px;
 }
 .hero h1 {
-  margin: 0 0 14px; max-width: 880px; color: var(--hero-text);
-  font-family: var(--font-display); font-size: 58px; line-height: 1.06; font-weight: 600; letter-spacing: -1px;
+  margin: 0 0 12px; max-width: 880px; color: var(--hero-text);
+  font-family: var(--font-display); font-size: 56px; line-height: 1.04; font-weight: 600; letter-spacing: -1px;
 }
-.hero-sub { margin: 0 0 32px; max-width: 700px; color: var(--hero-sub); font-size: 18px; line-height: 1.5; }
+.hero-sub { margin: 0 0 16px; max-width: 700px; color: var(--hero-sub); font-size: 18px; line-height: 1.5; }
+
+/* The three promises under the title */
+.headliners { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 26px; padding: 0; list-style: none; }
+.headliners li { display: inline-flex; align-items: center; gap: 8px; color: var(--hero-text); font-size: 14px; font-weight: 700; }
+.headliners li::before {
+  content: "✓"; display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%; background: rgba(255, 246, 230, 0.22);
+  color: var(--badge-bg); font-size: 11px; font-weight: 800;
+}
 
 /* ---------- The search bar ---------- */
 
 .search-bar {
   position: relative;
   display: flex; align-items: stretch;
-  /* a soft fade instead of flat white: lets the banner colour show through a little */
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, var(--bar-fade) 100%);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 26px;
-  box-shadow: 0 22px 50px rgba(var(--shadow), 0.4);
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.7); border-radius: 26px;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.22);
   padding: 12px 12px 12px 22px;
 }
 .search-bar .field { position: relative; flex: 1; padding: 10px 20px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
@@ -146,7 +157,7 @@ button, input, select { font-family: inherit; }
 .going-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; min-height: 20px; }
 .search-bar .going-head label { margin: 0; }
 .going-row { display: flex; align-items: center; gap: 8px; }
-.going-icon { flex: none; display: inline-flex; color: var(--peach); }
+.going-icon { flex: none; display: inline-flex; color: var(--action); }
 .field-going.has-destination .going-icon { color: var(--accent); }
 .going-row input {
   flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; padding: 0;
@@ -187,16 +198,16 @@ button, input, select { font-family: inherit; }
 .people-btn:hover:not(:disabled) { border-color: var(--accent); }
 .people-btn:disabled { opacity: 0.35; cursor: default; }
 
-/* The small "+ Add a departure" box under the bar */
-.bar-extras { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 14px; }
+/* Under the bar: the small "+ Add a departure" box and the trust line */
+.bar-extras { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; }
 .add-departure {
-  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; cursor: pointer;
-  border: 1px dashed rgba(255, 255, 255, 0.55); border-radius: 12px;
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; cursor: pointer;
+  border: 1px dashed rgba(255, 255, 255, 0.6); border-radius: 12px;
   background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 13px; font-weight: 800;
 }
 .add-departure:hover { background: rgba(255, 255, 255, 0.2); }
-.add-departure small { color: rgba(255, 255, 255, 0.7); font-size: 11px; font-weight: 600; }
-.bar-hint { color: var(--bar-hint); font-size: 13px; }
+.add-departure small { color: rgba(255, 255, 255, 0.75); font-size: 11px; font-weight: 600; }
+.bar-hint { color: var(--hero-sub); font-size: 13px; font-weight: 700; }
 
 .origin-cell input[type="text"] {
   border: 0; outline: 0; background: transparent; width: 100%; padding: 0;
@@ -225,10 +236,11 @@ button, input, select { font-family: inherit; }
 }
 .search-btn {
   display: flex; align-items: center; gap: 10px; white-space: nowrap;
-  border: 0; border-radius: 18px; padding: 0 34px; cursor: pointer;
-  background: var(--ink); color: #fff; font-size: 16px; font-weight: 800;
+  border: 0; border-radius: 18px; padding: 0 30px; cursor: pointer;
+  background: var(--action); color: var(--action-ink); font-size: 16px; font-weight: 800;
+  box-shadow: 0 10px 22px rgba(242, 179, 61, 0.35);
 }
-.search-btn svg { color: var(--peach); }
+.search-btn:hover:not(:disabled) { background: var(--action-hover); }
 .search-btn:disabled { opacity: 0.6; cursor: progress; }
 
 /* Autocomplete dropdown */
@@ -261,33 +273,53 @@ button, input, select { font-family: inherit; }
 }
 .date-row { display: flex; align-items: center; gap: 8px; }
 .date-row span { color: var(--soft); font-size: 13px; }
-.pop-hint { margin: 6px 0 0; color: var(--soft); font-size: 12px; }
 .check-option { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 14px; font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); cursor: pointer; }
 .check-option input { margin-top: 3px; accent-color: var(--accent); }
 .check-option small { color: var(--soft); font-weight: 600; }
-.pop-done { width: 100%; border: 0; border-radius: 14px; padding: 12px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 800; cursor: pointer; }
+.pop-done { width: 100%; border: 0; border-radius: 14px; padding: 12px; background: var(--action); color: var(--action-ink); font-size: 15px; font-weight: 800; cursor: pointer; }
 
-/* ---------- Results: table (left) + globe (right) ---------- */
+/* ---------- Results: the table box (left, tucked under the banner) + the map (right) ---------- */
 
 .results-grid {
   position: relative; z-index: 2;
-  width: var(--content); margin: 56px auto 0;
-  display: grid; grid-template-columns: minmax(0, 1fr) 520px; gap: 32px; align-items: start;
+  width: var(--content); margin: -44px auto 0; /* slides 44px under the banner */
+  display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 32px; align-items: start;
 }
 
-.table-box { background: #fff; border-radius: 30px; overflow: hidden; box-shadow: 0 24px 60px rgba(var(--shadow), 0.14); }
-.table-top { padding: 26px 24px 20px; }
+.table-box {
+  position: relative; z-index: 1; margin-left: 24px; padding-top: 44px; /* the part hidden under the banner */
+  background: #fff; border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(var(--shadow), 0.16);
+}
+.table-top { padding: 26px 24px 18px; }
 .table-top h2 { margin: 0 0 4px; font-family: var(--font-display); font-size: 30px; font-weight: 600; letter-spacing: -0.5px; }
 .table-top p { margin: 0 0 16px; color: var(--soft); font-size: 14px; }
-.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
-  border: 1px solid var(--pill-border); border-radius: 999px; padding: 9px 18px; cursor: pointer;
-  background: transparent; color: var(--ink); font-size: 14px; font-weight: 800;
+  border: 1px solid var(--pill-border); border-radius: 999px; padding: 8px 16px; cursor: pointer;
+  background: transparent; color: var(--ink); font-size: 13px; font-weight: 800;
 }
-.chip.is-selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.is-selected { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+/* "Everyone lands within [−] 3 h [+]" — the arrival-time rule, next to the results */
+.gap-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  margin: 0 24px 16px; padding: 10px 14px; border-radius: 14px; background: var(--tint); border: 1px solid var(--line);
+}
+.gap-label { display: inline-flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; font-weight: 800; cursor: help; }
+.stepper { display: inline-flex; align-items: center; gap: 10px; padding: 3px; border: 1px solid var(--line); border-radius: 999px; background: #fff; }
+.stepper button {
+  width: 26px; height: 26px; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--tint); color: var(--ink); font-size: 15px; font-weight: 800; line-height: 1;
+}
+.stepper button:hover:not(:disabled) { background: var(--action); color: var(--action-ink); }
+.stepper button:disabled { opacity: 0.35; cursor: default; }
+.stepper b { min-width: 34px; text-align: center; font-family: var(--font-display); font-size: 15px; }
+.gap-hint { color: var(--soft); font-size: 12.5px; }
+.gap-more { margin-left: auto; border: 0; padding: 0; background: none; cursor: pointer; color: var(--accent); font-size: 12.5px; font-weight: 800; }
+.gap-more:hover { text-decoration: underline; }
 
 .table-head, .row {
-  display: grid; grid-template-columns: 36px 176px minmax(0, 1fr) 104px; column-gap: 16px; align-items: center;
+  display: grid; grid-template-columns: 36px 160px minmax(0, 1fr) 104px; column-gap: 16px; align-items: center;
   padding: 0 24px;
 }
 .table-head { padding-top: 11px; padding-bottom: 11px; background: var(--tint); color: var(--soft); font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; }
@@ -298,16 +330,16 @@ button, input, select { font-family: inherit; }
 .row.is-selected { background: var(--tint-strong); }
 .rank {
   width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: var(--tint); color: var(--accent); font-family: var(--font-display); font-size: 16px; font-weight: 700;
+  background: var(--tint); color: var(--ink); font-family: var(--font-display); font-size: 16px; font-weight: 700;
 }
-.row.is-selected .rank { background: var(--accent); color: #fff; }
+.row.is-selected .rank { background: var(--action); color: var(--action-ink); }
 
 .dest-city { font-family: var(--font-display); font-size: 23px; font-weight: 600; line-height: 1.1; }
 .dest-country { margin-top: 2px; color: var(--soft); font-size: 12px; }
 .dest-dates { margin-top: 6px; font-size: 13px; font-weight: 800; }
 .dest-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 5px; color: var(--soft); font-size: 12px; }
-.code-chip { border-radius: 999px; padding: 2px 8px; background: var(--tint); color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: 0.8px; }
-.tag { border-radius: 999px; padding: 2px 8px; background: var(--peach-soft); color: var(--ink); font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
+.code-chip { border-radius: 999px; padding: 2px 8px; background: var(--tint); color: var(--ink); font-size: 11px; font-weight: 800; letter-spacing: 0.8px; }
+.tag { border-radius: 999px; padding: 2px 8px; background: var(--tag-bg); color: var(--ink); font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
 
 .traveler + .traveler { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .traveler-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -325,9 +357,8 @@ button, input, select { font-family: inherit; }
 .gap-note { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); color: var(--soft); font-size: 12px; }
 .gap-note b { color: var(--ink); }
 
-/* "Book on Aviasales" — one per traveller, since each person buys their own
-   ticket from their own airport. Quiet by default so it doesn't shout over the
-   prices; it fills in on hover. */
+/* "Book on Aviasales" — one per traveller (on the trip page), since each
+   person buys their own ticket from their own airport. */
 .book-btn {
   display: inline-flex; align-items: center; gap: 5px;
   border: 1.5px solid var(--line); border-radius: 999px; padding: 5px 13px;
@@ -335,24 +366,26 @@ button, input, select { font-family: inherit; }
   font-size: 12px; font-weight: 800; letter-spacing: 0.2px; text-decoration: none; cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.book-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.book-btn:disabled { cursor: progress; opacity: 0.7; } /* while the link is being fetched */.book-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.book-btn:hover { background: var(--action); border-color: var(--action); color: var(--action-ink); }
+.book-btn:disabled { cursor: progress; opacity: 0.7; } /* while the link is being fetched */
+.book-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .book-arrow { font-size: 11px; }
 
 .total-cell { text-align: right; }
 .total { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1; }
 .total-sub { margin: 3px 0 10px; color: var(--soft); font-size: 11px; }
 .select-btn {
-  display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 12px; padding: 9px 14px; cursor: pointer;
-  background: var(--accent); color: #fff; font-size: 13px; font-weight: 800;
+  display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 4px; padding: 9px 14px; cursor: pointer;
+  background: var(--action); color: var(--action-ink); font-size: 13px; font-weight: 800;
 }
+.select-btn:hover { background: var(--action-hover); }
 
 .warning {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   margin: 0 24px 16px; padding: 12px 16px; border-radius: 14px;
-  background: #FFF3E6; color: #7A4410; font-size: 13px; line-height: 1.45;
+  background: #FFF3E0; color: #7A4410; font-size: 13px; line-height: 1.45;
 }
-.warning button { flex-shrink: 0; border: 0; border-radius: 10px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff; font-size: 13px; font-weight: 800; }
+.warning button { flex-shrink: 0; border: 0; border-radius: 10px; padding: 8px 14px; cursor: pointer; background: var(--action); color: var(--action-ink); font-size: 13px; font-weight: 800; }
 
 .state-message { padding: 36px 24px; color: var(--soft); font-size: 15px; line-height: 1.6; border-top: 1px solid var(--line); }
 .state-message.is-error { color: #A8431F; }
@@ -375,8 +408,8 @@ button, input, select { font-family: inherit; }
 .wk.is-selected .wk-price { color: var(--accent); }
 .wk-empty .wk-price { color: var(--placeholder); }
 .wk-bar-area { width: 100%; height: 110px; display: flex; align-items: flex-end; justify-content: center; }
-.wk-bar { width: 30px; border-radius: 10px 10px 4px 4px; background: var(--peach-soft); }
-.wk.is-cheap .wk-bar { background: var(--peach); }
+.wk-bar { width: 30px; border-radius: 10px 10px 4px 4px; background: var(--bar); }
+.wk.is-cheap .wk-bar { background: var(--bar-cheap); }
 .wk.is-selected .wk-bar { background: var(--accent); }
 .wk-empty .wk-bar { height: 40px; border: 1px dashed var(--line); background: repeating-linear-gradient(135deg, var(--tint) 0 5px, #fff 5px 10px); }
 .wk-dates { color: var(--soft); font-size: 12px; font-weight: 800; line-height: 1.25; text-align: center; white-space: nowrap; }
@@ -388,6 +421,7 @@ button, input, select { font-family: inherit; }
 .block-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 24px 12px; }
 .block-title strong { font-family: var(--font-display); font-size: 19px; font-weight: 600; }
 .block-title span { color: var(--soft); font-size: 13px; }
+.trip-insight { margin: 0 24px 14px; padding: 10px 14px; border-radius: 12px; background: var(--tag-bg); color: var(--ink); font-size: 13px; }
 
 .alts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin: 0 24px 20px; }
 .alt {
@@ -419,16 +453,16 @@ button, input, select { font-family: inherit; }
 
 /* ---------- The trip page (after "Select"): book the flights, where to stay ---------- */
 
-.trip-page { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.trip-page { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 20px; min-width: 0; padding-top: 64px; margin-left: 24px; }
 .back-link { align-self: flex-start; border: 0; padding: 4px 0; background: none; cursor: pointer; color: var(--accent); font-size: 14px; font-weight: 800; }
 .back-link:hover { text-decoration: underline; }
 .tp-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;
   border-radius: 30px; padding: 30px 32px; color: var(--hero-text);
-  background: linear-gradient(135deg, var(--hero-1) 0%, var(--hero-2) 100%);
+  background: var(--hero-bg);
   box-shadow: 0 24px 60px rgba(var(--shadow), 0.2);
 }
-.tp-head .badge { margin-bottom: 14px; }
+.tp-head .hero-badge { margin-bottom: 14px; }
 .tp-head h2 { margin: 0; font-family: var(--font-display); font-size: 44px; font-weight: 600; line-height: 1.05; letter-spacing: -0.8px; }
 .tp-country { margin-top: 4px; color: var(--hero-sub); font-size: 15px; }
 .tp-when { margin-top: 14px; font-size: 16px; font-weight: 700; }
@@ -436,7 +470,7 @@ button, input, select { font-family: inherit; }
 .tp-total strong { display: block; font-family: var(--font-display); font-size: 40px; font-weight: 700; line-height: 1; }
 .tp-total span { color: var(--hero-sub); font-size: 13px; }
 
-.tp-card { border-radius: 30px; padding: 24px; background: #fff; box-shadow: 0 24px 60px rgba(var(--shadow), 0.14); }
+.tp-card { padding: 24px; background: #fff; border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(var(--shadow), 0.14); }
 .tp-card h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 24px; font-weight: 600; }
 .tp-sub { margin: 0 0 14px; color: var(--soft); font-size: 14px; }
 .tp-flight { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: center; padding: 18px 0; border-top: 1px solid var(--line); }
@@ -447,74 +481,58 @@ button, input, select { font-family: inherit; }
 .tp-buy { text-align: right; }
 .tp-price { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1; }
 .tp-price-sub { margin: 3px 0 10px; color: var(--soft); font-size: 12px; }
-.book-btn.is-primary { padding: 10px 18px; border-color: var(--accent); background: var(--accent); color: #fff; font-size: 14px; }
-.book-btn.is-primary:hover { border-color: var(--hero-1); background: var(--hero-1); }
+.book-btn.is-primary { padding: 10px 18px; border-color: var(--action); background: var(--action); color: var(--action-ink); font-size: 14px; }
+.book-btn.is-primary:hover { border-color: var(--action-hover); background: var(--action-hover); }
 .tp-disclosure { margin: 14px 0 0; color: var(--soft); font-size: 12px; }
 .tp-placeholder {
   padding: 22px; border: 1.5px dashed var(--pill-border); border-radius: 20px;
   background: var(--tint-strong); color: var(--soft); font-size: 14px; text-align: center;
 }
 
-/* Globe — once it reaches the middle of the screen it stays there while you
-   scroll through the results (the column is ~625px tall, so 50vh − 312px
-   centres it; on short screens it sticks 24px from the top instead). */
-.globe-col { display: flex; flex-direction: column; gap: 20px; position: sticky; top: max(24px, calc(50vh - 312px)); }
-.globe-wrap { position: relative; width: 520px; height: 520px; }
-.globe-backdrop { position: absolute; inset: 0; border-radius: 50%; background: var(--peach-soft); opacity: 0.75; }
-#globe { position: absolute; left: 0; top: 0; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
-.globe-wrap.is-dragging #globe, .globe-wrap.is-dragging #globe .dest-dot { cursor: grabbing; }
-.globe-zoom {
-  position: absolute; right: 28px; bottom: 28px; z-index: 3; display: flex; flex-direction: column;
-  border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 6px 16px rgba(var(--shadow), 0.14);
-}
-.globe-zoom button {
-  width: 36px; height: 34px; border: 0; background: #fff; cursor: pointer;
-  color: var(--ink); font-size: 19px; font-weight: 700; line-height: 1;
-}
-.globe-zoom button + button { border-top: 1px solid var(--line); }
-.globe-zoom button:hover:not(:disabled) { background: var(--row-hover); color: var(--accent); }
-.globe-zoom button:disabled { color: var(--placeholder); cursor: default; }
-.globe-reset {
-  position: absolute; right: 28px; top: 28px; z-index: 3; border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer;
-  background: #fff; color: var(--accent); font: inherit; font-size: 12px; font-weight: 800;
-  box-shadow: 0 6px 16px rgba(var(--shadow), 0.14);
-}
-#globe-labels { position: absolute; inset: 0; pointer-events: none; }
-.globe-label {
-  position: absolute; z-index: 3; border-radius: 999px; padding: 7px 14px; white-space: nowrap;
-  background: #fff; color: var(--ink); font-size: 13px; font-weight: 800;
-  box-shadow: 0 8px 18px rgba(var(--shadow), 0.28);
-}
-.globe-label.is-dest { background: var(--peach); color: var(--ink); }
-.live-pill {
-  position: absolute; left: 28px; top: 28px; z-index: 3; display: flex; align-items: center; gap: 8px;
-  border-radius: 999px; padding: 8px 14px; background: #fff; color: var(--ink);
-  font-size: 12px; font-weight: 800; letter-spacing: 0.6px; box-shadow: 0 6px 16px rgba(var(--shadow), 0.14);
-}
-#globe .dest-dot { cursor: pointer; }
-#globe .dest-dot:hover .dot-core { r: 7.5; }
-#globe .dot-label {
-  font-family: var(--font-body); font-size: 12px; font-weight: 800; fill: #fff;
-  paint-order: stroke; stroke: var(--ocean-b); stroke-width: 4px; stroke-linejoin: round;
+/* ---------- The map: behind the whole page on wide screens ---------- */
+
+.map-col { min-width: 0; }
+/* It fills the window and stays put while you scroll; the page sits on top of
+   it, so you see (and drag) it in the open space right of the results. */
+.map-layer { position: fixed; inset: 0; z-index: 0; }
+#map { position: absolute; left: 0; top: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.map-layer.is-dragging #map, .map-layer.is-dragging #map .dest-dot { cursor: grabbing; }
+#map .dest-dot { cursor: pointer; }
+#map .dest-dot:hover .dot-core { r: 7.5; }
+#map .dot-label {
+  font-family: var(--font-body); font-size: 12px; font-weight: 800; fill: var(--ink);
+  paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round;
   opacity: 0; transition: opacity 0.15s; pointer-events: none;
 }
-#globe .dest-dot:hover .dot-label { opacity: 1; }
+#map .dest-dot:hover .dot-label { opacity: 1; }
+#map-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.map-label {
+  position: absolute; z-index: 3; border-radius: 999px; padding: 7px 14px; white-space: nowrap;
+  background: #fff; color: var(--ink); font-size: 13px; font-weight: 800;
+  box-shadow: 0 8px 18px rgba(var(--shadow), 0.18);
+}
+.map-label.is-dest { background: var(--action); color: var(--action-ink); }
+.map-ui { position: absolute; right: 24px; bottom: 24px; z-index: 4; display: flex; align-items: flex-end; gap: 10px; }
 .map-hint {
-  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 3; white-space: nowrap;
-  border-radius: 999px; padding: 7px 14px; background: rgba(255, 255, 255, 0.92); color: var(--ink);
-  font-size: 12px; font-weight: 700; box-shadow: 0 6px 16px rgba(var(--shadow), 0.14); pointer-events: none;
+  border-radius: 999px; padding: 8px 14px; background: #fff; color: var(--ink); white-space: nowrap;
+  font-size: 12px; font-weight: 700; box-shadow: 0 6px 16px rgba(var(--shadow), 0.16);
 }
-.live-pill span { width: 9px; height: 9px; border-radius: 50%; background: #FFB400; }
-.info-card {
-  display: flex; align-items: center; gap: 18px; background: #fff; border-radius: 24px; padding: 20px 24px;
-  box-shadow: 0 16px 40px rgba(var(--shadow), 0.1);
+.map-reset {
+  border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  background: #fff; color: var(--accent); font: inherit; font-size: 12px; font-weight: 800;
+  box-shadow: 0 6px 16px rgba(var(--shadow), 0.16);
 }
-.info-card p { margin: 0; font-size: 15px; line-height: 1.5; }
+.map-zoom { display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 6px 16px rgba(var(--shadow), 0.16); }
+.map-zoom button { width: 36px; height: 34px; border: 0; background: #fff; cursor: pointer; color: var(--ink); font-size: 19px; font-weight: 700; line-height: 1; }
+.map-zoom button + button { border-top: 1px solid var(--line); }
+.map-zoom button:hover:not(:disabled) { background: var(--row-hover); color: var(--accent); }
+.map-zoom button:disabled { color: var(--placeholder); cursor: default; }
 
 .page-footer {
-  position: relative; z-index: 2; width: var(--content); margin: 72px auto 0; padding: 28px 16px 40px;
+  position: relative; z-index: 3; width: var(--content); margin: 72px auto 0; padding: 28px 16px 40px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   border-top: 1px solid var(--line); color: var(--soft); font-size: 13px;
+  background: var(--page);
 }
 .footer-links { display: flex; gap: 24px; }
 
@@ -522,14 +540,16 @@ button, input, select { font-family: inherit; }
 
 @media (max-width: 1180px) {
   .results-grid { grid-template-columns: minmax(0, 1fr); }
-  .globe-col { align-items: center; position: static; } /* not sticky when it sits below the table */
-  .globe-col .info-card { width: 100%; max-width: 520px; }
+  .table-box, .trip-page { margin-left: 0; }
+  /* The map becomes a block under the results */
+  .map-layer { position: relative; inset: auto; height: 440px; border: 1px solid var(--line); box-shadow: 0 16px 40px rgba(var(--shadow), 0.12); overflow: hidden; }
+  .map-ui { right: 14px; bottom: 14px; }
 }
 
 @media (max-width: 860px) {
   .nav { flex-wrap: wrap; gap: 12px; }
   .nav-links { gap: 14px; flex-wrap: wrap; }
-  .hero { padding: 36px 20px 24px; }
+  .hero { padding: 32px 20px 56px; border-radius: 28px; }
   .hero h1 { font-size: 38px; }
   .hero-sub { font-size: 16px; }
   .search-bar { flex-direction: column; padding: 12px; }
@@ -545,6 +565,7 @@ button, input, select { font-family: inherit; }
   .row { grid-template-columns: 36px minmax(0, 1fr); row-gap: 14px; }
   .row .journeys, .row .total-cell { grid-column: 1 / -1; }
   .total-cell { text-align: left; }
+  .gap-more { margin-left: 0; }
   .trip-box { grid-template-columns: minmax(0, 1fr); }
   .tp-head { padding: 24px; }
   .tp-head h2 { font-size: 34px; }
@@ -552,6 +573,8 @@ button, input, select { font-family: inherit; }
   .tp-flight { grid-template-columns: minmax(0, 1fr); }
   .tp-buy { text-align: left; }
   .alts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .globe-wrap { transform: scale(0.62); transform-origin: top center; margin-bottom: -190px; }
-  #globe { touch-action: pan-y; } /* on phones, swiping up/down over the globe still scrolls the page */
+  .map-layer { height: 340px; }
+  .map-hint { display: none; }
+  .page-footer { flex-direction: column; align-items: flex-start; }
+  #map { touch-action: pan-y; } /* on phones, swiping up/down over the map still scrolls the page */
 }

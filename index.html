@@ -55,9 +55,15 @@
     <section class="hero">
 
       <div class="hero-content">
-        <div class="badge">REAL PRICES · REAL DATES</div>
+        <div class="hero-badge">REAL PRICES · REAL DATES</div>
         <h1>Find where to meet in the middle</h1>
-        <p class="hero-sub">For long-distance love, friends and family — see where you can meet, cheapest first.</p>
+        <p class="hero-sub">For long-distance love, friends and family.</p>
+        <!-- What makes us different, said straight away -->
+        <ul class="headliners">
+          <li>The full price for everyone, not per person</li>
+          <li>Cheapest first</li>
+          <li>Same dates for all of you</li>
+        </ul>
 
         <form id="search-form" class="search-bar" autocomplete="off">
           <!-- The departures. app.js creates one cell per departure (2 to 8) and the
@@ -125,18 +131,6 @@
                 </div>
               </div>
 
-              <div class="pop-field">
-                <label for="max-gap">Max time between your arrivals (and your returns)</label>
-                <select id="max-gap">
-                  <option value="2">2 hours</option>
-                  <option value="3" selected>3 hours</option>
-                  <option value="4">4 hours</option>
-                  <option value="6">6 hours</option>
-                  <option value="0">No limit</option>
-                </select>
-                <p class="pop-hint">So nobody waits alone for hours. Arrival times are estimates.</p>
-              </div>
-
               <button type="button" id="when-done" class="pop-done">Done</button>
             </div>
           </div>
@@ -150,12 +144,12 @@
         <!-- Small box under the bar: add more departures (friends, family...) -->
         <div class="bar-extras">
           <button type="button" class="add-departure" id="add-departure">+ Add a departure <small id="add-departure-note">(2/8)</small></button>
-          <span class="bar-hint" id="bar-hint">Travelling as a group? Add everyone's airport.</span>
+          <span class="bar-hint" id="bar-hint">Free · no account needed · you book directly on Aviasales</span>
         </div>
       </div>
     </section>
 
-    <!-- ===== Results: one table box on the left, the globe on the right ===== -->
+    <!-- ===== Results: one table box on the left (tucked under the banner), the map on the right ===== -->
     <section class="results-grid">
       <div class="table-box">
         <div class="table-top">
@@ -172,6 +166,21 @@
             <button type="button" class="chip" data-trip="long">Long weekend</button>
             <button type="button" class="chip" data-trip="week">A week</button>
           </div>
+        </div>
+
+        <!-- How far apart everyone may land (and fly home). Changing it re-runs the search. -->
+        <div class="gap-bar" id="gap-bar">
+          <span class="gap-label" title="So nobody waits alone for hours. Arrival times are estimates.">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+            Everyone lands within
+          </span>
+          <span class="stepper">
+            <button type="button" id="gap-minus" aria-label="Less time between arrivals">−</button>
+            <b id="gap-value">3 h</b>
+            <button type="button" id="gap-plus" aria-label="More time between arrivals">+</button>
+          </span>
+          <span class="gap-hint" id="gap-hint">of each other · applies to your search</span>
+          <button type="button" class="gap-more" id="gap-more" hidden></button>
         </div>
 
         <!-- Shown when Travelpayouts didn't answer some requests (filled by app.js) -->
@@ -192,27 +201,21 @@
       <!-- The trip page: shown instead of the list after "Select" (filled by app.js) -->
       <div class="trip-page" id="trip-page" hidden></div>
 
-      <aside class="globe-col">
-        <div class="globe-wrap" id="globe-wrap">
-          <div class="globe-backdrop"></div>
-          <svg id="globe" width="520" height="520" viewBox="0 0 520 520" aria-hidden="true"></svg>
-          <div id="globe-labels"></div>
-          <div class="live-pill"><span></span>LIVE MAP</div>
-          <!-- Drag the globe to turn it; zoom with these buttons, a pinch, or Ctrl + scroll -->
-          <button type="button" class="globe-reset" id="globe-reset" hidden>↺ Recentre</button>
-          <div class="globe-zoom">
-            <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
-            <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <!-- The map: on wide screens it fills the window behind the page (you see it
+           and drag it in the open space right of the results); on narrower
+           screens it is a block under the results. Drawn by app.js + geo.js. -->
+      <aside class="map-col">
+        <div class="map-layer" id="map-layer">
+          <svg id="map" aria-hidden="true"></svg>
+          <div id="map-labels"></div>
+          <div class="map-ui">
+            <div class="map-hint" id="map-hint">Drag the map to explore</div>
+            <button type="button" class="map-reset" id="map-reset" hidden>↺ Recentre</button>
+            <div class="map-zoom">
+              <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+              <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+            </div>
           </div>
-          <div class="map-hint" id="map-hint" hidden></div>
-        </div>
-        <div class="info-card">
-          <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="14" cy="14" r="12" class="logo-a"></circle>
-            <circle cx="26" cy="14" r="12" class="logo-b"></circle>
-            <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
-          </svg>
-          <p id="info-text"><strong>Fly out and back on the same days.</strong> We only show dates that work for everyone.</p>
         </div>
       </aside>
     </section>
@@ -223,7 +226,7 @@
     <span class="footer-links"><a href="#">Privacy</a><a href="#">Contact</a></span>
   </footer>
 
-  <!-- Map libraries for the globe's countries (free, from a public CDN) -->
+  <!-- Map libraries for the countries on the map (free, from a public CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>

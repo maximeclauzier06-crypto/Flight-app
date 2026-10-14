@@ -9,13 +9,15 @@
 //     search-flights) for matching destinations (or, with a destination, for
 //     the cheapest dates). That function holds the Travelpayouts token safely
 //     on the server — this file never sees it.
-//   * The results fill the table (or the weekends strip); the globe on the
-//     right shows the selected destination (geo.js draws the globe).
+//   * The results fill the table (or the weekends strip); the world map behind
+//     the page shows everyone's routes to the selected destination (geo.js
+//     draws the countries).
 //
 // Sections:  1 Settings · 2 Small helpers · 3 Airport autocomplete + 3b Departures +
-//            3c Going to · 4 Currency · 5 The "When" pop-up · 6 Searching ·
-//            7 The results table · 7b One destination · 7c Booking ·
-//            7d The trip page (after "Select") · 8 The globe
+//            3c Going to · 4 Currency · 5 The "When" pop-up · 6 Searching +
+//            6b The arrival-time rule (− / +) · 7 The results table ·
+//            7b One destination · 7c Booking · 7d The trip page (after "Select") ·
+//            8 The map
 // ---------------------------------------------------------------------------
 
 
@@ -40,8 +42,13 @@ const AUTOCOMPLETE_URL = "https://autocomplete.travelpayouts.com/places2";
 // link — your marker and project ID live there, as Edge Function Secrets.
 // See section 7c.
 
-const GLOBE_RADIUS = 210; // size of the globe window, in pixels
-const GLOBE_MAX_ZOOM = 4;  // how far you can zoom in (1 = the whole Earth)
+// The map's zoom (the size of the world: at 150 the whole world is ~800px wide).
+const MAP_MIN_ZOOM = 140;  // how far you can zoom out
+const MAP_MAX_ZOOM = 2400; // how far you can zoom in (about one country on screen)
+const MAP_FIT_ZOOM = 1500; // how close it zooms by itself, so two nearby cities don't fill the screen
+
+// "Everyone lands within ..." — the steps of the − / + buttons, in hours (0 = any).
+const GAP_STEPS = [1, 2, 3, 4, 6, 0];
 
 // What the page remembers between actions.
 const state = {
@@ -49,11 +56,12 @@ const state = {
   origins: [],       // one { label, lat, lon, count } per departure of the last search
   sort: "cheapest",  // cheapest | fastest | stops
   selected: null,    // destination code of the highlighted row
-  maxGapHours: 3,    // the arrival/return time rule used by the last search
+  maxGapHours: 3,    // the arrival/return time rule ("Everyone lands within"); 0 = no limit
+  searching: false,  // a search is on its way
   debug: null,       // the function's report on the last search (counts, failures...)
   currency: "usd",   // the currency the prices in `results` are actually in
   lastSearch: null,  // so a currency change or "Try again" can re-run the same search
-  globeView: null,   // {lat, lon, zoom} once you turn/zoom the globe; null = it frames everything itself
+  mapView: null,     // {k, tx, ty} once you drag/zoom the map; null = it frames everything itself
   trip: null,        // with a destination chosen: the answer (weekends and their options); null otherwise
   tripWindow: 0,     // which weekend (or week) of the strip is selected
   tripOption: 0,     // which of its options is selected (they come cheapest first)
@@ -118,7 +126,7 @@ function describeSuggestion(item) {
 }
 
 // Wires one text input to a dropdown of live suggestions. Picking one stores
-// its exact code (and position, for the globe) on the input itself.
+// its exact code (and position, for the map) on the input itself.
 // `onChange` runs when a place is picked, or when typing cancels the choice.
 function setupAutocomplete(input, list, onChange = () => {}) {
   let items = [];
@@ -258,7 +266,7 @@ function refreshOrigins() {
   cells.forEach((cell, i) => {
     cell.querySelector("label").textContent = i === 0 ? "Your airport" : i === 1 ? "Their airport" : `Departure ${i + 1}`;
     cell.querySelector(".origin-remove").hidden = i < 2;
-    cell.style.setProperty("--who", `var(--c${i % 8})`); // same colour as in the table and on the globe
+    cell.style.setProperty("--who", `var(--c${i % 8})`); // same colour as in the table and on the map
     cell.classList.toggle("has-left", i % cols !== 0);
     cell.classList.toggle("has-top", i >= cols);
     renderPeople(cell);
@@ -327,7 +335,7 @@ function updateGoing() {
   $("search-btn-text").textContent = chosen ? "Find dates" : "Find destinations";
   $("bar-hint").textContent = chosen
     ? "We compare the coming weekends for you. Clear “Going to” (×) to find a place in the middle instead."
-    : "Travelling as a group? Add everyone's airport. Already know where? Pick it in “Going to”.";
+    : "Free · no account needed · you book directly on Aviasales";
 }
 
 setupAutocomplete(goingInput, $("going-suggestions"), () => {
@@ -439,7 +447,7 @@ updateWhenFields();
 
 // Turns the pop-up's choices (and "Going to") into the options sent to the search function.
 function collectSearchParams() {
-  const common = { currency: currencySelect.value, maxGapHours: $("max-gap").value };
+  const common = { currency: currencySelect.value, maxGapHours: String(state.maxGapHours) };
   if (hasDestination()) common.destination = goingInput.dataset.code;
 
   if (isSpecificMode()) {
@@ -536,7 +544,7 @@ function explainEmptyResult(debug, gapHours) {
     return `No destination is reachable from all ${n} departures (cached routes found — ${counts}). Try a bigger city or a different airport for one of them.`;
   }
   if (debug.rejectedByTimeGap > 0 && gapHours > 0) {
-    return `There are ${debug.rejectedByTimeGap} dates where everyone has a fare, but the arrival or return times are more than ${gapHours} hours apart. Open <strong>When</strong> and allow a bigger gap, or try other dates.`;
+    return `There are ${debug.rejectedByTimeGap} dates where everyone has a fare, but the arrival or return times are more than ${gapHours} hours apart. Press <strong>+</strong> next to “Everyone lands within” to allow a bigger gap, or try other dates.`;
   }
   const foundNone = reports.every((r) => !r.destinationsWithFares);
   const hint = foundNone
@@ -546,25 +554,41 @@ function explainEmptyResult(debug, gapHours) {
   return `Found ${debug.candidatesConsidered} destination${debug.candidatesConsidered === 1 ? "" : "s"} everyone can reach, but no cached fare matches your dates. ${hint}${groupHint}`;
 }
 
-async function runSearch(origins, params) {
+let searchCounter = 0; // so an older, slower search can't overwrite a newer one
+
+// After a search from the bar: bring the results up, so you see them — and
+// the routes on the map behind — without having to scroll.
+function revealResults() {
+  const visibleTop = document.querySelector(".hero").getBoundingClientRect().bottom; // the results start under the banner
+  if (visibleTop < window.innerHeight * 0.4) return; // already in view
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: window.scrollY + visibleTop, behavior: smooth ? "smooth" : "auto" });
+}
+
+// `reveal`: scroll to the results once they're in (searches from the bar).
+async function runSearch(origins, params, { reveal = false } = {}) {
   // A new search (e.g. another currency) while a trip page is open: back to the list.
   if (!tripPageEl.hidden) {
     closeTripPage();
     if (history.state?.tripPage) history.replaceState(null, "", location.pathname + location.search);
   }
+  const thisSearch = ++searchCounter;
   state.lastSearch = { origins, params };
   state.maxGapHours = Number(params.maxGapHours);
+  state.searching = true;
   state.debug = null;
   state.trip = null;
   setResultsMode(Boolean(params.destination));
   updateWarning();
+  renderGapBar();
   showMessage("Searching… (this can take a few seconds)");
   searchButton.disabled = true;
 
   try {
     const json = await callSearchFunction(origins, params);
+    if (thisSearch !== searchCounter) return;
 
-    // Names and positions for the departures (for the table and the globe's labels).
+    // Names and positions for the departures (for the table and the map's labels).
     state.origins = origins.map((o, i) => {
       const server = json.origins?.[i] ?? {};
       return { label: o.label || server.name || o.code, code: o.code, lat: o.lat ?? server.lat, lon: o.lon ?? server.lon, count: o.count };
@@ -572,7 +596,8 @@ async function runSearch(origins, params) {
     state.debug = json.debug;
     state.currency = json.currency || params.currency; // what the prices are really in
     state.selected = null;
-    state.globeView = null; // new results: let the globe frame them again
+    state.mapView = null; // new results: let the map frame them again
+    state.searching = false;
 
     if (json.mode === "trip") {
       state.results = [];
@@ -582,16 +607,22 @@ async function runSearch(origins, params) {
     state.results = json.results;
     if (json.results.length === 0) {
       showMessage(explainEmptyResult(json.debug, state.maxGapHours));
-      renderGlobe();
+      renderMap();
       return;
     }
     renderTable();
   } catch (error) {
+    if (thisSearch !== searchCounter) return;
     state.results = [];
     showMessage(esc(error.message), true);
-    renderGlobe();
+    renderMap();
   } finally {
-    searchButton.disabled = false;
+    if (thisSearch === searchCounter) {
+      state.searching = false;
+      searchButton.disabled = false;
+      renderGapBar();
+      if (reveal) revealResults();
+    }
   }
 }
 
@@ -616,8 +647,102 @@ $("search-form").addEventListener("submit", (event) => {
     return showMessage(esc(error.message), true);
   }
   setWhenOpen(false);
-  runSearch(departures, params);
+  runSearch(departures, params, { reveal: true });
 });
+
+
+// ===========================================================================
+// 6b. THE ARRIVAL-TIME RULE — "Everyone lands within [−] 3 h [+]"
+// ===========================================================================
+// So nobody waits alone at the airport for hours: everyone's arrivals (and
+// return flights) must be within this many hours of each other. It sits next
+// to the results; changing it re-runs the search (quick: the server remembers
+// its answers). With a destination chosen, the answer already holds the
+// options that were just over the limit, so we can say what a looser rule
+// would add ("Allow 4 h → +2 weekends").
+
+const gapLabel = (hours) => (hours > 0 ? `${hours} h` : "Any");
+const allowLabel = (hours) => (hours > 0 ? `Allow ${hours} h` : "Allow any gap");
+const gapStep = () => Math.max(0, GAP_STEPS.indexOf(state.maxGapHours));
+
+// "12 trips found", "7 of 10 weekends work"... (null before the first search)
+function gapFoundText() {
+  if (state.searching) return "searching…";
+  if (!state.lastSearch) return null;
+  const trip = state.trip;
+  if (trip) {
+    if (trip.windows.length > 1) {
+      const working = trip.windows.filter(cheapestOption).length;
+      return `${working} of ${trip.windows.length} ${stayWords(trip).plural} work`;
+    }
+    const working = trip.windows[0]?.options.filter((o) => o.status === "ok").length ?? 0;
+    return working ? `${working} option${working === 1 ? "" : "s"} work` : "nothing works yet";
+  }
+  const n = state.results.length;
+  return n ? `${n} trip${n === 1 ? "" : "s"} found` : "no trip found yet";
+}
+
+// The link offering a looser rule, when it would help (null = hide it).
+function gapMoreText() {
+  if (state.searching || !state.lastSearch || state.maxGapHours === 0) return null;
+  const next = GAP_STEPS[gapStep() + 1];
+  const trip = state.trip;
+  if (!trip) {
+    // Anywhere: we only know that some dates were turned down for their times.
+    return state.debug?.rejectedByTimeGap > 0 ? { hours: next, text: `${allowLabel(next)} for more trips →` } : null;
+  }
+  // One destination: find the first looser step that adds a weekend or lowers a price.
+  const words = stayWords(trip);
+  for (const hours of GAP_STEPS.slice(gapStep() + 1)) {
+    const fits = (o) => o.status === "ok" || (o.status === "gap" && (hours === 0 || (o.arrivalGapHours <= hours && o.returnGapHours <= hours)));
+    let addedWindows = 0;
+    let bestSaving = 0;
+    for (const w of trip.windows) {
+      const now = cheapestOption(w)?.total ?? null;
+      const later = Math.min(...w.options.filter(fits).map((o) => o.total));
+      if (now === null && later < Infinity) addedWindows++;
+      else if (now !== null && later < now) bestSaving = Math.max(bestSaving, now - later);
+    }
+    const gains = [
+      addedWindows && `+${addedWindows} ${addedWindows === 1 ? words.unit : words.plural}`,
+      bestSaving && `up to ${formatPrice(bestSaving, state.currency)} less`,
+    ].filter(Boolean);
+    if (gains.length) return { hours, text: `${allowLabel(hours)} → ${gains.join(", ")}` };
+  }
+  return null;
+}
+
+function renderGapBar() {
+  const step = gapStep();
+  $("gap-value").textContent = gapLabel(state.maxGapHours);
+  $("gap-minus").disabled = step === 0;
+  $("gap-plus").disabled = step === GAP_STEPS.length - 1;
+  // Before a search: "... 3 h of each other · applies to your search"; after: "... 3 h · 12 trips found".
+  const found = gapFoundText();
+  const lead = state.maxGapHours > 0 ? "of each other" : "no limit";
+  $("gap-hint").textContent = found === null ? `${lead} · applies to your search` : state.maxGapHours > 0 ? found : `${lead} · ${found}`;
+  const more = gapMoreText();
+  $("gap-more").hidden = !more;
+  $("gap-more").textContent = more?.text ?? "";
+  $("gap-more").dataset.hours = more?.hours ?? "";
+}
+
+// A change waits a moment, so pressing + twice runs one search, not two.
+const searchWithGap = debounce(() => {
+  if (state.lastSearch) runSearch(state.lastSearch.origins, { ...state.lastSearch.params, maxGapHours: String(state.maxGapHours) });
+}, 450);
+
+function setGap(hours) {
+  if (hours === state.maxGapHours) return;
+  state.maxGapHours = hours;
+  if (state.lastSearch) state.searching = true; // the counts shown are for the old rule
+  renderGapBar();
+  searchWithGap();
+}
+
+$("gap-minus").addEventListener("click", () => setGap(GAP_STEPS[Math.max(0, gapStep() - 1)]));
+$("gap-plus").addEventListener("click", () => setGap(GAP_STEPS[Math.min(GAP_STEPS.length - 1, gapStep() + 1)]));
+$("gap-more").addEventListener("click", (event) => setGap(Number(event.currentTarget.dataset.hours)));
 
 
 // ===========================================================================
@@ -697,15 +822,11 @@ function rowHtml(r, index, currency) {
 
 // Two ways to show results in the same box: the ranked table of places, or —
 // with a destination chosen — the weekends strip and its options.
-const DEFAULT_INFO = $("info-text").innerHTML;
 function setResultsMode(trip) {
   document.querySelector(".table-head").hidden = trip;
   $("sort-chips").hidden = trip;
   $("trip-chips").hidden = !trip;
-  if (!trip) {
-    $("results-title").textContent = "Ranked meeting spots";
-    $("info-text").innerHTML = DEFAULT_INFO;
-  }
+  if (!trip) $("results-title").textContent = "Ranked meeting spots";
 }
 
 function renderTable() {
@@ -714,13 +835,13 @@ function renderTable() {
 
   rowsEl.innerHTML = list.map((r, i) => rowHtml(r, i, state.currency)).join("");
 
-  const gapText = state.maxGapHours > 0 ? ` · arrivals and returns within ${state.maxGapHours}h of each other` : "";
+  // (The time rule isn't repeated here: "Everyone lands within" shows it.)
   const d = state.debug;
   const checkedText = d && d.sharedDestinations ? ` (checked ${d.candidatesConsidered} of the ${d.sharedDestinations} everyone can reach)` : "";
   const currencyText = d && d.currencyConverted === false ? " · prices shown in USD (exchange rates unavailable)" : "";
-  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for everyone${gapText}${currencyText}`;
+  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for everyone${currencyText}`;
   updateWarning();
-  renderGlobe();
+  renderMap();
 }
 
 // A small notice when Travelpayouts didn't answer some requests, so a short
@@ -749,7 +870,7 @@ function selectDestination(code, { scrollToRow = false } = {}) {
   if (code === state.selected) return;
   state.selected = code;
   rowsEl.querySelectorAll(".row").forEach((row) => row.classList.toggle("is-selected", row.dataset.code === code));
-  showOnGlobe(code);
+  showOnMap(code);
   if (scrollToRow) rowsEl.querySelector(`.row[data-code="${CSS.escape(code)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -818,8 +939,7 @@ function showTrip(json) {
   if (best === Infinity) {
     renderTripHeader();
     showMessage(explainEmptyTrip(json));
-    $("info-text").innerHTML = DEFAULT_INFO;
-    showTripOnGlobe(null);
+    showTripOnMap(null);
     updateWarning();
     return;
   }
@@ -831,10 +951,9 @@ function renderTripHeader() {
   const people = state.origins.reduce((sum, o) => sum + o.count, 0);
   const words = stayWords(trip);
   const what = trip.windows.length > 1 ? `Cheapest ${words.plural} over the next ${trip.windows.length} weeks` : "Your dates, and the days around them";
-  const gapText = state.maxGapHours > 0 ? ` · arrivals and returns within ${state.maxGapHours}h of each other` : "";
   const currencyText = state.debug?.currencyConverted === false ? " · prices shown in USD (exchange rates unavailable)" : "";
   $("results-title").textContent = `${trip.destination.name}, together`;
-  $("results-subtitle").textContent = `${what} · total for ${peopleLabel(people)} · same dates for everyone${gapText}${currencyText}`;
+  $("results-subtitle").textContent = `${what} · total for ${peopleLabel(people)} · same dates for everyone${currencyText}`;
   document.querySelectorAll("#trip-chips .chip").forEach((chip) => chip.classList.toggle("is-selected", chip.dataset.trip === trip.tripType));
 }
 
@@ -847,20 +966,21 @@ function renderTrip() {
   const from = w.options.reduce((min, o) => (o.departDate < min ? o.departDate : min), w.departDate);
   const to = w.options.reduce((max, o) => (o.returnDate > max ? o.returnDate : max), w.returnDate);
 
+  const insight = tripInsight(w, words);
   renderTripHeader();
   rowsEl.innerHTML = `
     <div class="trip">
       ${several ? stripHtml(trip, words) : ""}
       <div class="${several ? "trip-section" : ""}">
         <div class="block-title"><strong>${words.same}</strong><span>${dateRange(from, to)} · cheapest first</span></div>
+        ${insight ? `<p class="trip-insight">${insight}</p>` : ""}
         <div class="alts">${w.options.map((o, i) => altHtml(o, i, w, trip)).join("")}</div>
         ${option?.status === "ok"
           ? tripBoxHtml(option)
           : `<div class="state-message">No option this ${words.unit} works for everyone yet — pick another ${words.unit} above.</div>`}
       </div>
     </div>`;
-  $("info-text").innerHTML = tripInsight(w, words);
-  showTripOnGlobe(option?.status === "ok" ? option : null);
+  showTripOnMap(option?.status === "ok" ? option : null);
   updateWarning();
 }
 
@@ -948,11 +1068,11 @@ function tripBoxHtml(o) {
     </div>`;
 }
 
-// The card under the globe: the money tip for the selected weekend.
+// The money tip for the selected weekend, above its options ("" = none).
 function tripInsight(w, words) {
   const cheapest = cheapestOption(w);
   const usual = usualOption(w);
-  if (!cheapest) return DEFAULT_INFO;
+  if (!cheapest) return "";
   if (usual && cheapest !== usual && cheapest.total < usual.total) {
     const extra = cheapest.nights > usual.nights ? " One more night, and you pay less." : "";
     return `<strong>${daysLabel(cheapest)} saves you ${formatPrice(usual.total - cheapest.total, state.currency)}</strong> compared with ${daysLabel(usual)}.${extra}`;
@@ -961,8 +1081,8 @@ function tripInsight(w, words) {
   return `<strong>Cheapest that ${words.unit}: ${daysLabel(cheapest)}.</strong> We only show dates that work for everyone.`;
 }
 
-// The globe shows the destination with everyone's flight paths.
-function showTripOnGlobe(option) {
+// The map shows the destination with everyone's flight paths.
+function showTripOnMap(option) {
   const d = state.trip.destination;
   const sameAsInput = goingInput.dataset.code === d.code;
   state.results = [{
@@ -972,10 +1092,10 @@ function showTripOnGlobe(option) {
     lat: d.lat ?? (sameAsInput ? Number(goingInput.dataset.lat) : null),
     lon: d.lon ?? (sameAsInput ? Number(goingInput.dataset.lon) : null),
     total: option?.total ?? 0,
-    globeLabel: option ? `${d.name} · ${dateRange(option.departDate, option.returnDate)}` : d.name,
+    mapLabel: option ? `${d.name} · ${dateRange(option.departDate, option.returnDate)}` : d.name,
   }];
   state.selected = d.code;
-  renderGlobe();
+  renderMap();
 }
 
 // A plain-English reason when no date works for everyone.
@@ -994,7 +1114,7 @@ function explainEmptyTrip(json) {
     return `There are no cached fares from ${without.join(" or ")} to ${name} for these dates yet. Try a bigger airport nearby (or the whole city instead of one airport), or another kind of stay — a full week often has more cached data.`;
   }
   if (d.rejectedByGap > 0 && state.maxGapHours > 0) {
-    return `Everyone has fares to ${name} on ${d.rejectedByGap} of these dates, but the arrival or return times are more than ${state.maxGapHours} hours apart. Open <strong>When</strong> and allow a bigger gap, or try another kind of stay.`;
+    return `Everyone has fares to ${name} on ${d.rejectedByGap} of these dates, but the arrival or return times are more than ${state.maxGapHours} hours apart. Press <strong>+</strong> next to “Everyone lands within” to allow a bigger gap, or try another kind of stay.`;
   }
   return `Everyone has some cached fares to ${name}, just never on the same days. Try another kind of stay (weekend, long weekend, a week), or other dates.`;
 }
@@ -1096,7 +1216,7 @@ document.addEventListener("click", async (event) => {
 // ===========================================================================
 // "Select" opens a page for that one trip: everyone's flights with their
 // "Book on Aviasales" buttons, and room for what goes with the trip (where to
-// stay...). It takes the place of the list (the globe stays); "Back to
+// stay...). It takes the place of the list (the map stays); "Back to
 // results", or the browser's back button, returns to the list.
 
 const tripPageEl = $("trip-page");
@@ -1152,7 +1272,7 @@ function tripPageHtml(t) {
     <button type="button" class="back-link" id="trip-back">← Back to results</button>
     <div class="tp-head">
       <div>
-        <div class="badge">YOUR TRIP</div>
+        <div class="hero-badge">YOUR TRIP</div>
         <h2>${esc(t.name)}</h2>
         ${t.country ? `<div class="tp-country">${esc(t.country)}</div>` : ""}
         <div class="tp-when">${dayLabel(t.departDate)} → ${dayLabel(t.returnDate)} · ${nightsLabel(t.nights)} · ${travellersLabel(people)}</div>
@@ -1219,47 +1339,112 @@ if (location.hash === "#trip") history.replaceState(null, "", location.pathname 
 
 
 // ===========================================================================
-// 8. THE GLOBE
+// 8. THE MAP
 // ===========================================================================
+// A flat world map behind the page. On wide screens it fills the window and
+// stays put while you scroll: you see it, drag it and zoom it in the open
+// space right of the results. On narrower screens it is a block under the
+// results. It shows everyone's route to the selected destination, and every
+// other result as a dot you can click.
 
-// The globe's colours come from the variables at the top of styles.css
-// (--ocean-a, --land, --pin0 ... --pin7, ...), so changing the theme there
-// re-colours the globe too.
+// The map's colours come from the variables at the top of styles.css
+// (--map-sea, --map-land, --c0 ... --c7, ...), so changing the theme there
+// re-colours the map too.
 let themeCache = null;
 function themeColors() {
   if (themeCache) return themeCache;
   const style = getComputedStyle(document.documentElement);
   const v = (name) => style.getPropertyValue(name).trim();
   themeCache = {
-    oceanA: v("--ocean-a"), oceanB: v("--ocean-b"), land: v("--land"), borders: v("--borders"), grid: v("--grid"),
-    orbit: v("--orbit"), meet: v("--peach"), accent: v("--accent"),
-    pins: Array.from({ length: 8 }, (_, i) => v(`--pin${i}`)),
+    sea: v("--map-sea"), land: v("--map-land"), borders: v("--map-borders"), grid: v("--map-grid"),
+    meet: v("--action"),
+    pins: Array.from({ length: 8 }, (_, i) => v(`--c${i}`)),
   };
   return themeCache;
 }
 
 const hasCoords = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon);
 const clamp = (x, low, high) => Math.min(high, Math.max(low, x));
-const wrapLon = (lon) => ((((lon + 180) % 360) + 360) % 360) - 180;
+const px = (n) => n.toFixed(1);
 
-const globeSvg = $("globe");
-const globeWrap = $("globe-wrap");
-let shownView = { lat: 35, lon: -30, zoom: 1 }; // what the globe shows right now
-let shownGlobe = null;                          // ...and its projection (to test what's in view)
+const mapLayer = $("map-layer");
+const mapSvg = $("map");
+let shownView = null; // what the map shows right now: {k, tx, ty}
+let shownMap = null;  // ...and its projection (to test what's in view)
 
-// Where the globe looks when you haven't moved it: every departure AND every
+// Behind the whole page (wide screens), or a block under the results?
+const mapIsBackground = () => getComputedStyle(mapLayer).position === "fixed";
+
+// The part of the map you can really see, [[left, top], [right, bottom]] in
+// the map's pixels: right of the results on wide screens (the table covers the
+// left), the whole block otherwise. Room is left on the sides for the labels.
+function openArea() {
+  const w = mapLayer.clientWidth;
+  const h = mapLayer.clientHeight;
+  if (!mapIsBackground()) {
+    const side = Math.min(110, w * 0.18);
+    return [[side, 50], [w - side, h - 60]];
+  }
+  const left = document.querySelector(".map-col").getBoundingClientRect().left;
+  return [[left + 100, h * 0.2], [w - 110, h * 0.84]];
+}
+
+const areaCentre = ([[left, top], [right, bottom]]) => [(left + right) / 2, (top + bottom) / 2];
+
+// The view zoomed to `k` (within the limits), keeping the point at (x, y) in place.
+function zoomedView(v, k, x, y) {
+  const nextK = clamp(k, MAP_MIN_ZOOM, MAP_MAX_ZOOM);
+  return { k: nextK, tx: x - (x - v.tx) * (nextK / v.k), ty: y - (y - v.ty) * (nextK / v.k) };
+}
+
+// Don't let the world slide right off the screen.
+function keepInView(v) {
+  const w = mapLayer.clientWidth;
+  const h = mapLayer.clientHeight;
+  const halfWidth = 2.74 * v.k;  // half the width of the world on this map
+  const halfHeight = 1.43 * v.k; // ...and half its height
+  return { k: v.k, tx: clamp(v.tx, 120 - halfWidth, w - 120 + halfWidth), ty: clamp(v.ty, 120 - halfHeight, h - 120 + halfHeight) };
+}
+
+// Where the map looks when you haven't moved it: every departure AND every
 // result in view, so all the options are there at once and it doesn't jump
-// when you pick another one. No search yet: a calm view over the Atlantic.
+// when you pick another one. No search yet: Europe and the Atlantic, in the
+// open space below the banner (what you see when the page opens).
+const DEFAULT_POINTS = [{ lat: 30, lon: -25 }, { lat: 62, lon: 35 }];
+
 function autoView() {
   const origins = state.origins ?? [];
   const destinations = state.results.filter(hasCoords);
-  if (destinations.length === 0 || origins.length === 0 || !origins.every(hasCoords)) return { lat: 35, lon: -30, zoom: 1 };
-  return Geo.fitView([...origins, ...destinations]);
+  const hasRoutes = destinations.length > 0 && origins.length > 0 && origins.every(hasCoords);
+  const area = openArea();
+  if (!hasRoutes && mapIsBackground()) {
+    const h = mapLayer.clientHeight;
+    const bannerBottom = document.querySelector(".hero").getBoundingClientRect().bottom;
+    if (bannerBottom > 0 && bannerBottom < h * 0.75) {
+      area[0] = [area[0][0] - 60, Math.max(area[0][1], bannerBottom + 30)];
+      area[1] = [area[1][0] + 50, h - 30];
+    }
+  }
+  const fitted = Geo.fitView(hasRoutes ? [...origins, ...destinations] : DEFAULT_POINTS, area, MAP_FIT_ZOOM);
+  return zoomedView(fitted, fitted.k, ...areaCentre(area));
 }
 
-function renderGlobe() {
-  const labelsEl = $("globe-labels");
-  const R = GLOBE_RADIUS;
+// A route: a gentle curve from a departure to the meeting point, bowing upwards.
+function routePath([x1, y1], [x2, y2]) {
+  let nx = y1 - y2;
+  let ny = x2 - x1;
+  if (ny > 0) [nx, ny] = [-nx, -ny];
+  const cx = (x1 + x2) / 2 + nx * 0.22;
+  const cy = (y1 + y2) / 2 + ny * 0.22;
+  return `M${px(x1)} ${px(y1)} Q${px(cx)} ${px(cy)} ${px(x2)} ${px(y2)}`;
+}
+
+const ZOOM_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+
+function renderMap() {
+  const w = mapLayer.clientWidth;
+  const h = mapLayer.clientHeight;
+  if (!w || !h) return;
   const T = themeColors();
 
   const origins = state.origins ?? [];
@@ -1267,204 +1452,180 @@ function renderGlobe() {
   const selected = destinations.find((r) => r.destination === state.selected);
   const ready = selected && origins.length > 0 && origins.every(hasCoords);
 
-  shownView = state.globeView ?? autoView();
-  const g = (shownGlobe = Geo.createGlobe(shownView, R));
-  const { cx, cy, inside } = g;
+  shownView = state.mapView ?? autoView();
+  const m = (shownMap = Geo.createMap(shownView, w, h));
+  const onScreen = ([x, y]) => x > -40 && x < w + 40 && y > -40 && y < h + 40;
 
   let overlay = "";
   let labels = "";
-  let meetCountry = "";
   if (ready) {
-    const dest = { lat: selected.lat, lon: selected.lon };
-    const pd = g.project(dest.lat, dest.lon);
-    const pins = origins.map((o, i) => ({ o, i, p: g.project(o.lat, o.lon), color: T.pins[i % 8] }));
-    meetCountry = g.countryPath(dest.lat, dest.lon); // the meeting country is lit up
+    const pd = m.project(selected.lat, selected.lon);
+    const pins = origins.map((o, i) => ({ o, i, p: m.project(o.lat, o.lon), color: T.pins[i % 8] }));
+    const [middleX] = areaCentre(openArea());
 
     // 1. Every other result: a small dot you can hover (name + price) and click.
     for (const r of destinations) {
       if (r.destination === selected.destination) continue;
-      const p = g.project(r.lat, r.lon);
-      if (!inside(p)) continue;
-      const left = p.x > cx; // put the hover label on the side facing the middle
+      const [x, y] = m.project(r.lat, r.lon);
+      if (!onScreen([x, y])) continue;
+      const left = x > middleX; // the hover label goes on the side facing the middle
       overlay += `
         <g class="dest-dot" data-code="${esc(r.destination)}">
-          <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="13" fill="transparent"></circle>
-          <circle class="dot-core" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5.5" fill="${T.meet}" stroke="${T.oceanB}" stroke-width="2"></circle>
-          <text class="dot-label" x="${(p.x + (left ? -12 : 12)).toFixed(1)}" y="${(p.y + 4).toFixed(1)}" text-anchor="${left ? "end" : "start"}">${esc(r.destinationName)} · ${formatPrice(r.total, state.currency)}</text>
+          <circle cx="${px(x)}" cy="${px(y)}" r="13" fill="transparent"></circle>
+          <circle class="dot-core" cx="${px(x)}" cy="${px(y)}" r="5.5" fill="${T.meet}" stroke="#fff" stroke-width="2"></circle>
+          <text class="dot-label" x="${px(x + (left ? -12 : 12))}" y="${px(y + 4)}" text-anchor="${left ? "end" : "start"}">${esc(r.destinationName)} · ${formatPrice(r.total, state.currency)}</text>
         </g>`;
     }
 
-    // 2. The selected destination: flight paths from every departure (dots with
-    //    a dark rim, so they show on the sea and on land), then the pins.
-    for (const { o, color } of pins) {
-      const d = g.arc(o, dest);
-      overlay += `<path d="${d}" stroke="${T.oceanB}" stroke-width="6.5" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none" opacity="0.6"></path><path d="${d}" stroke="${color}" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none"></path>`;
-    }
+    // 2. The selected destination: dotted routes from every departure (with a
+    //    white rim, so they show on land and sea), the departure pins, then
+    //    the meeting point.
     for (const { p, color } of pins) {
-      if (!inside(p)) continue;
-      overlay += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="17" fill="none" stroke="${color}" stroke-width="2" opacity="0.5"></circle><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="7" fill="${color}" stroke="${T.accent}" stroke-width="3"></circle>`;
+      const d = routePath(p, pd);
+      overlay += `<path d="${d}" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none" opacity="0.9"></path><path d="${d}" stroke="${color}" stroke-width="3.6" stroke-linecap="round" stroke-dasharray="0.1 7" fill="none"></path>`;
     }
-    if (inside(pd)) {
-      overlay += `<circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="40" fill="${T.meet}" opacity="0.14"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="25" fill="${T.meet}" opacity="0.28"></circle><circle cx="${pd.x.toFixed(1)}" cy="${pd.y.toFixed(1)}" r="10" fill="${T.meet}" stroke="#fff" stroke-width="3"></circle>`;
+    for (const { p: [x, y], color } of pins) {
+      overlay += `<circle cx="${px(x)}" cy="${px(y)}" r="16" fill="none" stroke="${color}" stroke-width="2" opacity="0.45"></circle><circle cx="${px(x)}" cy="${px(y)}" r="7" fill="${color}" stroke="#fff" stroke-width="3"></circle>`;
     }
+    const [dx, dy] = pd;
+    overlay += `<circle cx="${px(dx)}" cy="${px(dy)}" r="40" fill="${T.meet}" opacity="0.16"></circle><circle cx="${px(dx)}" cy="${px(dy)}" r="24" fill="${T.meet}" opacity="0.3"></circle><circle cx="${px(dx)}" cy="${px(dy)}" r="10" fill="${T.meet}" stroke="#fff" stroke-width="3"></circle>`;
 
-    // Labels: departures left of the meeting point get their label on the left,
-    // the others on the right; labels on one side are nudged apart.
-    const place = (side) => {
-      const group = pins.filter((pin) => inside(pin.p) && (pin.p.x <= pd.x) === (side === "left")).sort((a, b) => a.p.y - b.p.y);
+    // Labels: a departure left of the meeting point gets its label on the left,
+    // the others on the right — unless it would run off the map. Labels on
+    // one side are nudged apart.
+    const labelWidth = (text) => text.length * 7.6 + 30; // about right for the 13px labels
+    const labelled = pins.filter((pin) => onScreen(pin.p)).map((pin) => {
+      const name = pin.i === 0 ? `${pin.o.label} · You` : pins.length === 2 ? `${pin.o.label} · Them` : pin.o.label;
+      const text = pin.o.count > 1 ? `${name} ×${pin.o.count}` : name;
+      let side = pin.p[0] <= dx ? "left" : "right";
+      if (side === "right" && pin.p[0] + 20 + labelWidth(text) > w - 8) side = "left";
+      else if (side === "left" && pin.p[0] - 20 - labelWidth(text) < 8) side = "right";
+      return { ...pin, text, side };
+    });
+    for (const side of ["left", "right"]) {
       let lastY = -999;
-      for (const pin of group) {
-        const y = Math.max(pin.p.y, lastY + 32);
+      for (const pin of labelled.filter((x) => x.side === side).sort((a, b) => a.p[1] - b.p[1])) {
+        const y = Math.max(pin.p[1], lastY + 32);
         lastY = y;
-        const name = pin.i === 0 ? `${pin.o.label} · You` : pins.length === 2 ? `${pin.o.label} · Them` : pin.o.label;
-        const text = pin.o.count > 1 ? `${name} ×${pin.o.count}` : name;
         const transform = side === "left" ? "translate(-100%,-50%)" : "translate(0,-50%)";
-        labels += `<div class="globe-label" style="left:${(pin.p.x + (side === "left" ? -20 : 20)).toFixed(0)}px;top:${y.toFixed(0)}px;transform:${transform}">${esc(text)}</div>`;
+        labels += `<div class="map-label" style="left:${(pin.p[0] + (side === "left" ? -20 : 20)).toFixed(0)}px;top:${y.toFixed(0)}px;transform:${transform}">${esc(pin.text)}</div>`;
       }
-    };
-    place("left");
-    place("right");
-    if (inside(pd)) {
-      labels += `<div class="globe-label is-dest" style="left:${pd.x.toFixed(0)}px;top:${(pd.y + 30).toFixed(0)}px;transform:translate(-50%,0)">${esc(selected.globeLabel ?? `${selected.destinationName} — meet here`)}</div>`;
+    }
+    if (onScreen(pd)) {
+      const text = selected.mapLabel ?? `${selected.destinationName} — meet here`;
+      const half = labelWidth(text) / 2;
+      const x = half * 2 + 16 < w ? clamp(dx, half + 8, w - half - 8) : dx; // kept on the map
+      labels += `<div class="map-label is-dest" style="left:${x.toFixed(0)}px;top:${(dy + 30).toFixed(0)}px;transform:translate(-50%,0)">${esc(text)}</div>`;
     }
   }
 
-  // A thin orbit ring behind the globe, a satellite dot, then the globe itself.
-  const rx = R + 40, ry = R * 0.3, th = 0.35, rot = (-20 * Math.PI) / 180;
-  const sx = cx + rx * Math.cos(th) * Math.cos(rot) - ry * Math.sin(th) * Math.sin(rot);
-  const sy = cy + rx * Math.cos(th) * Math.sin(rot) + ry * Math.sin(th) * Math.cos(rot);
+  // Sea, a faint grid, the land (its coast in the border colour), the borders, then the routes.
+  mapSvg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  mapSvg.innerHTML = `
+    <rect width="${w}" height="${h}" fill="${T.sea}"></rect>
+    <path d="${m.gridPath}" stroke="${T.grid}" stroke-width="1" fill="none"></path>
+    <path d="${m.landPath}" fill="${T.land}" stroke="${T.borders}" stroke-width="0.8" stroke-linejoin="round"></path>
+    <path d="${m.bordersPath}" stroke="${T.borders}" stroke-width="0.6" stroke-linejoin="round" fill="none"></path>
+    ${overlay}`;
+  $("map-labels").innerHTML = labels;
 
-  // Sea, faint grid, countries, the meeting country, borders, then the pins.
-  globeSvg.innerHTML = `
-    <defs>
-      <radialGradient id="ocean" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="${T.oceanA}"></stop><stop offset="1" stop-color="${T.oceanB}"></stop></radialGradient>
-      <clipPath id="globe-clip"><circle cx="${cx}" cy="${cy}" r="${R}"></circle></clipPath>
-    </defs>
-    <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(-20 ${cx} ${cy})" stroke="${T.orbit}" stroke-width="2" fill="none"></ellipse>
-    <circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#ocean)"></circle>
-    <g clip-path="url(#globe-clip)">
-      <path d="${g.gridPath}" stroke="${T.grid}" stroke-width="1" fill="none"></path>
-      <path d="${g.landPath}" fill="${T.land}"></path>
-      <path d="${meetCountry}" fill="${T.meet}"></path>
-      <path d="${g.bordersPath}" stroke="${T.borders}" stroke-width="0.8" stroke-linejoin="round" fill="none"></path>
-      ${overlay}
-    </g>
-    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="2" pointer-events="none"></circle>
-    <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="7" fill="${T.meet}"></circle>`;
-  labelsEl.innerHTML = labels;
-
-  hintText = ready && destinations.length > 1 ? "Drag to turn · tap a dot to see another destination" : "";
-  if (!hintTimer) showHint();
-  $("globe-reset").hidden = state.globeView === null;
-  $("zoom-in").disabled = shownView.zoom >= GLOBE_MAX_ZOOM - 0.01;
-  $("zoom-out").disabled = shownView.zoom <= 1.01;
+  $("map-hint").textContent = ready && destinations.length > 1 ? "Drag to explore · click a dot to see another place" : `Drag to explore · ${ZOOM_KEY} + scroll to zoom`;
+  $("map-reset").hidden = state.mapView === null;
+  $("zoom-in").disabled = shownView.k >= MAP_MAX_ZOOM - 1;
+  $("zoom-out").disabled = shownView.k <= MAP_MIN_ZOOM + 1;
 }
 
-// The tip at the bottom of the globe (a short-lived one can replace it).
-let hintText = "";
-let hintTimer = 0;
-function showHint() {
-  $("map-hint").textContent = hintText;
-  $("map-hint").hidden = !hintText;
-}
-function flashHint(text) {
-  $("map-hint").textContent = text;
-  $("map-hint").hidden = false;
-  clearTimeout(hintTimer);
-  hintTimer = setTimeout(() => { hintTimer = 0; showHint(); }, 1800);
-}
-
-// --- Turning and zooming the globe -----------------------------------------
+// --- Dragging and zooming the map -------------------------------------------
 
 let frame = 0;
-function redrawGlobeSoon() {
-  if (!frame) frame = requestAnimationFrame(() => { frame = 0; renderGlobe(); });
+function redrawMapSoon() {
+  if (!frame) frame = requestAnimationFrame(() => { frame = 0; renderMap(); });
 }
 
-// A drag of dx, dy pixels turns the globe under your finger.
-function turnGlobe(dx, dy) {
+function moveMap(dx, dy) {
   cancelAnimationFrame(flight);
-  const v = state.globeView ?? shownView;
-  const degPerPx = 180 / (Math.PI * GLOBE_RADIUS * v.zoom);
-  state.globeView = { lat: clamp(v.lat + dy * degPerPx, -80, 80), lon: wrapLon(v.lon - dx * degPerPx), zoom: v.zoom };
-  redrawGlobeSoon();
+  const v = state.mapView ?? shownView;
+  state.mapView = keepInView({ k: v.k, tx: v.tx + dx, ty: v.ty + dy });
+  redrawMapSoon();
 }
 
-function zoomGlobe(factor) {
+// Zoom by `factor`, keeping the point at (x, y) — the cursor, the pinch — in place.
+function zoomMapAt(factor, x, y) {
   cancelAnimationFrame(flight);
-  const v = state.globeView ?? shownView;
-  state.globeView = { ...v, zoom: clamp(v.zoom * factor, 1, GLOBE_MAX_ZOOM) };
-  redrawGlobeSoon();
+  const v = state.mapView ?? shownView;
+  state.mapView = keepInView(zoomedView(v, v.k * factor, x, y));
+  redrawMapSoon();
 }
 
 // Glide to a view (null = back to framing every result).
 let flight = 0;
-function flyGlobe(target) {
+function flyMap(target) {
   cancelAnimationFrame(flight);
   const from = { ...shownView };
   const to = target ?? autoView();
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    state.globeView = target;
-    renderGlobe();
+    state.mapView = target;
+    renderMap();
     return;
   }
-  const dLon = wrapLon(to.lon - from.lon); // the short way round
   const start = performance.now();
   const step = (now) => {
     const t = Math.min(1, (now - start) / 500);
     const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2; // ease in and out
-    state.globeView = t < 1 ? { lat: from.lat + (to.lat - from.lat) * e, lon: wrapLon(from.lon + dLon * e), zoom: from.zoom + (to.zoom - from.zoom) * e } : target;
-    renderGlobe();
+    state.mapView = t < 1 ? { k: from.k + (to.k - from.k) * e, tx: from.tx + (to.tx - from.tx) * e, ty: from.ty + (to.ty - from.ty) * e } : target;
+    renderMap();
     if (t < 1) flight = requestAnimationFrame(step);
   };
   flight = requestAnimationFrame(step);
 }
 
-// After picking a row in the table: if you had turned the globe away from
-// that destination, glide back so it's in view.
-function showOnGlobe(code) {
+// After picking a row in the table: if you had moved the map away from that
+// destination, glide back so it's in view.
+function showOnMap(code) {
   const r = state.results.find((x) => x.destination === code);
-  if (state.globeView && hasCoords(r) && !shownGlobe.inside(shownGlobe.project(r.lat, r.lon))) flyGlobe(null);
-  else renderGlobe();
+  const [[left, top], [right, bottom]] = openArea();
+  const inView = ([x, y]) => x >= left - 60 && x <= right + 60 && y >= top - 60 && y <= bottom + 60;
+  if (state.mapView && hasCoords(r) && !inView(shownMap.project(r.lat, r.lon))) flyMap(null);
+  else renderMap();
 }
 
-// Mouse and fingers: one pointer turns the globe, two pinch to zoom.
+// Mouse and fingers: one pointer drags the map, two pinch to zoom.
 // A drag only starts after 5px, so a simple click/tap on a dot still selects it.
 const pointers = new Map();
 let dragged = false;
 let pinchDistance = 0;
 
-globeSvg.addEventListener("pointerdown", (event) => {
+mapSvg.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY });
   if (pointers.size === 1) dragged = false;
   if (pointers.size === 2) {
     dragged = true;
     pinchDistance = 0;
-    for (const id of pointers.keys()) globeSvg.setPointerCapture(id);
+    for (const id of pointers.keys()) mapSvg.setPointerCapture(id);
   }
 });
 
-globeSvg.addEventListener("pointermove", (event) => {
+mapSvg.addEventListener("pointermove", (event) => {
   const p = pointers.get(event.pointerId);
   if (!p) return;
-  const scale = 520 / globeSvg.getBoundingClientRect().width; // the globe is drawn smaller on phones
   if (pointers.size >= 2) {
     p.x = event.clientX;
     p.y = event.clientY;
     const [a, b] = [...pointers.values()];
     const distance = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinchDistance) zoomGlobe(distance / pinchDistance);
+    const rect = mapSvg.getBoundingClientRect();
+    if (pinchDistance) zoomMapAt(distance / pinchDistance, (a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top);
     pinchDistance = distance;
     return;
   }
   if (!dragged) {
     if (Math.hypot(event.clientX - p.startX, event.clientY - p.startY) < 5) return;
     dragged = true;
-    globeSvg.setPointerCapture(event.pointerId);
-    globeWrap.classList.add("is-dragging");
+    mapSvg.setPointerCapture(event.pointerId);
+    mapLayer.classList.add("is-dragging");
   }
-  turnGlobe((event.clientX - p.x) * scale, (event.clientY - p.y) * scale);
+  moveMap(event.clientX - p.x, event.clientY - p.y);
   p.x = event.clientX;
   p.y = event.clientY;
 });
@@ -1472,37 +1633,38 @@ globeSvg.addEventListener("pointermove", (event) => {
 function endPointer(event) {
   if (!pointers.delete(event.pointerId)) return;
   pinchDistance = 0;
-  if (pointers.size === 0) globeWrap.classList.remove("is-dragging");
+  if (pointers.size === 0) mapLayer.classList.remove("is-dragging");
 }
-globeSvg.addEventListener("pointerup", endPointer);
-globeSvg.addEventListener("pointercancel", endPointer);
+mapSvg.addEventListener("pointerup", endPointer);
+mapSvg.addEventListener("pointercancel", endPointer);
 
 // Zoom with Ctrl/⌘ + scroll (that's also what a trackpad pinch sends). A plain
-// scroll keeps scrolling the page, with a tip on how to zoom.
-const ZOOM_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
-globeSvg.addEventListener("wheel", (event) => {
-  if (!event.ctrlKey && !event.metaKey) {
-    flashHint(`Hold ${ZOOM_KEY} and scroll to zoom — or use + and −`);
-    return;
-  }
+// scroll keeps scrolling the page — the map is its background.
+mapSvg.addEventListener("wheel", (event) => {
+  if (!event.ctrlKey && !event.metaKey) return;
   event.preventDefault();
-  zoomGlobe(Math.exp(-clamp(event.deltaY, -50, 50) * 0.006));
+  const rect = mapSvg.getBoundingClientRect();
+  zoomMapAt(Math.exp(-clamp(event.deltaY, -50, 50) * 0.006), event.clientX - rect.left, event.clientY - rect.top);
 }, { passive: false });
 
+// + and − zoom around the middle of the open space.
 function zoomStep(factor) {
-  const v = state.globeView ?? shownView;
-  flyGlobe({ ...v, zoom: clamp(v.zoom * factor, 1, GLOBE_MAX_ZOOM) });
+  const v = state.mapView ?? shownView;
+  flyMap(keepInView(zoomedView(v, v.k * factor, ...areaCentre(openArea()))));
 }
-$("zoom-in").addEventListener("click", () => zoomStep(1.5));
-$("zoom-out").addEventListener("click", () => zoomStep(1 / 1.5));
-$("globe-reset").addEventListener("click", () => flyGlobe(null));
+$("zoom-in").addEventListener("click", () => zoomStep(1.6));
+$("zoom-out").addEventListener("click", () => zoomStep(1 / 1.6));
+$("map-reset").addEventListener("click", () => flyMap(null));
 
-// Clicking (not dragging) a dot on the globe selects that destination and shows its row.
-globeSvg.addEventListener("click", (event) => {
-  if (dragged) return;
+// Clicking (not dragging) a dot selects that destination and shows its row.
+mapSvg.addEventListener("click", (event) => {
+  if (dragged || !tripPageEl.hidden) return;
   const dot = event.target.closest(".dest-dot");
   if (dot) selectDestination(dot.dataset.code, { scrollToRow: true });
 });
 
-renderGlobe();
-Geo.load().then(renderGlobe); // the countries arrive a moment later
+window.addEventListener("resize", redrawMapSoon);
+
+renderGapBar();
+renderMap();
+Geo.load().then(renderMap); // the countries arrive a moment later

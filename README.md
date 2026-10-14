@@ -3,11 +3,18 @@
 Add two or more departures (yours, a partner's, friends', family's — up to 8,
 with how many people leave from each) and get a ranked list of places you could
 all fly to **on the same dates**, cheapest first — with flight times for each
-traveller and a globe, which stays in the middle of the screen as you scroll
-the results, showing where everyone would meet. Every result is also a dot on
-the globe: hover it for the city and total price, click it to select that
-destination. Drag the globe to turn it; zoom with + / −, a pinch, or Ctrl
-(⌘ on a Mac) + scroll; "Recentre" brings back the view of every result.
+traveller and a light world map behind the page showing everyone's route to
+the meeting point. On wide screens the map fills the window and stays put as
+you scroll; you see and drag it in the open space right of the results (on
+smaller screens it is a block under them). Every result is also a dot on the
+map: hover it for the city and total price, click it to select that
+destination. Zoom with + / −, a pinch, or Ctrl (⌘ on a Mac) + scroll;
+"Recentre" brings back the view of every result.
+
+Right above the results, **"Everyone lands within − 3 h +"** sets how far
+apart everyone may land (and fly home); changing it re-runs the search, and
+the hint next to it says what you get ("12 trips found") and, when a looser
+limit would help, offers it ("Allow 4 h → +2 weekends, up to €23 less").
 
 Already know where you're going? Pick it in **Going to** (left empty, it means
 "Anywhere" — find the middle). The page then compares **dates** instead of
@@ -15,7 +22,7 @@ places: the coming weekends as a small price chart, and for the chosen
 weekend the other ways to do it (Thu → Sun, Fri → Mon, ...) cheapest first,
 each with how much it saves compared with the usual Fri → Sun.
 
-The look is design 19, "Terracotta & Sand". All its colours are the variables at the top of `styles.css` (the globe reads them too), so trying another palette is a single edit there.
+The look is design 57, "Retro Travel Poster": a terracotta banner with sun rays, a cream page and map, and mustard on everything you click. All its colours are the variables at the top of `styles.css` (the map reads them too), so trying another palette is a single edit there.
 
 ## Running it
 
@@ -27,10 +34,10 @@ The page talks to the Supabase function below, so you need internet.
 | File | What it is | Easy things to change |
 |---|---|---|
 | `index.html` | The page structure | Texts, headline, labels |
-| `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-1`, `--accent`, `--peach`...). Change them and the whole site follows. |
-| `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the table, the trip page after "Select" (with the "Book on Aviasales" buttons), the globe | Settings are in section 1 at the top; the trip page is section 7d |
+| `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-bg`, `--action`, `--accent`...). Change them and the whole site follows. |
+| `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the table, the trip page after "Select" (with the "Book on Aviasales" buttons), the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`); the trip page is section 7d |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
-| `geo.js` | The world map on the globe: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--land`, `--borders`, `--grid`, `--ocean-a/b` in `styles.css` |
+| `geo.js` | The flat world map: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--map-sea`, `--map-land`, `--map-borders`, `--map-grid` in `styles.css` |
 | `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | `DEFAULT_MAX_GAP_HOURS`, `FIRST_PASS_CANDIDATES`, `FLEXIBLE_SEARCH_MONTHS` at the top; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
 
 ## How a search works
@@ -44,9 +51,10 @@ The page talks to the Supabase function below, so you need internet.
 3. **The time rule:** among those days it keeps only the ones where everyone's
    **arrival times** at the destination, and everyone's **return-flight
    times**, are within **3 hours** of each other (latest minus earliest) — so nobody waits alone for a day.
-   Change the limit in the "When" pop-up (2h, 3h, 4h, 6h, or no limit), or
-   the default in `DEFAULT_MAX_GAP_HOURS` (server) / the `selected` option
-   of `#max-gap` (page).
+   Change the limit with the − / + next to "Everyone lands within", above the
+   results (1h, 2h, 3h, 4h, 6h, or any), or the default in
+   `DEFAULT_MAX_GAP_HOURS` (server) / `maxGapHours` in the page's `state`
+   (`app.js`).
 4. **Widening (only if fewer than 6 matches):** it also tries a stay one night
    shorter/longer (the "±1 night" checkbox), then checks 25 more destinations.
    Rows show the real number of nights, so a "full week" search can return 6,
