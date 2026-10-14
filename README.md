@@ -178,6 +178,28 @@ So the real request happens on a small server we control instead:
 into the dashboard's editor). If the page shows "the deployed function is
 running older code", that is what it means.
 
+## Visitor statistics (Umami)
+
+The live site counts its visitors with [Umami Cloud](https://cloud.umami.is)
+(free plan: 100,000 events a month, 6 months of history). It uses no cookies
+and nothing personal, so no cookie banner is needed. The script is in the
+`<head>` of `index.html`; `data-domains` makes it count only the live site
+(`maximeclauzier06-crypto.github.io`), so testing on your computer is never
+counted.
+
+Besides visits (pages, countries, devices, where people came from), `app.js`
+sends three events through its small `track()` helper:
+
+| Event | When | Details sent |
+|---|---|---|
+| `search` | a search finishes | `source` (bar, gap, stay, currency, retry), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap`, `found`, `outcome` (results / none / error) |
+| `select` | "Select" opens a trip page | `kind`, `to`, `nights`, `travellers`, `total`, `currency` |
+| `book-click` | a "Book on Aviasales" press | `from`, `to`, `seats`, `nights` |
+
+Compare `book-click` with the clicks and sales in Travelpayouts. To keep your
+own visits out, open the console (F12) on the live site once per browser and
+run `localStorage.setItem('umami.disabled', 1)`.
+
 ## Ideas for later
 
 - Exact flight times and prices with a live flight-search API.

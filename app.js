@@ -106,6 +106,18 @@ function dayShiftMarker(fromIso, toIso) {
   return shift === 0 ? "" : `<sup>${shift > 0 ? "+" : ""}${shift}</sup>`;
 }
 
+// Visitor statistics (Umami, loaded in index.html): counts what people do —
+// searches, "Select", "Book on Aviasales" — without cookies and without
+// anything personal. It quietly does nothing when the script isn't there
+// (blocked by an ad blocker, or on your own computer: it only runs on the live site).
+function track(name, data) {
+  try {
+    window.umami?.track(name, data);
+  } catch {
+    // statistics must never break the page
+  }
+}
+
 
 // ===========================================================================
 // 3. AIRPORT AUTOCOMPLETE
@@ -384,7 +396,7 @@ currencySelect.value = detectDefaultCurrency();
 // flight-data calls.)
 currencySelect.addEventListener("change", () => {
   if (!state.lastSearch) return;
-  runSearch(state.lastSearch.origins, { ...state.lastSearch.params, currency: currencySelect.value });
+  runSearch(state.lastSearch.origins, { ...state.lastSearch.params, currency: currencySelect.value }, { source: "currency" });
 });
 
 
@@ -565,14 +577,34 @@ function revealResults() {
   window.scrollTo({ top: window.scrollY + visibleTop, behavior: smooth ? "smooth" : "auto" });
 }
 
+// A search, for the statistics: its shape and how it went (nothing personal).
+function searchStats(origins, params, source, failed) {
+  const found = failed ? 0 : state.trip ? state.trip.windows.filter(cheapestOption).length : state.results.length;
+  const nights = params.weekendOnly ? `${params.nights} nights, weekend` : `${params.nights} nights`;
+  return {
+    source, // bar · gap · stay · currency · retry
+    kind: params.destination ? "destination" : "anywhere",
+    from: origins.map((o) => o.code).join(","),
+    to: params.destination ?? "anywhere",
+    departures: origins.length,
+    travellers: origins.reduce((sum, o) => sum + o.count, 0),
+    when: params.mode === "specific" ? "dates" : params.trip ?? nights,
+    gap: gapLabel(Number(params.maxGapHours)),
+    found, // places (anywhere) or weekends that work (destination)
+    outcome: failed ? "error" : found > 0 ? "results" : "none",
+  };
+}
+
 // `reveal`: scroll to the results once they're in (searches from the bar).
-async function runSearch(origins, params, { reveal = false } = {}) {
+// `source`: what started the search, for the statistics.
+async function runSearch(origins, params, { reveal = false, source = "bar" } = {}) {
   // A new search (e.g. another currency) while a trip page is open: back to the list.
   if (!tripPageEl.hidden) {
     closeTripPage();
     if (history.state?.tripPage) history.replaceState(null, "", location.pathname + location.search);
   }
   const thisSearch = ++searchCounter;
+  let failed = false;
   state.lastSearch = { origins, params };
   state.maxGapHours = Number(params.maxGapHours);
   state.searching = true;
@@ -613,6 +645,7 @@ async function runSearch(origins, params, { reveal = false } = {}) {
     renderTable();
   } catch (error) {
     if (thisSearch !== searchCounter) return;
+    failed = true;
     state.results = [];
     showMessage(esc(error.message), true);
     renderMap();
@@ -622,6 +655,7 @@ async function runSearch(origins, params, { reveal = false } = {}) {
       searchButton.disabled = false;
       renderGapBar();
       if (reveal) revealResults();
+      track("search", searchStats(origins, params, source, failed));
     }
   }
 }
@@ -647,7 +681,7 @@ $("search-form").addEventListener("submit", (event) => {
     return showMessage(esc(error.message), true);
   }
   setWhenOpen(false);
-  runSearch(departures, params, { reveal: true });
+  runSearch(departures, params, { reveal: true, source: "bar" });
 });
 
 
@@ -729,7 +763,7 @@ function renderGapBar() {
 
 // A change waits a moment, so pressing + twice runs one search, not two.
 const searchWithGap = debounce(() => {
-  if (state.lastSearch) runSearch(state.lastSearch.origins, { ...state.lastSearch.params, maxGapHours: String(state.maxGapHours) });
+  if (state.lastSearch) runSearch(state.lastSearch.origins, { ...state.lastSearch.params, maxGapHours: String(state.maxGapHours) }, { source: "gap" });
 }, 450);
 
 function setGap(hours) {
@@ -863,7 +897,7 @@ function updateWarning() {
 
 // "Try again" buttons (in the warning, or inside a "nothing found" message)
 document.addEventListener("click", (event) => {
-  if (event.target.id === "retry-search" && state.lastSearch) runSearch(state.lastSearch.origins, state.lastSearch.params);
+  if (event.target.id === "retry-search" && state.lastSearch) runSearch(state.lastSearch.origins, state.lastSearch.params, { source: "retry" });
 });
 
 function selectDestination(code, { scrollToRow = false } = {}) {
@@ -1147,7 +1181,7 @@ $("trip-chips").addEventListener("click", (event) => {
   updateWhenFields();
   document.querySelectorAll("#trip-chips .chip").forEach((c) => c.classList.toggle("is-selected", c === chip));
   const { departDate, returnDate, ...params } = state.lastSearch.params;
-  runSearch(state.lastSearch.origins, { ...params, mode: "flexible", trip: type, nights: String(TRIP_NIGHTS[type]) });
+  runSearch(state.lastSearch.origins, { ...params, mode: "flexible", trip: type, nights: String(TRIP_NIGHTS[type]) }, { source: "stay" });
 });
 
 
@@ -1190,6 +1224,7 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest(".book-btn");
   if (!button || button.disabled) return;
   const { from, to, depart, return: back, adults } = button.dataset;
+  track("book-click", { from, to, seats: Number(adults), nights: daysBetween(depart, back || depart) });
 
   // Browsers only allow a new tab straight after a click, so open it now and
   // send it on once the link is ready.
@@ -1319,7 +1354,17 @@ document.addEventListener("click", (event) => {
   const select = event.target.closest(".select-btn");
   if (select) {
     const trip = tripFromSelect(select);
-    if (trip) openTripPage(trip);
+    if (trip) {
+      openTripPage(trip);
+      track("select", {
+        kind: select.dataset.dest ? "anywhere" : "destination",
+        to: trip.code,
+        nights: trip.nights,
+        travellers: trip.travelers.reduce((sum, leg) => sum + leg.count, 0),
+        total: Math.round(trip.total),
+        currency: state.currency.toUpperCase(),
+      });
+    }
   } else if (event.target.closest("#trip-back")) {
     if (history.state?.tripPage) history.back(); // the popstate below closes the page
     else closeTripPage();
