@@ -48,7 +48,8 @@ const MAP_MAX_ZOOM = 2400; // how far you can zoom in (about one country on scre
 const MAP_FIT_ZOOM = 1500; // how close it zooms by itself, so two nearby cities don't fill the screen
 
 // "Everyone lands within ..." — the steps of the − / + buttons, in hours (0 = any).
-const GAP_STEPS = [1, 2, 3, 4, 6, 0];
+// A search that finds nothing within the limit tries the next steps by itself.
+const GAP_STEPS = [1, 2, 3, 4, 5, 6, 0];
 
 // What the page remembers between actions.
 const state = {
@@ -57,7 +58,9 @@ const state = {
   sort: "cheapest",  // cheapest | fastest | stops
   selected: null,    // destination code of the highlighted row
   maxGapHours: 3,    // the arrival/return time rule ("Everyone lands within"); 0 = no limit
+  widenedFrom: null, // the limit the last search started from, when it had to allow more
   searching: false,  // a search is on its way
+  searchedOnce: false, // the "Everyone lands within" bar appears after the first search
   debug: null,       // the function's report on the last search (counts, failures...)
   currency: "usd",   // the currency the prices in `results` are actually in
   lastSearch: null,  // so a currency change or "Try again" can re-run the same search
@@ -578,7 +581,7 @@ function revealResults() {
 }
 
 // A search, for the statistics: its shape and how it went (nothing personal).
-function searchStats(origins, params, source, failed) {
+function searchStats(origins, params, source, failed, startGap) {
   const found = failed ? 0 : state.trip ? state.trip.windows.filter(cheapestOption).length : state.results.length;
   const nights = params.weekendOnly ? `${params.nights} nights, weekend` : `${params.nights} nights`;
   return {
@@ -589,10 +592,34 @@ function searchStats(origins, params, source, failed) {
     departures: origins.length,
     travellers: origins.reduce((sum, o) => sum + o.count, 0),
     when: params.mode === "specific" ? "dates" : params.trip ?? nights,
-    gap: gapLabel(Number(params.maxGapHours)),
+    gap: gapLabel(Number(params.maxGapHours)), // the limit the results are for...
+    startGap: gapLabel(startGap),              // ...and the one the search started from
     found, // places (anywhere) or weekends that work (destination)
     outcome: failed ? "error" : found > 0 ? "results" : "none",
   };
+}
+
+// Searches that widen the time rule by themselves when nothing fits it. Not
+// the − / + buttons (a deliberate choice), nor a currency change (it keeps
+// the limit the search already ended on).
+const WIDEN_SOURCES = new Set(["bar", "stay", "retry"]);
+
+// When a search found nothing only because arrival or return times were too
+// far apart: the next limit worth trying (null = nothing left to try).
+function widerGap(json, hours) {
+  if (hours === 0) return null;
+  const looser = GAP_STEPS.filter((step) => step === 0 || step > hours); // "any" comes last
+  if (json.mode === "trip") {
+    // The answer holds the options that were just over the limit, so we know
+    // straight away which limit makes at least one of them work.
+    if (json.windows.some((w) => w.options.some((o) => o.status === "ok"))) return null;
+    const gaps = json.windows.flatMap((w) => w.options).filter((o) => o.status === "gap").map((o) => Math.max(o.arrivalGapHours, o.returnGapHours));
+    if (gaps.length === 0) return null;
+    const needed = Math.min(...gaps);
+    return looser.find((step) => step === 0 || step >= needed) ?? null;
+  }
+  if (json.results.length > 0 || !(json.debug?.rejectedByTimeGap > 0)) return null;
+  return looser[0] ?? null;
 }
 
 // `reveal`: scroll to the results once they're in (searches from the bar).
@@ -605,8 +632,10 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
   }
   const thisSearch = ++searchCounter;
   let failed = false;
+  const startGap = Number(params.maxGapHours);
   state.lastSearch = { origins, params };
-  state.maxGapHours = Number(params.maxGapHours);
+  state.maxGapHours = startGap;
+  if (source !== "currency") state.widenedFrom = null;
   state.searching = true;
   state.debug = null;
   state.trip = null;
@@ -617,8 +646,23 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
   searchButton.disabled = true;
 
   try {
-    const json = await callSearchFunction(origins, params);
+    let json = await callSearchFunction(origins, params);
     if (thisSearch !== searchCounter) return;
+
+    // Nothing only because nobody lands close enough together? Allow a bigger
+    // gap — 4 h, 5 h, 6 h, then any — so there is always something to show
+    // first. The − / + buttons can tighten it again afterwards.
+    const widen = WIDEN_SOURCES.has(source);
+    for (let next = widen ? widerGap(json, startGap) : null; next !== null; next = widerGap(json, next)) {
+      showMessage(`Nothing where everyone lands within ${gapLabel(state.maxGapHours)} of each other — trying ${next > 0 ? `${next} h` : "any gap"}…`);
+      params = { ...params, maxGapHours: String(next) };
+      state.lastSearch = { origins, params };
+      state.maxGapHours = next;
+      renderGapBar();
+      json = await callSearchFunction(origins, params);
+      if (thisSearch !== searchCounter) return;
+    }
+    if (state.maxGapHours !== startGap) state.widenedFrom = startGap;
 
     // Names and positions for the departures (for the table and the map's labels).
     state.origins = origins.map((o, i) => {
@@ -652,10 +696,11 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
   } finally {
     if (thisSearch === searchCounter) {
       state.searching = false;
+      state.searchedOnce = true;
       searchButton.disabled = false;
       renderGapBar();
       if (reveal) revealResults();
-      track("search", searchStats(origins, params, source, failed));
+      track("search", searchStats(origins, params, source, failed, startGap));
     }
   }
 }
@@ -689,11 +734,13 @@ $("search-form").addEventListener("submit", (event) => {
 // 6b. THE ARRIVAL-TIME RULE — "Everyone lands within [−] 3 h [+]"
 // ===========================================================================
 // So nobody waits alone at the airport for hours: everyone's arrivals (and
-// return flights) must be within this many hours of each other. It sits next
-// to the results; changing it re-runs the search (quick: the server remembers
-// its answers). With a destination chosen, the answer already holds the
-// options that were just over the limit, so we can say what a looser rule
-// would add ("Allow 4 h → +2 weekends").
+// return flights) must be within this many hours of each other. It appears
+// with the first results; changing it re-runs the search (quick: the server
+// remembers its answers). A search that finds nothing within the limit widens
+// it by itself (runSearch), and the hint says so ("widened from 3 h"). With a
+// destination chosen, the answer already holds the options that were just
+// over the limit, so we can say what a looser rule would add
+// ("Allow 4 h → +2 weekends").
 
 const gapLabel = (hours) => (hours > 0 ? `${hours} h` : "Any");
 const allowLabel = (hours) => (hours > 0 ? `Allow ${hours} h` : "Allow any gap");
@@ -748,13 +795,15 @@ function gapMoreText() {
 
 function renderGapBar() {
   const step = gapStep();
+  $("gap-bar").hidden = !state.searchedOnce;
   $("gap-value").textContent = gapLabel(state.maxGapHours);
   $("gap-minus").disabled = step === 0;
   $("gap-plus").disabled = step === GAP_STEPS.length - 1;
-  // Before a search: "... 3 h of each other · applies to your search"; after: "... 3 h · 12 trips found".
-  const found = gapFoundText();
-  const lead = state.maxGapHours > 0 ? "of each other" : "no limit";
-  $("gap-hint").textContent = found === null ? `${lead} · applies to your search` : state.maxGapHours > 0 ? found : `${lead} · ${found}`;
+  // "... 3 h · 12 trips found", "... 5 h · widened from 3 h · 4 trips found", "... Any · no limit · 9 trips found"
+  const found = gapFoundText() ?? "applies to your search";
+  const widened = state.widenedFrom !== null && !state.searching ? `widened from ${gapLabel(state.widenedFrom)}` : null;
+  const lead = widened ?? (state.maxGapHours > 0 ? null : "no limit");
+  $("gap-hint").textContent = lead ? `${lead} · ${found}` : found;
   const more = gapMoreText();
   $("gap-more").hidden = !more;
   $("gap-more").textContent = more?.text ?? "";

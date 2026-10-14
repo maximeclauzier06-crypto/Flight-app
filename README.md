@@ -12,9 +12,12 @@ destination. Zoom with + / −, a pinch, or Ctrl (⌘ on a Mac) + scroll;
 "Recentre" brings back the view of every result.
 
 Right above the results, **"Everyone lands within − 3 h +"** sets how far
-apart everyone may land (and fly home); changing it re-runs the search, and
-the hint next to it says what you get ("12 trips found") and, when a looser
-limit would help, offers it ("Allow 4 h → +2 weekends, up to €23 less").
+apart everyone may land (and fly home). It appears with the first results.
+A search that finds nothing within 3 h widens the limit by itself — 4 h,
+5 h, 6 h, then any — so there is always something to show first ("widened
+from 3 h · 4 trips found"); the − / + buttons then let you tighten or loosen
+it (they never widen by themselves). The hint also offers a looser limit
+when it would help ("Allow 4 h → +2 weekends, up to €23 less").
 
 Already know where you're going? Pick it in **Going to** (left empty, it means
 "Anywhere" — find the middle). The page then compares **dates** instead of
@@ -51,8 +54,10 @@ The page talks to the Supabase function below, so you need internet.
 3. **The time rule:** among those days it keeps only the ones where everyone's
    **arrival times** at the destination, and everyone's **return-flight
    times**, are within **3 hours** of each other (latest minus earliest) — so nobody waits alone for a day.
-   Change the limit with the − / + next to "Everyone lands within", above the
-   results (1h, 2h, 3h, 4h, 6h, or any), or the default in
+   If nothing fits, the page itself asks again with 4h, 5h, 6h, then no limit
+   (`widerGap` in `app.js`; the server remembers its answers, so this costs
+   few or no extra flight-data calls). Change the limit with the − / + next to
+   "Everyone lands within", above the results (1h to 6h, or any), or the default in
    `DEFAULT_MAX_GAP_HOURS` (server) / `maxGapHours` in the page's `state`
    (`app.js`).
 4. **Widening (only if fewer than 6 matches):** it also tries a stay one night
@@ -192,7 +197,7 @@ sends three events through its small `track()` helper:
 
 | Event | When | Details sent |
 |---|---|---|
-| `search` | a search finishes | `source` (bar, gap, stay, currency, retry), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap`, `found`, `outcome` (results / none / error) |
+| `search` | a search finishes | `source` (bar, gap, stay, currency, retry), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap` (the limit the results are for), `startGap` (the limit it started from, before widening), `found`, `outcome` (results / none / error) |
 | `select` | "Select" opens a trip page | `kind`, `to`, `nights`, `travellers`, `total`, `currency` |
 | `book-click` | a "Book on Aviasales" press | `from`, `to`, `seats`, `nights` |
 
