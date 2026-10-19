@@ -9,7 +9,10 @@ all fly to **on the same dates**, cheapest first — with flight times for each
 traveller and a light world map behind the page showing everyone's route to
 the meeting point. On wide screens the map fills the window and stays put as
 you scroll; you see and drag it in the open space right of the results (on
-smaller screens it is a block under them). Every result is also a dot on the
+tablets it is a block under them). On phones the results are compact rows
+(the exact flight times are on the trip page), and a floating **Map** button
+opens the map full screen, with a card for the selected place ("Select",
+"← List"). Every result is also a dot on the
 map: hover it for the city and total price, click it to select that
 destination. Zoom with + / −, a pinch, or Ctrl (⌘ on a Mac) + scroll;
 "Recentre" brings back the view of every result.

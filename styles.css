@@ -532,6 +532,9 @@ button, input, select { font-family: inherit; }
 .map-zoom button + button { border-top: 1px solid var(--line); }
 .map-zoom button:hover:not(:disabled) { background: var(--row-hover); color: var(--accent); }
 .map-zoom button:disabled { color: var(--placeholder); cursor: default; }
+/* Phones only (see the end of this file): the "Map" button, and the way back
+   and place card of the full-screen map */
+.map-toggle, .map-close, .map-card { display: none; }
 
 .page-footer {
   position: relative; z-index: 3; width: var(--content); margin: 72px auto 0; padding: 28px 16px 40px;
@@ -601,10 +604,29 @@ button, input, select { font-family: inherit; }
   .bar-extras { gap: 10px; margin-top: 12px; }
   .bar-hint { font-size: 12px; }
 
+  /* Results: compact rows — the place and its total side by side, one short
+     line per traveller. The exact flight times are on the trip page ("Select"). */
+  .table-top { padding: 22px 16px 14px; }
+  .table-top h2 { font-size: 26px; }
+  .chip { padding: 7px 13px; font-size: 12px; }
+  .gap-bar { margin: 0 16px 14px; }
   .table-head { display: none; }
-  .row { grid-template-columns: 36px minmax(0, 1fr); row-gap: 14px; }
-  .row .journeys, .row .total-cell { grid-column: 1 / -1; }
-  .total-cell { text-align: left; }
+  .row {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    grid-template-areas: "rank dest total" "rank journeys journeys";
+    column-gap: 10px; row-gap: 10px; padding: 16px;
+  }
+  .row .rank { grid-area: rank; align-self: start; width: 30px; height: 30px; font-size: 14px; }
+  .row .dest { grid-area: dest; }
+  .row .journeys { grid-area: journeys; }
+  .row .total-cell { grid-area: total; }
+  .row .dest-city { font-size: 20px; }
+  .row .total { font-size: 22px; }
+  .row .total-sub { margin: 2px 0 8px; }
+  .row .select-btn { padding: 8px 12px; }
+  .row .times, .row .gap-note { display: none; }
+  .row .traveler + .traveler { margin-top: 6px; padding-top: 6px; }
+  .trip-box .total-cell { text-align: left; }
   .gap-more { margin-left: 0; }
   .trip-box { grid-template-columns: minmax(0, 1fr); }
   .tp-head { padding: 24px; }
@@ -613,10 +635,42 @@ button, input, select { font-family: inherit; }
   .tp-flight { grid-template-columns: minmax(0, 1fr); }
   .tp-buy { text-align: left; }
   .alts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .map-layer { height: 340px; }
   .map-hint { display: none; }
   .page-footer { flex-direction: column; align-items: flex-start; }
-  #map { touch-action: pan-y; } /* on phones, swiping up/down over the map still scrolls the page */
+
+  /* The map: not under the list (nobody would scroll that far) — the "Map"
+     button at the bottom of the screen opens it full screen instead */
+  .map-col { display: none; }
+  .map-toggle {
+    position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 40; transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 0; border-radius: 999px; padding: 12px 20px; cursor: pointer;
+    background: var(--ink); color: #fff; font: inherit; font-size: 14px; font-weight: 800;
+    box-shadow: 0 10px 26px rgba(var(--shadow), 0.35);
+  }
+  body.map-open { overflow: hidden; }
+  body.map-open .results-grid { z-index: 100; } /* above the banner and the top bar */
+  body.map-open .map-col { display: block; }
+  body.map-open .map-layer { position: fixed; inset: 0; z-index: 60; height: auto; border: 0; box-shadow: none; }
+  body.map-open #map { touch-action: none; }
+  body.map-open .map-ui { top: 14px; right: 14px; bottom: auto; }
+  body.map-open .map-close {
+    position: absolute; top: 14px; left: 14px; z-index: 5; display: inline-flex;
+    border: 0; border-radius: 999px; padding: 10px 16px; cursor: pointer;
+    background: #fff; color: var(--ink); font: inherit; font-size: 14px; font-weight: 800;
+    box-shadow: 0 6px 16px rgba(var(--shadow), 0.2);
+  }
+  body.map-open .map-card {
+    position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 5; display: block;
+    padding: 14px 16px; border-radius: 18px; background: #fff; box-shadow: 0 14px 34px rgba(var(--shadow), 0.25);
+  }
+  body.map-open .map-card:empty { display: none; }
+  .mc-title { font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.15; }
+  .mc-title span { color: var(--soft); font-family: var(--font-body); font-size: 13px; font-weight: 600; }
+  .mc-sub { margin-top: 3px; color: var(--soft); font-size: 13px; }
+  .mc-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+  .mc-bottom strong { font-family: var(--font-display); font-size: 24px; }
+  .mc-hint { margin-top: 8px; color: var(--soft); font-size: 12px; }
 }
 
 /* The narrowest phones (e.g. 320px): a smaller top bar so it stays on one line */

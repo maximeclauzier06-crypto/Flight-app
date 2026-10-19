@@ -11,7 +11,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-10-19">
+  <link rel="stylesheet" href="styles.css?v=2026-10-19.2">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -223,6 +223,10 @@
         <div class="map-layer" id="map-layer">
           <svg id="map" aria-hidden="true"></svg>
           <div id="map-labels"></div>
+          <!-- Phones only: the map opens full screen over the list (the "Map" button
+               at the bottom of the page), with a way back and a card for the selected place -->
+          <button type="button" class="map-close" id="map-close">← List</button>
+          <div class="map-card" id="map-card" aria-live="polite"></div>
           <div class="map-ui">
             <div class="map-hint" id="map-hint">Drag the map to explore</div>
             <button type="button" class="map-reset" id="map-reset" hidden>↺ Recentre</button>
@@ -241,11 +245,17 @@
     <span class="footer-links"><a href="#">Privacy</a><a href="#">Contact</a></span>
   </footer>
 
+  <!-- Phones only: opens the map full screen (shown once there are results) -->
+  <button type="button" class="map-toggle" id="map-open" hidden>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"></path><path d="M9 4v14M15 6v14"></path></svg>
+    Map
+  </button>
+
   <!-- Map libraries for the countries on the map (free, from a public CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-10-19"></script>
-  <script src="app.js?v=2026-10-19"></script>
+  <script src="geo.js?v=2026-10-19.2"></script>
+  <script src="app.js?v=2026-10-19.2"></script>
 </body>
 </html>

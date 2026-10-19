@@ -17,7 +17,7 @@
 //            3c Going to · 4 Currency · 5 The "When" pop-up · 6 Searching +
 //            6b The arrival-time rule (− / +) · 7 The results table ·
 //            7b One destination · 7c Booking · 7d The trip page (after "Select") ·
-//            8 The map
+//            8 The map (with, at its end, the full-screen map on phones)
 // ---------------------------------------------------------------------------
 
 
@@ -1390,6 +1390,7 @@ function openTripPage(trip) {
   if (!history.state?.tripPage) history.pushState({ tripPage: true }, "", "#trip"); // so Back returns to the list
   window.scrollTo({ top: 0 });
   $("trip-back").focus({ preventScroll: true });
+  updateMapButton();
 }
 
 function closeTripPage() {
@@ -1397,6 +1398,7 @@ function closeTripPage() {
   tripPageEl.hidden = true;
   tripPageEl.innerHTML = "";
   listViewEls.forEach((el) => (el.hidden = false));
+  updateMapButton();
   // Back where you were: the selected row (or the trip box).
   (rowsEl.querySelector(".row.is-selected") ?? rowsEl.querySelector(".trip-box"))?.scrollIntoView({ block: "center" });
 }
@@ -1406,6 +1408,7 @@ document.addEventListener("click", (event) => {
   if (select) {
     const trip = tripFromSelect(select);
     if (trip) {
+      setMapOpen(false); // "Select" on the phone's full-screen map
       openTripPage(trip);
       track("select", {
         kind: select.dataset.dest ? "anywhere" : "destination",
@@ -1468,8 +1471,10 @@ const mapSvg = $("map");
 let shownView = null; // what the map shows right now: {k, tx, ty}
 let shownMap = null;  // ...and its projection (to test what's in view)
 
-// Behind the whole page (wide screens), or a block under the results?
-const mapIsBackground = () => getComputedStyle(mapLayer).position === "fixed";
+// Behind the whole page (wide screens), or a block of its own (smaller screens,
+// and the full-screen map on phones)?
+const mapIsOverlay = () => document.body.classList.contains("map-open");
+const mapIsBackground = () => getComputedStyle(mapLayer).position === "fixed" && !mapIsOverlay();
 
 // The part of the map you can really see, [[left, top], [right, bottom]] in
 // the map's pixels: right of the results on wide screens (the table covers the
@@ -1479,7 +1484,8 @@ function openArea() {
   const h = mapLayer.clientHeight;
   if (!mapIsBackground()) {
     const side = Math.min(110, w * 0.18);
-    return [[side, 50], [w - side, h - 60]];
+    // Full screen on a phone: keep clear of "← List" at the top and the place card at the bottom.
+    return mapIsOverlay() ? [[side, 80], [w - side, h - 190]] : [[side, 50], [w - side, h - 60]];
   }
   const left = document.querySelector(".map-col").getBoundingClientRect().left;
   return [[left + 100, h * 0.2], [w - 110, h * 0.84]];
@@ -1538,9 +1544,10 @@ function routePath([x1, y1], [x2, y2]) {
 const ZOOM_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
 
 function renderMap() {
+  updateMapButton();
   const w = mapLayer.clientWidth;
   const h = mapLayer.clientHeight;
-  if (!w || !h) return;
+  if (!w || !h) return; // hidden (phones, until the "Map" button opens it)
   const T = themeColors();
 
   const origins = state.origins ?? [];
@@ -1624,6 +1631,7 @@ function renderMap() {
     <path d="${m.bordersPath}" stroke="${T.borders}" stroke-width="0.6" stroke-linejoin="round" fill="none"></path>
     ${overlay}`;
   $("map-labels").innerHTML = labels;
+  $("map-card").innerHTML = mapIsOverlay() ? mapCardHtml() : "";
 
   $("map-hint").textContent = ready && destinations.length > 1 ? "Drag to explore · click a dot to see another place" : `Drag to explore · ${ZOOM_KEY} + scroll to zoom`;
   $("map-reset").hidden = state.mapView === null;
@@ -1752,14 +1760,62 @@ $("zoom-in").addEventListener("click", () => zoomStep(1.6));
 $("zoom-out").addEventListener("click", () => zoomStep(1 / 1.6));
 $("map-reset").addEventListener("click", () => flyMap(null));
 
-// Clicking (not dragging) a dot selects that destination and shows its row.
+// Clicking (not dragging) a dot selects that destination and shows its row
+// (on the full-screen phone map, its card instead).
 mapSvg.addEventListener("click", (event) => {
   if (dragged || !tripPageEl.hidden) return;
   const dot = event.target.closest(".dest-dot");
-  if (dot) selectDestination(dot.dataset.code, { scrollToRow: true });
+  if (dot) selectDestination(dot.dataset.code, { scrollToRow: !mapIsOverlay() });
 });
 
 window.addEventListener("resize", redrawMapSoon);
+
+// --- On phones: the map opens full screen over the list ---------------------
+// The list stays easy to read; the "Map" button at the bottom of the screen
+// opens the map with every result and the routes, plus a card for the
+// selected place (tap another dot to compare, "Select" to open its trip).
+
+const phoneQuery = window.matchMedia("(max-width: 860px)");
+
+function updateMapButton() {
+  $("map-open").hidden = !phoneQuery.matches || mapIsOverlay() || !tripPageEl.hidden || !state.results.some(hasCoords);
+}
+
+function setMapOpen(open) {
+  if (open === mapIsOverlay()) return;
+  document.body.classList.toggle("map-open", open);
+  state.mapView = null; // frame everything again, for the new size
+  renderMap();
+  $(open ? "map-close" : "map-open").focus({ preventScroll: true });
+}
+
+// The card at the bottom of the full-screen map: the selected place, its total, "Select".
+function mapCardHtml() {
+  const r = state.results.find((x) => x.destination === state.selected);
+  if (!r) return "";
+  const people = state.origins.reduce((sum, o) => sum + o.count, 0);
+  const title = `<div class="mc-title">${esc(r.destinationName)}${r.country ? ` <span>${esc(r.country)}</span>` : ""}</div>`;
+  if (state.trip) {
+    // One destination: the weekend and option chosen in the list.
+    const o = state.trip.windows[state.tripWindow]?.options[state.tripOption];
+    if (o?.status !== "ok") return `${title}<div class="mc-sub">No date works for everyone yet — pick another one in the list.</div>`;
+    return `${title}
+      <div class="mc-sub">${dayLabel(o.departDate)} → ${dayLabel(o.returnDate)} · ${nightsLabel(o.nights)} · ${peopleLabel(people)}</div>
+      <div class="mc-bottom"><strong>${formatPrice(o.total, state.currency)}</strong><button type="button" class="select-btn">Select</button></div>`;
+  }
+  return `${title}
+    <div class="mc-sub">${formatDay(r.departDate)} – ${formatDay(r.returnDate)} · ${nightsLabel(r.nights)} · ${peopleLabel(people)}</div>
+    <div class="mc-bottom"><strong>${formatPrice(r.total, state.currency)}</strong><button type="button" class="select-btn" data-dest="${esc(r.destination)}">Select</button></div>
+    ${state.results.length > 1 ? '<div class="mc-hint">Tap another dot to compare</div>' : ""}`;
+}
+
+$("map-open").addEventListener("click", () => setMapOpen(true));
+$("map-close").addEventListener("click", () => setMapOpen(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && mapIsOverlay()) setMapOpen(false);
+});
+// Turning a tablet (or resizing a window) past the phone size closes it.
+phoneQuery.addEventListener("change", () => (phoneQuery.matches ? renderMap() : setMapOpen(false)));
 
 renderGapBar();
 renderMap();
