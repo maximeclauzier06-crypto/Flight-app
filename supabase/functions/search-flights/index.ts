@@ -79,16 +79,30 @@ const DEFAULT_MAX_GAP_HOURS = 3;
 // saves at least this much per person (or is the only way).
 const DAY_APART_FROM_NIGHTS = 4;
 const DAY_APART_PENALTY_USD = 15;
-const DAY_APART_DESTINATIONS = 60; // cheapest destinations that also get the nights either side (needed for "a day apart")
-const FIRST_STAGE_SHARE = 0.65;    // ...so with longer stays the first stage may use only this share of the call budget
 
 // --- Being gentle with Travelpayouts -------------------------------------------
 
-const CALL_CONCURRENCY = 8;        // calendar calls running at the same time
-const MAX_CALLS_PER_SEARCH = 260;  // new (uncached) calls one search may make
+// Travelpayouts' limits (support article "API rate limits"): the day-by-day
+// calendar allows 300 requests a minute and at most 10 a second; the broad
+// "everything from one city" request (prices_for_dates) 600 a minute. Going
+// over blocks us for the rest of the minute (HTTP 429).
+const CALL_CONCURRENCY = 4;        // calls running at the same time
+const MIN_CALL_GAP_MS = 120;       // ...and started at most ~8 a second
+const MAX_CALLS_PER_SEARCH = 90;   // new (uncached) calls one search may make (~11 s at most)
+// Each answer says how many requests of that kind are left this minute
+// (X-Rate-Limit-Remaining). Below this many, an "Anywhere" search makes no
+// more new calls of that kind — the rest of the minute is kept for other
+// visitors. A "Going to" search needs only a few calls, so it may go lower.
+const QUOTA_RESERVE = 60;
+const QUOTA_RESERVE_TRIP = 10;
 const BREAKER_429_COUNT = 10;      // this many 429s -> stop calling Travelpayouts for this search
 const CALL_RETRIES = 2;            // retries for network errors / 5xx (a 429 gets one slow retry)
-const CACHE_TTL_MS = 12 * 3_600_000; // how long a remembered answer stays valid
+const CACHE_TTL_MS = 24 * 3_600_000; // how long a remembered answer stays valid (Travelpayouts recommends 24 h)
+
+// The broad request: the cheapest round trips from one city to ANY destination,
+// for one month of departures (one request per city x month x return month).
+const BROAD_LIMIT = 1000;          // tickets per page (the maximum)
+const BROAD_MAX_PAGES = 2;
 
 const BASE_CURRENCY = "usd"; // everything is fetched in this, then converted
 
@@ -99,7 +113,14 @@ const BASE_CURRENCY = "usd"; // everything is fetched in this, then converted
 // EVERYONE has a cached fare on the same day — a live flight API fixes that.
 const MAX_ORIGINS = 8;
 
-type Fare = { price: number; departureAt: string | null; returnAt: string | null; transfers: number };
+type Fare = {
+  price: number;
+  departureAt: string | null;
+  returnAt: string | null;
+  transfers: number;     // stops (for the broad answers: the larger of the way there and the way back)
+  minutesTo?: number;    // real flight durations, when Travelpayouts gives them (the broad answers do)
+  minutesBack?: number;
+};
 type Traveler = { origin: string; count: number };
 type Place = { code: string; name: string; country: string; lat: number; lon: number; tz: string };
 type CallStats = {
@@ -113,6 +134,8 @@ type CallStats = {
   firstError: string | null;
   rateLimited: boolean;
   budgetExhausted: boolean;
+  quotaLeft: Record<string, number>; // per kind of request: what Travelpayouts says is left this minute
+  reserve: number;                   // ...and how much of it this search must leave for others
 };
 
 /* ---------------------------------------------------------------------------
@@ -254,13 +277,19 @@ function estimateMinutes(km: number, transfers: number): number {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// A tiny gate so only CALL_CONCURRENCY calls are in flight at once.
+// A tiny gate: only CALL_CONCURRENCY calls in flight at once, started at
+// least MIN_CALL_GAP_MS apart (Travelpayouts allows ~10 a second).
 let inFlight = 0;
 const waiting: Array<() => void> = [];
+let nextStartAt = 0;
 async function limited<T>(task: () => Promise<T>): Promise<T> {
   if (inFlight >= CALL_CONCURRENCY) await new Promise<void>((resolve) => waiting.push(resolve));
   inFlight++;
   try {
+    const now = Date.now();
+    const startAt = Math.max(now, nextStartAt);
+    nextStartAt = startAt + MIN_CALL_GAP_MS;
+    if (startAt > now) await sleep(startAt - now);
     return await task();
   } finally {
     inFlight--;
@@ -268,18 +297,35 @@ async function limited<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
+// The kind of request, as Travelpayouts counts its limits (e.g. "/v1/prices/calendar").
+const kindOf = (url: string) => new URL(url).pathname;
+const lowOnQuota = (url: string, stats: CallStats) => (stats.quotaLeft[kindOf(url)] ?? Infinity) <= stats.reserve;
+
 // GET a Travelpayouts URL as JSON. Returns null (and counts why in `stats`) if
 // no answer was obtained — so callers can tell "no data" from "call failed".
 async function getJson(url: string, stats: CallStats): Promise<Record<string, unknown> | null> {
   if (stats.rateLimited) { stats.skipped++; return null; }
-  if (stats.calls >= stats.cap) { stats.budgetExhausted = true; stats.skipped++; return null; }
+  if (stats.calls >= stats.cap || lowOnQuota(url, stats)) { stats.budgetExhausted = true; stats.skipped++; return null; }
   stats.calls++;
 
   let tried429 = false;
   for (let attempt = 0; attempt <= CALL_RETRIES; attempt++) {
     if (stats.rateLimited) break; // another call just tripped the breaker
     try {
-      const response = await limited(() => fetch(url));
+      // Checked again when our turn comes: calls queued before the breaker
+      // tripped, or before the quota ran low, are dropped (not sent).
+      const response = await limited(() => (stats.rateLimited || lowOnQuota(url, stats) ? Promise.resolve(null) : fetch(url)));
+      if (!response) {
+        if (stats.rateLimited) break;
+        stats.calls--; // never sent
+        stats.budgetExhausted = true;
+        stats.skipped++;
+        return null;
+      }
+      const left = Number(response.headers.get("x-rate-limit-remaining"));
+      if (response.headers.has("x-rate-limit-remaining") && Number.isFinite(left)) {
+        stats.quotaLeft[kindOf(url)] = Math.min(stats.quotaLeft[kindOf(url)] ?? Infinity, left);
+      }
       if (response.ok) return (await response.json()) as Record<string, unknown>;
 
       const key = String(response.status);
@@ -349,7 +395,8 @@ async function fetchCheapestByDestination(origin: string, token: string, stats: 
 
 const memoryCache = new Map<string, { at: number; fares: Record<string, Fare> }>();
 const pendingWrites: Array<{ key: string; fares: Record<string, Fare>; fetched_at: string }> = [];
-const dbInfo = { status: "not used yet" as string, loaded: 0, saved: 0 };
+// What happened with the database during this search (reset at the start of each one).
+const dbInfo = { status: "not used yet" as string, loaded: 0, saved: 0, loadFailures: 0, lastProblem: null as string | null };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -357,21 +404,25 @@ const dbHeaders = () => ({ apikey: SERVICE_KEY!, Authorization: `Bearer ${SERVIC
 let dbDisabled = !SUPABASE_URL || !SERVICE_KEY;
 
 // Pull any remembered answers for these keys into memory: DB_CHUNK keys per
-// request, DB_PARALLEL requests at a time (a search may need ~2,000 keys).
-const DB_CHUNK = 100;
+// request (40 is known to work), DB_PARALLEL requests at a time. A failed
+// request only loses its own keys; after DB_MAX_FAILURES we stop trying.
+const DB_CHUNK = 40;
 const DB_PARALLEL = 6;
+const DB_MAX_FAILURES = 3;
+const dbLookedUp = new Set<string>(); // keys already asked for during this search
 async function loadFromDatabase(keys: string[]): Promise<void> {
   if (dbDisabled) { dbInfo.status = SUPABASE_URL && SERVICE_KEY ? dbInfo.status : "off (no service key)"; return; }
-  const missing = [...new Set(keys)].filter((k) => !memoryCache.has(k) || Date.now() - memoryCache.get(k)!.at >= CACHE_TTL_MS);
+  const missing = [...new Set(keys)].filter((k) => !dbLookedUp.has(k) && (!memoryCache.has(k) || Date.now() - memoryCache.get(k)!.at >= CACHE_TTL_MS));
 
-  async function loadChunk(chunk: string[]): Promise<boolean> {
+  async function loadChunk(chunk: string[]): Promise<void> {
+    chunk.forEach((k) => dbLookedUp.add(k));
     try {
       const filter = `in.(${chunk.map((k) => `"${k}"`).join(",")})`;
       const response = await fetch(`${SUPABASE_URL}/rest/v1/calendar_cache?select=key,fares,fetched_at&key=${encodeURIComponent(filter)}`, { headers: dbHeaders() });
       if (!response.ok) {
-        dbDisabled = true; // most likely the table hasn't been created yet
-        dbInfo.status = `unavailable (HTTP ${response.status}) — run supabase/calendar_cache.sql`;
-        return false;
+        dbInfo.loadFailures++;
+        dbInfo.lastProblem = `load failed (HTTP ${response.status}) — is supabase/calendar_cache.sql set up?`;
+        return;
       }
       for (const row of (await response.json()) as Array<{ key: string; fares: Record<string, Fare>; fetched_at: string }>) {
         const at = Date.parse(row.fetched_at);
@@ -380,39 +431,49 @@ async function loadFromDatabase(keys: string[]): Promise<void> {
           dbInfo.loaded++;
         }
       }
-      dbInfo.status = "ok";
-      return true;
     } catch (error) {
-      dbDisabled = true;
-      dbInfo.status = `unavailable (${String(error).slice(0, 80)})`;
-      return false;
+      dbInfo.loadFailures++;
+      dbInfo.lastProblem = `load failed (${String(error).slice(0, 80)})`;
     }
   }
 
   const chunks: string[][] = [];
   for (let i = 0; i < missing.length; i += DB_CHUNK) chunks.push(missing.slice(i, i + DB_CHUNK));
-  for (let i = 0; i < chunks.length; i += DB_PARALLEL) {
-    const loaded = await Promise.all(chunks.slice(i, i + DB_PARALLEL).map(loadChunk));
-    if (loaded.includes(false)) return;
+  for (let i = 0; i < chunks.length && dbInfo.loadFailures < DB_MAX_FAILURES; i += DB_PARALLEL) {
+    await Promise.all(chunks.slice(i, i + DB_PARALLEL).map(loadChunk));
   }
+  dbInfo.status = dbInfo.loadFailures === 0 ? "ok" : `${dbInfo.loadFailures} load request(s) failed`;
 }
 
 // Save the answers we just fetched (called once, at the end of a search).
+// Save the answers we just fetched (called once, at the end of a search), in
+// batches of at most ~400 KB (a broad answer alone can be ~150 KB).
+const DB_SAVE_BYTES = 400_000;
 async function flushToDatabase(): Promise<void> {
   if (dbDisabled || pendingWrites.length === 0) return;
   const rows = pendingWrites.splice(0, pendingWrites.length);
-  for (let i = 0; i < rows.length; i += 100) {
+  const batches: Array<typeof rows> = [];
+  let batch: typeof rows = [];
+  let size = 0;
+  for (const row of rows) {
+    const rowSize = JSON.stringify(row).length;
+    if (batch.length > 0 && size + rowSize > DB_SAVE_BYTES) { batches.push(batch); batch = []; size = 0; }
+    batch.push(row);
+    size += rowSize;
+  }
+  if (batch.length > 0) batches.push(batch);
+
+  for (const b of batches) {
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/calendar_cache`, {
         method: "POST",
         headers: { ...dbHeaders(), Prefer: "resolution=merge-duplicates,return=minimal" },
-        body: JSON.stringify(rows.slice(i, i + 100)),
+        body: JSON.stringify(b),
       });
-      if (response.ok) dbInfo.saved += Math.min(100, rows.length - i);
-      else { dbInfo.status = `save failed (HTTP ${response.status})`; return; }
+      if (response.ok) dbInfo.saved += b.length;
+      else dbInfo.lastProblem = `save failed (HTTP ${response.status})`;
     } catch (error) {
-      dbInfo.status = `save failed (${String(error).slice(0, 80)})`;
-      return;
+      dbInfo.lastProblem = `save failed (${String(error).slice(0, 80)})`;
     }
   }
 }
@@ -516,15 +577,109 @@ function usableFares(fares: Record<string, Fare>, options: SearchOptions | null)
   return Object.fromEntries(Object.entries(fares).filter(([date, f]) => f.transfers <= MAX_STOPS && (!weekendOnly || isFridayOrSaturday(date))));
 }
 
-// What we already know (fetched or loaded from the database) for one
-// origin/destination/stay length — never makes a new call.
-function rememberedFares(origin: string, destination: string, length: number, options: SearchOptions): Record<string, Fare> {
+/* ---------------------------------------------------------------------------
+   Broad answers: the cheapest round trips from ONE city to ANY destination,
+   for departures in one month and returns in the same or the next month —
+   Travelpayouts' prices_for_dates with only an origin. A few of these requests
+   cover every destination at once (the day-by-day calendar needs one request
+   per destination, month and stay length). They also give the real flight
+   durations and the stops each way.
+--------------------------------------------------------------------------- */
+
+const broadKey = (origin: string, month: string, returnMonth: string) => ["broad", origin, BASE_CURRENCY, month, returnMonth].join("_");
+const nextMonth = (month: string) => monthOf(addDays(`${month}-28`, 7));
+const toNumber = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
+
+// The [departure month, return month] pairs a search needs.
+function broadLookups(options: SearchOptions): Array<[string, string]> {
+  const months = [...new Set(lookupsFor(options).map(monthOf))];
+  return months.flatMap((m) => [[m, m], [m, nextMonth(m)]] as Array<[string, string]>);
+}
+
+// One broad answer, as { "LIS|2026-11-07|7": the cheapest such trip }.
+async function fetchBroadFares(origin: string, month: string, returnMonth: string, token: string, stats: CallStats): Promise<Record<string, Fare>> {
+  const key = broadKey(origin, month, returnMonth);
+  const hit = memoryCache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    stats.cached++;
+    return hit.fares;
+  }
   const fares: Record<string, Fare> = {};
+  let answered = false;
+  for (let page = 1; page <= BROAD_MAX_PAGES; page++) {
+    const params = new URLSearchParams({
+      origin, departure_at: month, return_at: returnMonth, one_way: "false", direct: "false", unique: "false",
+      sorting: "price", currency: BASE_CURRENCY, limit: String(BROAD_LIMIT), page: String(page), token,
+    });
+    const json = await getJson(`https://api.travelpayouts.com/aviasales/v3/prices_for_dates?${params}`, stats);
+    if (!json) break;
+    answered = true;
+    const tickets = Array.isArray(json.data) ? (json.data as Array<Record<string, unknown>>) : [];
+    for (const t of tickets) {
+      const departureAt = typeof t.departure_at === "string" ? t.departure_at : null;
+      const returnAt = typeof t.return_at === "string" ? t.return_at : null;
+      if (typeof t.destination !== "string" || typeof t.price !== "number" || !departureAt || !returnAt) continue;
+      const date = departureAt.slice(0, 10);
+      const length = Math.round((Date.parse(returnAt.slice(0, 10)) - Date.parse(date)) / 86_400_000);
+      if (!(length >= 1 && length <= 30)) continue;
+      const k = `${t.destination}|${date}|${length}`;
+      if (fares[k] && fares[k].price <= t.price) continue;
+      fares[k] = {
+        price: t.price,
+        departureAt,
+        returnAt,
+        transfers: Math.max(toNumber(t.transfers), toNumber(t.return_transfers)),
+        minutesTo: toNumber(t.duration_to) || undefined,
+        minutesBack: toNumber(t.duration_back) || undefined,
+      };
+    }
+    if (tickets.length < BROAD_LIMIT) break; // that was the last page
+  }
+  if (!answered) return fares; // no answer: not remembered, so a later search can try again
+  const at = Date.now();
+  memoryCache.set(key, { at, fares });
+  pendingWrites.push({ key, fares, fetched_at: new Date(at).toISOString() });
+  return fares;
+}
+
+// Broad answers, rearranged for quick lookups: "PAR_LIS_7" -> fares by departure day.
+type BroadIndex = Map<string, Record<string, Fare>>;
+function indexBroad(origin: string, answers: Array<Record<string, Fare>>, index: BroadIndex) {
+  for (const fares of answers) {
+    for (const [k, fare] of Object.entries(fares)) {
+      const [destination, date, length] = k.split("|");
+      const byDay = index.get(`${origin}_${destination}_${length}`) ?? {};
+      if (!byDay[date] || fare.price < byDay[date].price) byDay[date] = fare;
+      index.set(`${origin}_${destination}_${length}`, byDay);
+    }
+  }
+}
+
+// What we already know for one origin/destination/stay length — the broad
+// answers and any day-by-day calendars fetched or loaded — never makes a new
+// call. The cheapest fare wins on each day.
+function rememberedFares(origin: string, destination: string, length: number, options: SearchOptions, broad: BroadIndex): Record<string, Fare> {
+  const fares: Record<string, Fare> = { ...(broad.get(`${origin}_${destination}_${length}`) ?? {}) };
   for (const lookup of lookupsFor(options)) {
     const hit = memoryCache.get(cacheKey(origin, destination, lookup, length));
-    if (hit && Date.now() - hit.at < CACHE_TTL_MS) Object.assign(fares, hit.fares);
+    if (!hit || Date.now() - hit.at >= CACHE_TTL_MS) continue;
+    for (const [date, fare] of Object.entries(hit.fares)) {
+      if (!fares[date] || fare.price < fares[date].price) fares[date] = fare;
+    }
+  }
+  // Exact dates (no "day apart"): only that day.
+  if (options.mode === "specific" && !options.dayApart) {
+    return usableFares(fares[options.departDate] ? { [options.departDate]: fares[options.departDate] } : {}, options);
   }
   return usableFares(fares, options);
+}
+
+// Are all the day-by-day calendars for this destination already in memory?
+function calendarsRemembered(codes: string[], destination: string, lengths: number[], options: SearchOptions): boolean {
+  return codes.every((o) => lengths.every((n) => lookupsFor(options).every((p) => {
+    const hit = memoryCache.get(cacheKey(o, destination, p, n));
+    return Boolean(hit && Date.now() - hit.at < CACHE_TTL_MS);
+  })));
 }
 
 /* ---------------------------------------------------------------------------
@@ -571,14 +726,17 @@ type TripResult = {
 
 // Everything we can say about one traveler's trip on a given day.
 function describeLeg(fare: Fare, origin: Place, dest: Place) {
-  const minutes = estimateMinutes(haversineKm(origin, dest), fare.transfers);
+  // Real flight durations when we have them, otherwise an estimate from the distance.
+  const estimate = estimateMinutes(haversineKm(origin, dest), fare.transfers);
+  const minutes = fare.minutesTo && fare.minutesTo > 0 ? fare.minutesTo : estimate;
+  const minutesBack = fare.minutesBack && fare.minutesBack > 0 ? fare.minutesBack : estimate;
   if (!fare.departureAt || !fare.returnAt) {
     return { timesKnown: false, minutes, outArriveMs: 0, retDepartMs: 0, leg: null as Partial<Leg> | null };
   }
   const outDepartMs = fareTimeToUtcMs(fare.departureAt, origin.tz);
   const outArriveMs = outDepartMs + minutes * 60000;
   const retDepartMs = fareTimeToUtcMs(fare.returnAt, dest.tz);
-  const retArriveMs = retDepartMs + minutes * 60000;
+  const retArriveMs = retDepartMs + minutesBack * 60000;
   return {
     timesKnown: true,
     minutes,
@@ -1074,7 +1232,10 @@ Deno.serve(async (req) => {
       searchOptions = { mode: "flexible", weekendOnly: url.searchParams.get("weekendOnly") === "true" };
     }
 
-    const callStats: CallStats = { cap: MAX_CALLS_PER_SEARCH, calls: 0, cached: 0, failed: 0, retried: 0, skipped: 0, statuses: {}, firstError: null, rateLimited: false, budgetExhausted: false };
+    const callStats: CallStats = { cap: MAX_CALLS_PER_SEARCH, calls: 0, cached: 0, failed: 0, retried: 0, skipped: 0, statuses: {}, firstError: null, rateLimited: false, budgetExhausted: false, quotaLeft: {}, reserve: destination ? QUOTA_RESERVE_TRIP : QUOTA_RESERVE };
+    // A fresh report on the database for this search.
+    Object.assign(dbInfo, { status: "not used yet", loaded: 0, saved: 0, loadFailures: 0, lastProblem: null });
+    dbLookedUp.clear();
 
     // The destination is already chosen: compare dates (the next weekends /
     // weeks, or the days around the given dates), cheapest first.
@@ -1142,9 +1303,20 @@ Deno.serve(async (req) => {
     const dayApart = baseNights >= DAY_APART_FROM_NIGHTS;
     const nightsAround = [baseNights - 1, baseNights, baseNights + 1].filter((n) => n >= 1 && n <= 30);
 
+    const lengthsNeeded = dayApart ? [baseNights, ...nightsAround.filter((n) => n !== baseNights)] : [baseNights];
+
     // Names / coordinates / time zones for every departure and every destination we may check.
     const places = await resolvePlaces([...codes, ...toCheck]);
     const originPlaces = codes.map((c) => places[c]);
+
+    // Broad answers first: everything from each departure city, month by month
+    // — a handful of requests that cover every destination at once.
+    const broad: BroadIndex = new Map();
+    const broadPairs = broadLookups(searchOptions);
+    await loadFromDatabase(codes.flatMap((o) => broadPairs.map(([m, r]) => broadKey(o, m, r))));
+    const broadAnswers = await Promise.all(codes.map((o) => Promise.all(broadPairs.map(([m, r]) => fetchBroadFares(o, m, r, token!, callStats)))));
+    codes.forEach((o, i) => indexBroad(o, broadAnswers[i], broad));
+    const broadTrips = broadAnswers.flat().reduce((sum, fares) => sum + Object.keys(fares).length, 0);
 
     // Accumulators for the debug block.
     const totals = { sameDayPairs: 0, rejectedByGap: 0, withoutTimes: 0 };
@@ -1159,10 +1331,15 @@ Deno.serve(async (req) => {
     const best = new Map<string, TripResult>();
     const stages: Array<{ stage: string; destinations: number; stayLengths: number[]; matchesAfter: number }> = [];
 
-    // Fetch (or load from the database) the calendars these destinations x
-    // stay lengths need, cheapest destination first.
+    // The day-by-day calendar keys for these destinations x stay lengths:
+    // the first length for every destination (cheapest first), then the next...
+    const calendarJobs = (destinations: string[], lengths: number[]) =>
+      lengths.flatMap((n) => destinations.flatMap((d) => codes.flatMap((o) => lookupsFor(searchOptions).map((p) => ({ o, d, p, n })))));
+
+    // Fetch (or load from the database) those calendars. New calls are paced
+    // and stop at the budget; the next search continues where this one stopped.
     async function fetchCalendars(destinations: string[], lengths: number[]) {
-      const jobs = destinations.flatMap((d) => lengths.flatMap((n) => codes.flatMap((o) => lookupsFor(searchOptions).map((p) => ({ o, d, p, n })))));
+      const jobs = calendarJobs(destinations, lengths);
       await loadFromDatabase(jobs.map((j) => cacheKey(j.o, j.d, j.p, j.n)));
       await Promise.all(jobs.map((j) => fetchCalendarFares(j.o, j.d, j.p, j.n, token!, callStats)));
     }
@@ -1173,7 +1350,7 @@ Deno.serve(async (req) => {
       checked.add(destination);
       const dest = places[destination];
       codes.forEach((o, i) => {
-        if (Object.keys(rememberedFares(o, destination, baseNights, searchOptions)).length > 0) withData[i].add(destination);
+        if (Object.keys(rememberedFares(o, destination, baseNights, searchOptions, broad)).length > 0) withData[i].add(destination);
       });
       const about = {
         destination,
@@ -1184,7 +1361,7 @@ Deno.serve(async (req) => {
       };
 
       if (dayApart) {
-        const calendars = codes.map((o) => Object.fromEntries(nightsAround.map((n) => [n, rememberedFares(o, destination, n, searchOptions)])));
+        const calendars = codes.map((o) => Object.fromEntries(nightsAround.map((n) => [n, rememberedFares(o, destination, n, searchOptions, broad)])));
         const onlyDay = searchOptions.mode === "specific" ? searchOptions.departDate : null;
         const { best: pick, stats } = bestDayApartPairing(calendars, originPlaces, dest, counts, baseNights, maxGapHours, onlyDay);
         addStats(stats);
@@ -1211,7 +1388,7 @@ Deno.serve(async (req) => {
       // Short stays: everyone on the same days, arrivals and returns timed.
       let found: TripResult | null = null;
       for (const n of lengths) {
-        const faresList = codes.map((o) => rememberedFares(o, destination, n, searchOptions));
+        const faresList = codes.map((o) => rememberedFares(o, destination, n, searchOptions, broad));
         if (debugOn && samples.length < 8) {
           faresList.forEach((fares, i) => {
             for (const [date, f] of Object.entries(fares).slice(0, 2)) samples.push({ who: codes[i], destination, date, length: n, ...f });
@@ -1249,25 +1426,22 @@ Deno.serve(async (req) => {
     }
     const canContinue = () => Date.now() - startedAt < TIME_BUDGET_MS && !callStats.rateLimited && !callStats.budgetExhausted;
 
-    // Stage 1: every destination, the stay length asked for. (With longer
-    // stays it keeps part of the call budget for stage 2.)
-    if (dayApart) callStats.cap = Math.round(MAX_CALLS_PER_SEARCH * FIRST_STAGE_SHARE);
-    await fetchCalendars(toCheck, [baseNights]);
+    // Stage 1: every destination, from the broad answers and the day-by-day
+    // calendars we remember (loaded from the database) — no new calls.
+    await loadFromDatabase(calendarJobs(toCheck, lengthsNeeded).map((j) => cacheKey(j.o, j.d, j.p, j.n)));
     keepBest(toCheck, [baseNights]);
-    stages.push({ stage: "every destination", destinations: toCheck.length, stayLengths: [baseNights], matchesAfter: best.size });
-    if (dayApart) {
-      callStats.cap = MAX_CALLS_PER_SEARCH;
-      callStats.budgetExhausted = callStats.calls >= MAX_CALLS_PER_SEARCH;
+    stages.push({ stage: "every destination", destinations: toCheck.length, stayLengths: lengthsNeeded, matchesAfter: best.size });
+
+    // Stage 2: day-by-day calendars for the cheapest places we don't know in
+    // detail yet (they have dates the broad answers miss), while the budget lasts.
+    if (canContinue()) {
+      const detail = toCheck.filter((d) => !calendarsRemembered(codes, d, lengthsNeeded, searchOptions));
+      await fetchCalendars(detail, lengthsNeeded);
+      keepBest(detail, [baseNights]);
+      stages.push({ stage: "day-by-day details", destinations: detail.length, stayLengths: lengthsNeeded, matchesAfter: best.size });
     }
 
-    if (dayApart && canContinue()) {
-      // Stage 2 (longer stays): arriving or leaving a day apart needs the
-      // nights either side — fetched for the cheapest destinations.
-      const cheapest = toCheck.slice(0, DAY_APART_DESTINATIONS);
-      await fetchCalendars(cheapest, nightsAround.filter((n) => n !== baseNights));
-      keepBest(cheapest, [baseNights]);
-      stages.push({ stage: "a day apart", destinations: cheapest.length, stayLengths: nightsAround, matchesAfter: best.size });
-    } else if (!dayApart && mode === "flexible" && flexNights > 0 && best.size < MIN_RESULTS && canContinue()) {
+    if (!dayApart && mode === "flexible" && flexNights > 0 && best.size < MIN_RESULTS && canContinue()) {
       // Stage 2 (short stays, few matches): the whole group a night shorter / longer.
       const lengths: number[] = [];
       for (let k = 1; k <= flexNights; k++) lengths.push(baseNights - k, baseNights + k);
@@ -1298,6 +1472,8 @@ Deno.serve(async (req) => {
           returnsTimed: !dayApart,          // short stays: return flights are timed too
           dayApart,                         // longer stays: someone may arrive / leave a day apart
           resultsWithDayApart: results.filter((r) => r.daysApart).length,
+          broadRequests: codes.length * broadPairs.length, // "everything from this city, this month" answers used
+          broadTrips,                                      // round trips they contained
           maxStops: MAX_STOPS,
           sameDayPairs: totals.sameDayPairs,
           rejectedByTimeGap: totals.rejectedByGap,

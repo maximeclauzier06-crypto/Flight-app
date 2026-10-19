@@ -57,19 +57,29 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 | `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the table, the trip page after "Select" (with the "Book on Aviasales" buttons), the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`); the trip page is section 7d |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
 | `geo.js` | The flat world map: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--map-sea`, `--map-land`, `--map-borders`, `--map-grid` in `styles.css` |
-| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | At the top: `MAX_DESTINATIONS`, `MAX_STOPS`, `DEFAULT_MAX_GAP_HOURS`, `DAY_APART_FROM_NIGHTS`, `DAY_APART_PENALTY_USD`, `MAX_CALLS_PER_SEARCH`; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
+| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | At the top: `MAX_DESTINATIONS`, `MAX_STOPS`, `DEFAULT_MAX_GAP_HOURS`, `DAY_APART_FROM_NIGHTS`, `DAY_APART_PENALTY_USD`, `MAX_CALLS_PER_SEARCH`, `QUOTA_RESERVE`, `CACHE_TTL_MS`; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
 
 ## How a search works
 
 1. **Phase 1 (broad):** the function asks Travelpayouts for each departure's
    cheapest cached fare to every destination and keeps the destinations
    **everyone** can reach (e.g. 229 for Paris + Stockholm).
-2. **Phase 2 (dates):** for **every** one of those, cheapest first (up to
-   `MAX_DESTINATIONS`), it looks day by day for dates that work for all of you
-   ("Flexible" scans the next 4 months; "Specific dates" checks your dates).
-   What it already remembers costs nothing; new Travelpayouts calls stop at
-   `MAX_CALLS_PER_SEARCH`, and the next search continues where it stopped.
-   Only **direct flights and flights with one stop** are used (`MAX_STOPS`).
+2. **Phase 2 (dates):** for **every** one of those (up to `MAX_DESTINATIONS`)
+   it looks for dates that work for all of you ("Flexible" scans the next 4
+   months; "Specific dates" checks your dates). The prices come from:
+   * **broad answers** — Travelpayouts' `prices_for_dates` with only a
+     departure city: the cheapest round trips from that city to *any*
+     destination, one month at a time (about 16 requests cover everything,
+     with the real flight durations and the stops each way);
+   * **day-by-day calendars** (`/v1/prices/calendar`) for the cheapest places
+     not yet known in detail — they have dates the broad answers miss.
+   Everything is saved in the `calendar_cache` table for 24 hours, so what the
+   site already knows costs nothing. New requests are paced to stay within
+   Travelpayouts' limits (10 a second, 300 a minute for calendars): at most
+   `MAX_CALLS_PER_SEARCH` per search, and none once their counter says fewer
+   than `QUOTA_RESERVE` are left this minute — the next search continues
+   where this one stopped. Only **direct flights and flights with one stop**
+   are used (`MAX_STOPS`).
 3. **The time rule** depends on the stay:
    * **Short stays (up to 3 nights, e.g. a weekend):** the same days for
      everyone, and everyone's **arrival times** AND **return-flight times**
