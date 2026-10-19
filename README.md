@@ -1,4 +1,7 @@
-# Flight Plan (v1 — local prototype)
+# Halfway Trips
+
+Live at **https://halfwaytrips.com** (GitHub Pages; the old address
+maximeclauzier06-crypto.github.io/Flight-app redirects there).
 
 Add two or more departures (yours, a partner's, friends', family's — up to 8,
 with how many people leave from each) and get a ranked list of places you could
@@ -31,6 +34,10 @@ The look is design 57, "Retro Travel Poster": a terracotta banner with sun rays,
 
 No installation needed. Open `index.html` in your browser (double-click it).
 The page talks to the Supabase function below, so you need internet.
+
+The live site is published by GitHub Pages from the `main` branch: every push
+updates it within a few minutes. The `CNAME` file holds the domain
+(`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
 
 ## The files — and where to change things
 
@@ -174,7 +181,7 @@ So the real request happens on a small server we control instead:
    To check: press a Book button. The new tab should pass through a
    Travelpayouts address (e.g. `tp.media`) before landing on Aviasales. If it
    goes straight to `aviasales.com/search/...`, the booking would NOT be
-   credited; open the browser console (F12) on the Flight Plan page — it says
+   credited; open the browser console (F12) on the Halfway Trips page — it says
    why (missing secret, wrong token, project not connected to Aviasales...).
    Bookings show up in your Travelpayouts statistics with the sub ID
    `book-button`.
@@ -189,8 +196,8 @@ The live site counts its visitors with [Umami Cloud](https://cloud.umami.is)
 (free plan: 100,000 events a month, 6 months of history). It uses no cookies
 and nothing personal, so no cookie banner is needed. The script is in the
 `<head>` of `index.html`; `data-domains` makes it count only the live site
-(`maximeclauzier06-crypto.github.io`), so testing on your computer is never
-counted.
+(`halfwaytrips.com`, plus the old GitHub address), so testing on your
+computer is never counted.
 
 Besides visits (pages, countries, devices, where people came from), `app.js`
 sends three events through its small `track()` helper:

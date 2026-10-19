@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Flight Plan — the page's behaviour
+// Halfway Trips — the page's behaviour
 //
 // How it fits together:
 //   * You pick two or more departures (live autocomplete, with how many people leave
