@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Halfway Trips — find where to meet in the middle</title>
+  <meta name="description" content="Find a place you can all fly to, on the same dates: Halfway Trips shows the full price for everyone, cheapest first. For long-distance love, friends and family.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +12,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-10-19.3">
+  <link rel="stylesheet" href="styles.css?v=2026-10-19.5">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -22,7 +23,7 @@
 
 
   <header class="nav">
-    <a class="brand" href="#">
+    <a class="brand" href="index.html">
       <!-- The logo, "meeting point": two dotted routes meeting in the middle
            (colours from styles.css; the browser-tab icon is favicon.svg) -->
       <svg width="44" height="32" viewBox="2 8 44 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -36,8 +37,8 @@
       <span>Halfway Trips</span>
     </a>
     <nav class="nav-links">
-      <a href="#">How it works</a>
-      <a href="#">Destinations</a>
+      <a href="how-it-works.html">How it works</a>
+      <a href="destinations.html">Destinations</a>
       <!-- Currency: starts from your browser's language, change it any time -->
       <label class="currency-pill" title="Currency">
         <select id="currency" aria-label="Currency">
@@ -76,7 +77,7 @@
         <ul class="headliners">
           <li>The full price for everyone, not per person</li>
           <li>Cheapest first</li>
-          <li>Same dates for all of you</li>
+          <li>Dates that work for all of you</li>
         </ul>
 
         <form id="search-form" class="search-bar" autocomplete="off">
@@ -168,7 +169,7 @@
       <div class="table-box">
         <div class="table-top">
           <h2 id="results-title">Ranked meeting spots</h2>
-          <p id="results-subtitle">Same dates for everyone · cheapest total first</p>
+          <p id="results-subtitle">Dates that work for everyone · cheapest total first</p>
           <div class="chips" id="sort-chips">
             <button type="button" class="chip is-selected" data-sort="cheapest">Cheapest</button>
             <button type="button" class="chip" data-sort="fastest">Fastest</button>
@@ -185,9 +186,9 @@
         <!-- How far apart everyone may land (and fly home). Shown once there are results;
              changing it re-runs the search. -->
         <div class="gap-bar" id="gap-bar" hidden>
-          <span class="gap-label" title="So nobody waits alone for hours. Arrival times are estimates.">
+          <span class="gap-label" title="So nobody waits alone for hours. On a weekend, the flights home are close together too. Times are estimates.">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
-            Everyone lands within
+            <span id="gap-label-text">Everyone lands within</span>
           </span>
           <span class="stepper">
             <button type="button" id="gap-minus" aria-label="Less time between arrivals">−</button>
@@ -242,7 +243,7 @@
 
   <footer class="page-footer">
     <span>Halfway Trips — find where you and someone else can meet. Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span>
-    <span class="footer-links"><a href="#">Privacy</a><a href="#">Contact</a></span>
+    <span class="footer-links"><a href="how-it-works.html">How it works</a><a href="destinations.html">Destinations</a><a href="about.html">About</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></span>
   </footer>
 
   <!-- Phones only: opens the map full screen (shown once there are results) -->
@@ -255,7 +256,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-10-19.3"></script>
-  <script src="app.js?v=2026-10-19.3"></script>
+  <script src="geo.js?v=2026-10-19.5"></script>
+  <script src="app.js?v=2026-10-19.5"></script>
 </body>
 </html>

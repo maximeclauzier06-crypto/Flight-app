@@ -355,6 +355,8 @@ button, input, select { font-family: inherit; }
 .who { color: var(--soft); font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; }
 .traveler-price { font-family: var(--font-display); font-size: 17px; font-weight: 700; }
 .traveler-meta { color: var(--soft); font-size: 12px; }
+/* "arrives a day later · Sat Nov 7": a traveller a day apart from the others (longer stays) */
+.apart-tag { border-radius: 999px; padding: 2px 9px; background: var(--tag-bg); color: var(--ink); font-size: 11px; font-weight: 800; white-space: nowrap; }
 .direct { color: var(--good); font-weight: 700; }
 .times { margin-top: 3px; color: var(--soft); font-size: 13px; }
 .times strong { color: var(--ink); font-weight: 800; }
@@ -542,7 +544,91 @@ button, input, select { font-family: inherit; }
   border-top: 1px solid var(--line); color: var(--soft); font-size: 13px;
   background: var(--page);
 }
-.footer-links { display: flex; gap: 24px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.footer-links a:hover, .nav-links a[aria-current="page"] { color: var(--accent); }
+.nav-links a[aria-current="page"] { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+/* The mustard "Find a trip" button in the top bar of the other pages */
+.btn-cta { border-color: var(--action); background: var(--action); color: var(--action-ink); }
+
+/* ---------- The other pages: How it works, Destinations, About, Privacy, Contact ----------
+   Same idea as the home page: a terracotta banner, and a white box tucked under it. */
+
+.page-hero {
+  position: relative; z-index: 2;
+  width: var(--content); margin: 4px auto 0; padding: 48px 56px 76px;
+  border-radius: 36px; background: var(--hero-bg); color: var(--hero-text);
+  box-shadow: 0 26px 50px rgba(var(--shadow), 0.28);
+}
+.page-hero .hero-badge { margin-bottom: 16px; }
+.page-hero h1 { margin: 0 0 12px; max-width: 820px; font-family: var(--font-display); font-size: 50px; line-height: 1.05; font-weight: 600; letter-spacing: -1px; }
+.page-hero p { margin: 0; max-width: 680px; color: var(--hero-sub); font-size: 18px; line-height: 1.5; }
+
+.doc {
+  position: relative; z-index: 1;
+  width: min(920px, calc(var(--content) - 48px)); margin: -44px auto 0; padding: 64px 56px 52px;
+  background: #fff; border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(var(--shadow), 0.14);
+  font-size: 16px; line-height: 1.65;
+}
+.doc > :first-child { margin-top: 0; }
+.doc h2 { margin: 40px 0 10px; font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1.15; letter-spacing: -0.4px; }
+.doc h3 { margin: 26px 0 6px; font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+.doc p, .doc li { color: var(--ink); }
+.doc p { margin: 0 0 14px; }
+.doc ul { margin: 0 0 14px; padding-left: 22px; }
+.doc li + li { margin-top: 6px; }
+.doc a:not(.btn):not(.dest-card) { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.doc .lead { color: var(--soft); font-size: 18px; }
+.doc .small { color: var(--soft); font-size: 13px; }
+
+/* Numbered steps (How it works) */
+.steps { display: grid; gap: 14px; margin: 8px 0 10px; padding: 0; list-style: none; counter-reset: step; }
+.steps li { position: relative; margin: 0; padding: 18px 20px 18px 74px; border: 1px solid var(--line); border-radius: 20px; background: var(--tint-strong); counter-increment: step; }
+.steps li::before {
+  content: counter(step); position: absolute; left: 20px; top: 18px;
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--action); color: var(--action-ink); font-family: var(--font-display); font-size: 17px; font-weight: 700;
+}
+.steps strong { display: block; margin-bottom: 2px; font-family: var(--font-display); font-size: 19px; font-weight: 600; }
+
+/* Questions that open on a tap (How it works) */
+.faq details { border-top: 1px solid var(--line); }
+.faq details:last-child { border-bottom: 1px solid var(--line); }
+.faq summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; cursor: pointer; list-style: none; font-weight: 800; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; color: var(--accent); font-size: 22px; font-weight: 700; line-height: 1; }
+.faq details[open] summary::after { content: "−"; }
+.faq details p { margin: -4px 0 16px; color: var(--soft); }
+
+/* Destination cards */
+.doc .dest-group { margin: 34px 0 12px; color: var(--soft); font-family: var(--font-body); font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
+.dest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.dest-card {
+  display: flex; flex-direction: column; gap: 4px; padding: 18px 18px 16px;
+  border: 1px solid var(--line); border-radius: 20px; background: #fff; color: var(--ink);
+  transition: border-color 0.15s, background 0.15s;
+}
+.dest-card:hover { opacity: 1; border-color: var(--pill-border); background: var(--row-hover); }
+.dest-card .dc-city { font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.1; }
+.dest-card .dc-country { color: var(--soft); font-size: 12px; font-weight: 700; }
+.dest-card .dc-why { flex: 1; margin-top: 6px; color: var(--ink); font-size: 14px; line-height: 1.5; }
+.dest-card .dc-go { margin-top: 10px; color: var(--accent); font-size: 13px; font-weight: 800; }
+
+/* A call to action at the end of a page */
+.cta-box {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
+  margin-top: 36px; padding: 22px 24px; border-radius: 22px; background: var(--tint);
+}
+.cta-box p { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; border-radius: 14px; padding: 13px 22px;
+  background: var(--action); color: var(--action-ink); font-size: 15px; font-weight: 800; white-space: nowrap;
+  box-shadow: 0 10px 22px rgba(242, 179, 61, 0.35);
+}
+.btn:hover { opacity: 1; background: var(--action-hover); }
+
+/* The contact card */
+.contact-card { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin: 6px 0 22px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--tint-strong); }
+.contact-card .cc-email { font-family: var(--font-display); font-size: 24px; font-weight: 600; }
 
 /* ---------- Smaller screens ---------- */
 
@@ -638,6 +724,19 @@ button, input, select { font-family: inherit; }
   .alts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .map-hint { display: none; }
   .page-footer { flex-direction: column; align-items: flex-start; }
+
+  /* The other pages */
+  .page-hero { padding: 28px 18px 66px; border-radius: 26px; }
+  .page-hero h1 { font-size: 32px; }
+  .page-hero p { font-size: 15px; }
+  .doc { width: calc(var(--content) - 16px); padding: 58px 18px 32px; font-size: 15px; }
+  .doc h2 { margin-top: 32px; font-size: 23px; }
+  .doc .lead { font-size: 16px; }
+  .steps li { padding: 16px 16px 16px 62px; }
+  .steps li::before { left: 14px; top: 16px; width: 32px; height: 32px; font-size: 15px; }
+  .steps strong { font-size: 17px; }
+  .cta-box { flex-direction: column; align-items: flex-start; }
+  .contact-card .cc-email { font-size: 20px; }
 
   /* The map: not under the list (nobody would scroll that far) — the "Map"
      button at the bottom of the screen opens it full screen instead */

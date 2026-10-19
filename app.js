@@ -51,6 +51,14 @@ const MAP_FIT_ZOOM = 1500; // how close it zooms by itself, so two nearby cities
 // A search that finds nothing within the limit tries the next steps by itself.
 const GAP_STEPS = [1, 2, 3, 4, 5, 6, 0];
 
+// Short stays (up to this many nights, e.g. a weekend) keep a strict rule —
+// arrivals AND flights home close together — and widen it by themselves to
+// SHORT_STAY_MAX_GAP hours at most: leaving hours apart would cost a day.
+// (Longer stays only time the arrivals, and someone may arrive or leave a day
+// apart: the search function decides that.)
+const SHORT_STAY_NIGHTS = 3;
+const SHORT_STAY_MAX_GAP = 4;
+
 // What the page remembers between actions.
 const state = {
   results: [],       // destinations returned by the last search
@@ -367,6 +375,17 @@ $("going-clear").addEventListener("click", () => {
   updateWhenFields();
   goingInput.focus();
 });
+
+// Coming from a card on the Destinations page ("index.html?to=LIS&name=Lisbon"):
+// "Going to" is already filled in. The search's place position comes from the
+// server, so the code and the name are enough.
+const linkedPlace = new URLSearchParams(location.search);
+if (/^[A-Z]{3}$/.test(linkedPlace.get("to") ?? "")) {
+  const code = linkedPlace.get("to");
+  const name = (linkedPlace.get("name") || code).slice(0, 60);
+  goingInput.value = `${name} (${code})`;
+  Object.assign(goingInput.dataset, { code, label: name });
+}
 updateGoing();
 
 
@@ -598,6 +617,7 @@ function searchStats(origins, params, source, failed, startGap) {
     gap: gapLabel(Number(params.maxGapHours)), // the limit the results are for...
     startGap: gapLabel(startGap),              // ...and the one the search started from
     found, // places (anywhere) or weekends that work (destination)
+    dayApart: state.results.filter((r) => r.daysApart).length, // of those, with someone a day apart
     outcome: failed ? "error" : found > 0 ? "results" : "none",
   };
 }
@@ -607,16 +627,31 @@ function searchStats(origins, params, source, failed, startGap) {
 // the limit the search already ended on).
 const WIDEN_SOURCES = new Set(["bar", "stay", "retry"]);
 
+// The stay a search asks for, in nights, and whether it is a short one.
+const stayNights = (params) => (params.mode === "specific" ? daysBetween(params.departDate, params.returnDate) : Number(params.nights));
+const isShortStay = (params) => stayNights(params) <= SHORT_STAY_NIGHTS;
+
+// The looser limits worth trying or offering after `hours` ("any" comes last;
+// short stays stop at SHORT_STAY_MAX_GAP).
+function looserGaps(hours, params) {
+  const steps = GAP_STEPS.filter((step) => step === 0 || step > hours);
+  return isShortStay(params) ? steps.filter((step) => step !== 0 && step <= SHORT_STAY_MAX_GAP) : steps;
+}
+
+// How far apart an option's times are, the way the rule counts them: short
+// stays count arrivals and flights home, longer stays only arrivals.
+const gapOf = (o, params) => (isShortStay(params) ? Math.max(o.arrivalGapHours, o.returnGapHours) : o.arrivalGapHours);
+
 // When a search found nothing only because arrival or return times were too
 // far apart: the next limit worth trying (null = nothing left to try).
-function widerGap(json, hours) {
+function widerGap(json, hours, params) {
   if (hours === 0) return null;
-  const looser = GAP_STEPS.filter((step) => step === 0 || step > hours); // "any" comes last
+  const looser = looserGaps(hours, params);
   if (json.mode === "trip") {
     // The answer holds the options that were just over the limit, so we know
     // straight away which limit makes at least one of them work.
     if (json.windows.some((w) => w.options.some((o) => o.status === "ok"))) return null;
-    const gaps = json.windows.flatMap((w) => w.options).filter((o) => o.status === "gap").map((o) => Math.max(o.arrivalGapHours, o.returnGapHours));
+    const gaps = json.windows.flatMap((w) => w.options).filter((o) => o.status === "gap").map((o) => gapOf(o, params));
     if (gaps.length === 0) return null;
     const needed = Math.min(...gaps);
     return looser.find((step) => step === 0 || step >= needed) ?? null;
@@ -656,7 +691,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
     // gap — 4 h, 5 h, 6 h, then any — so there is always something to show
     // first. The − / + buttons can tighten it again afterwards.
     const widen = WIDEN_SOURCES.has(source);
-    for (let next = widen ? widerGap(json, startGap) : null; next !== null; next = widerGap(json, next)) {
+    for (let next = widen ? widerGap(json, startGap, params) : null; next !== null; next = widerGap(json, next, params)) {
       showMessage(`Nothing where everyone lands within ${gapLabel(state.maxGapHours)} of each other — trying ${next > 0 ? `${next} h` : "any gap"}…`);
       params = { ...params, maxGapHours: String(next) };
       state.lastSearch = { origins, params };
@@ -769,16 +804,18 @@ function gapFoundText() {
 // The link offering a looser rule, when it would help (null = hide it).
 function gapMoreText() {
   if (state.searching || !state.lastSearch || state.maxGapHours === 0) return null;
-  const next = GAP_STEPS[gapStep() + 1];
+  const params = state.lastSearch.params;
+  const looser = looserGaps(state.maxGapHours, params); // short stays: never past SHORT_STAY_MAX_GAP
+  if (looser.length === 0) return null;
   const trip = state.trip;
   if (!trip) {
     // Anywhere: we only know that some dates were turned down for their times.
-    return state.debug?.rejectedByTimeGap > 0 ? { hours: next, text: `${allowLabel(next)} for more trips →` } : null;
+    return state.debug?.rejectedByTimeGap > 0 ? { hours: looser[0], text: `${allowLabel(looser[0])} for more trips →` } : null;
   }
   // One destination: find the first looser step that adds a weekend or lowers a price.
   const words = stayWords(trip);
-  for (const hours of GAP_STEPS.slice(gapStep() + 1)) {
-    const fits = (o) => o.status === "ok" || (o.status === "gap" && (hours === 0 || (o.arrivalGapHours <= hours && o.returnGapHours <= hours)));
+  for (const hours of looser) {
+    const fits = (o) => o.status === "ok" || (o.status === "gap" && (hours === 0 || gapOf(o, params) <= hours));
     let addedWindows = 0;
     let bestSaving = 0;
     for (const w of trip.windows) {
@@ -799,6 +836,9 @@ function gapMoreText() {
 function renderGapBar() {
   const step = gapStep();
   $("gap-bar").hidden = !state.searchedOnce;
+  // Short stays time the flights home too.
+  const short = state.lastSearch ? isShortStay(state.lastSearch.params) : true;
+  $("gap-label-text").textContent = short ? "Everyone lands and leaves within" : "Everyone lands within";
   $("gap-value").textContent = gapLabel(state.maxGapHours);
   $("gap-minus").disabled = step === 0;
   $("gap-plus").disabled = step === GAP_STEPS.length - 1;
@@ -866,15 +906,31 @@ function travelerHtml(leg, index, info, totalTravelers, currency) {
     ? `Out <strong>${hhmm(leg.outDepart)} → ≈${hhmm(leg.outArrive)}</strong>${dayShiftMarker(leg.outDepart, leg.outArrive)} · Back <strong>${hhmm(leg.retDepart)} → ≈${hhmm(leg.retArrive)}</strong>${dayShiftMarker(leg.retDepart, leg.retArrive)}`
     : "Flight times not available for this fare";
 
-  return `<div class="traveler"><div class="traveler-head">${head}${meta}</div><div class="times">${times}</div></div>`;
+  return `<div class="traveler"><div class="traveler-head">${head}${meta}${apartHtml(leg)}</div><div class="times">${times}</div></div>`;
 }
 
-// "Your arrivals are ≈1h 20 apart · ..." under the journeys (when times are known).
+// On longer stays someone may arrive or leave a day apart from the others: a
+// small label next to them, e.g. "arrives a day later · Sat Nov 7".
+const APART_WORDS = {
+  "arrives-earlier": "arrives a day early",
+  "arrives-later": "arrives a day later",
+  "leaves-earlier": "leaves a day early",
+  "leaves-later": "leaves a day later",
+};
+function apartHtml(leg) {
+  if (!leg.apart || !APART_WORDS[leg.apart]) return "";
+  const day = leg.apart.startsWith("arrives") ? leg.departDate : leg.returnDate;
+  return `<span class="apart-tag">${APART_WORDS[leg.apart]} · ${weekday(day)} ${formatDay(day)}</span>`;
+}
+
+// "Your arrivals are ≈1h 20 apart · ..." under the journeys (when everyone
+// arrives the same day and the times are known).
 function gapNoteHtml(r) {
   if (r.arrivalGapHours == null) return "";
+  const back = r.returnGapHours == null ? null : hoursLabel(r.returnGapHours);
   return r.travelers.length === 2
-    ? `<div class="gap-note">Your arrivals are <b>≈${hoursLabel(r.arrivalGapHours)}</b> apart · your return flights <b>≈${hoursLabel(r.returnGapHours)}</b> apart</div>`
-    : `<div class="gap-note">Everyone arrives within <b>≈${hoursLabel(r.arrivalGapHours)}</b> of each other · return flights within <b>≈${hoursLabel(r.returnGapHours)}</b></div>`;
+    ? `<div class="gap-note">Your arrivals are <b>≈${hoursLabel(r.arrivalGapHours)}</b> apart${back ? ` · your return flights <b>≈${back}</b> apart` : ""}</div>`
+    : `<div class="gap-note">Everyone arrives within <b>≈${hoursLabel(r.arrivalGapHours)}</b> of each other${back ? ` · return flights within <b>≈${back}</b>` : ""}</div>`;
 }
 
 const peopleLabel = (people) => (people === 2 ? "both of you" : `${people} travellers`);
@@ -925,7 +981,8 @@ function renderTable() {
   const d = state.debug;
   const checkedText = d && d.sharedDestinations ? ` (checked ${d.candidatesConsidered} of the ${d.sharedDestinations} everyone can reach)` : "";
   const currencyText = d && d.currencyConverted === false ? " · prices shown in USD (exchange rates unavailable)" : "";
-  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · same dates for everyone${currencyText}`;
+  const datesText = list.some((r) => r.daysApart) ? "the same dates, or one day apart for someone" : "same dates for everyone";
+  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · ${datesText}${currencyText}`;
   updateWarning();
   renderMap();
 }
@@ -1325,26 +1382,29 @@ const travellersLabel = (people) => `${people} traveller${people === 1 ? "" : "s
 const dayLabel = (dateStr) => `${weekday(dateStr)} ${formatDay(dateStr)}`;
 
 // One traveller: their route and flight times, their price, their Book button.
+// (On longer stays a traveller may fly a day apart: their own dates are on the leg.)
 function tripFlightHtml(leg, i, n, t) {
   const info = state.origins[i] ?? {};
   const name = i === 0 ? `You · ${info.label}` : n === 2 ? `Them · ${info.label}` : info.label;
+  const departDate = leg.departDate ?? t.departDate;
+  const returnDate = leg.returnDate ?? t.returnDate;
   const stops = `<span class="${leg.transfers === 0 ? "direct" : ""}">${stopsLabel(leg.transfers)}</span>`;
   const times = leg.timesKnown
     ? `Out <strong>${dayLabel(leg.outDepart.slice(0, 10))} · ${hhmm(leg.outDepart)} → ≈${hhmm(leg.outArrive)}</strong>${dayShiftMarker(leg.outDepart, leg.outArrive)}<br>
        Back <strong>${dayLabel(leg.retDepart.slice(0, 10))} · ${hhmm(leg.retDepart)} → ≈${hhmm(leg.retArrive)}</strong>${dayShiftMarker(leg.retDepart, leg.retArrive)}<br>
        ≈${durationLabel(leg.outMinutes)} each way · ${stops}`
-    : `Out ${dayLabel(t.departDate)} · back ${dayLabel(t.returnDate)} · ${stops}<br>Flight times not available for this fare`;
+    : `Out ${dayLabel(departDate)} · back ${dayLabel(returnDate)} · ${stops}<br>Flight times not available for this fare`;
   const price = leg.count > 1
     ? `<div class="tp-price">${formatPrice(leg.subtotal, state.currency)}</div><div class="tp-price-sub">${leg.count} × ${formatPrice(leg.price, state.currency)}</div>`
     : `<div class="tp-price">${formatPrice(leg.price, state.currency)}</div><div class="tp-price-sub">1 traveller</div>`;
   // The link itself is fetched when the button is pressed (section 7c).
   const book = info.code
-    ? `<button type="button" class="book-btn is-primary" data-from="${esc(info.code)}" data-to="${esc(t.code)}" data-depart="${esc(t.departDate)}" data-return="${esc(t.returnDate ?? "")}" data-adults="${leg.count}">Book ${leg.count > 1 ? `${leg.count} seats ` : ""}on Aviasales<span class="book-arrow" aria-hidden="true">↗</span></button>`
+    ? `<button type="button" class="book-btn is-primary" data-from="${esc(info.code)}" data-to="${esc(t.code)}" data-depart="${esc(departDate)}" data-return="${esc(returnDate ?? "")}" data-adults="${leg.count}">Book ${leg.count > 1 ? `${leg.count} seats ` : ""}on Aviasales<span class="book-arrow" aria-hidden="true">↗</span></button>`
     : "";
   return `
     <div class="tp-flight">
       <div>
-        <div class="traveler-head"><span class="dot dot-${i % 8}"></span><span class="who">${esc(name)}</span></div>
+        <div class="traveler-head"><span class="dot dot-${i % 8}"></span><span class="who">${esc(name)}</span>${apartHtml(leg)}</div>
         <div class="tp-route">${esc(info.label)} → ${esc(t.name)}</div>
         <div class="tp-legs">${times}</div>
       </div>
@@ -1369,7 +1429,7 @@ function tripPageHtml(t) {
 
     <section class="tp-card">
       <h3>Book your flights</h3>
-      <p class="tp-sub">Everyone books their own flight, from their own airport, on the same dates.</p>
+      <p class="tp-sub">Everyone books their own flight, from their own airport${t.travelers.some((leg) => leg.apart) ? " — on the dates shown for each of you" : ", on the same dates"}.</p>
       ${t.travelers.map((leg, i) => tripFlightHtml(leg, i, n, t)).join("")}
       ${gapNoteHtml(t)}
       <p class="tp-disclosure">You book directly on Aviasales. Prices come from recent searches, so the live price can be a little different. If you book through these buttons we may earn a small commission, at no extra cost to you.</p>

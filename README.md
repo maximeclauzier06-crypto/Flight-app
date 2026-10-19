@@ -50,35 +50,45 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 | File | What it is | Easy things to change |
 |---|---|---|
 | `index.html` | The page structure, including the logo (the "meeting point": two dotted routes meeting in the middle) | Texts, headline, labels |
+| `how-it-works.html`, `destinations.html`, `about.html`, `privacy.html`, `contact.html` | The other pages (same top bar and footer as the home page, styles under "The other pages" in `styles.css`). Destination cards open the search with "Going to" filled in (`index.html?to=LIS&name=Lisbon`) | Their texts. **Keep `privacy.html` in step** when a new service, cookie or kind of data is added. The top bar and footer are repeated in every page: change a link in all six files |
 | `favicon.svg` | The browser-tab icon (the logo on cream, with thicker dots) | Its colours are written in the file itself |
 | `CNAME` | The site's domain for GitHub Pages | Only if the domain changes |
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-bg`, `--action`, `--accent`...). Change them and the whole site follows. |
 | `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the table, the trip page after "Select" (with the "Book on Aviasales" buttons), the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`); the trip page is section 7d |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
 | `geo.js` | The flat world map: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--map-sea`, `--map-land`, `--map-borders`, `--map-grid` in `styles.css` |
-| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | `DEFAULT_MAX_GAP_HOURS`, `FIRST_PASS_CANDIDATES`, `FLEXIBLE_SEARCH_MONTHS` at the top; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
+| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | At the top: `MAX_DESTINATIONS`, `MAX_STOPS`, `DEFAULT_MAX_GAP_HOURS`, `DAY_APART_FROM_NIGHTS`, `DAY_APART_PENALTY_USD`, `MAX_CALLS_PER_SEARCH`; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
 
 ## How a search works
 
 1. **Phase 1 (broad):** the function asks Travelpayouts for each departure's
    cheapest cached fare to every destination and keeps the destinations
-   **everyone** can reach.
-2. **Phase 2 (dates):** for the 15 cheapest of those, it looks day by day for
-   a departure date **all** of you have a cached fare for ("Flexible" scans
-   the next 4 months; "Specific dates" checks just your dates).
-3. **The time rule:** among those days it keeps only the ones where everyone's
-   **arrival times** at the destination, and everyone's **return-flight
-   times**, are within **3 hours** of each other (latest minus earliest) — so nobody waits alone for a day.
-   If nothing fits, the page itself asks again with 4h, 5h, 6h, then no limit
-   (`widerGap` in `app.js`; the server remembers its answers, so this costs
-   few or no extra flight-data calls). Change the limit with the − / + next to
-   "Everyone lands within", above the results (1h to 6h, or any), or the default in
-   `DEFAULT_MAX_GAP_HOURS` (server) / `maxGapHours` in the page's `state`
-   (`app.js`).
-4. **Widening (only if fewer than 6 matches):** it also tries a stay one night
-   shorter/longer (the "±1 night" checkbox), then checks 25 more destinations.
-   Rows show the real number of nights, so a "full week" search can return 6,
-   7 or 8 nights.
+   **everyone** can reach (e.g. 229 for Paris + Stockholm).
+2. **Phase 2 (dates):** for **every** one of those, cheapest first (up to
+   `MAX_DESTINATIONS`), it looks day by day for dates that work for all of you
+   ("Flexible" scans the next 4 months; "Specific dates" checks your dates).
+   What it already remembers costs nothing; new Travelpayouts calls stop at
+   `MAX_CALLS_PER_SEARCH`, and the next search continues where it stopped.
+   Only **direct flights and flights with one stop** are used (`MAX_STOPS`).
+3. **The time rule** depends on the stay:
+   * **Short stays (up to 3 nights, e.g. a weekend):** the same days for
+     everyone, and everyone's **arrival times** AND **return-flight times**
+     within **3 hours** of each other — on a weekend, leaving hours apart costs
+     a day. If nothing fits, the page asks again with 4 h, and never more.
+   * **Longer stays (4 nights or more):** only the **arrivals** are timed, and
+     any traveller may **arrive or leave one day apart** from the others
+     (never both; at least one of you keeps the group's days; nobody is two
+     days from anyone). It's only chosen when it saves money or is the only
+     way (`DAY_APART_PENALTY_USD`), and the result says so ("arrives a day
+     later · Sun Nov 8"); that traveller's Book button uses their own dates.
+     If nothing fits, the page widens the arrivals to 4 h, 5 h, 6 h, then any.
+   Change the limit with the − / + above the results (1h to 6h, or any), or
+   the default in `DEFAULT_MAX_GAP_HOURS` (server) / `maxGapHours` in the
+   page's `state` (`app.js`; the short-stay limits are `SHORT_STAY_NIGHTS` and
+   `SHORT_STAY_MAX_GAP`).
+4. **Widening (short stays, fewer than 6 matches):** it also tries the whole
+   group a night shorter/longer (the "±1 night" checkbox). Rows show the real
+   number of nights. The page gets the 50 cheapest places (`MAX_RESULTS`).
 
 ### Searching towards one destination ("Going to")
 
