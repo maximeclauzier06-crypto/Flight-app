@@ -353,6 +353,7 @@ function updateGoing() {
   $("bar-hint").textContent = chosen
     ? "We compare the coming weekends for you. Clear “Going to” (×) to find a place in the middle instead."
     : "Free · no account needed · you book directly on Aviasales";
+  $("bar-hint").classList.toggle("is-trust", !chosen); // the "Free ·" line is left out on phones
 }
 
 setupAutocomplete(goingInput, $("going-suggestions"), () => {

@@ -603,6 +603,7 @@ button, input, select { font-family: inherit; }
   .when-popover { left: 0; right: auto; width: min(380px, calc(100vw - 48px)); }
   .bar-extras { gap: 10px; margin-top: 12px; }
   .bar-hint { font-size: 12px; }
+  .bar-hint.is-trust { display: none; } /* "Free · no account needed..." takes too much room here */
 
   /* Results: compact rows — the place and its total side by side, one short
      line per traveller. The exact flight times are on the trip page ("Select"). */
