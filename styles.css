@@ -87,8 +87,13 @@ button, input, select { font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 26px 16px;
 }
+/* The logo: you (1st colour) and them (2nd colour) meeting at a mustard point */
 .logo-a { fill: var(--c0); }
-.logo-b { fill: var(--action); }
+.logo-b { fill: var(--c1); }
+.logo-meet { fill: var(--action); }
+.logo-route { fill: none; stroke-width: 3.4; stroke-linecap: round; stroke-dasharray: 0.1 5.5; }
+.logo-route-a { stroke: var(--c0); }
+.logo-route-b { stroke: var(--c1); }
 .brand { display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 23px; font-weight: 700; letter-spacing: -0.3px; }
 .nav-links { display: flex; align-items: center; gap: 26px; font-size: 15px; font-weight: 600; }
 

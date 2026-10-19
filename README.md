@@ -43,7 +43,9 @@ updates it within a few minutes. The `CNAME` file holds the domain
 
 | File | What it is | Easy things to change |
 |---|---|---|
-| `index.html` | The page structure | Texts, headline, labels |
+| `index.html` | The page structure, including the logo (the "meeting point": two dotted routes meeting in the middle) | Texts, headline, labels |
+| `favicon.svg` | The browser-tab icon (the logo on cream, with thicker dots) | Its colours are written in the file itself |
+| `CNAME` | The site's domain for GitHub Pages | Only if the domain changes |
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-bg`, `--action`, `--accent`...). Change them and the whole site follows. |
 | `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the table, the trip page after "Select" (with the "Book on Aviasales" buttons), the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`); the trip page is section 7d |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |

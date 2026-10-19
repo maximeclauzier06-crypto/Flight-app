@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Halfway Trips — find where to meet in the middle</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=Manrope:wght@400;600;700;800&amp;display=swap">
@@ -19,10 +20,15 @@
 
   <header class="nav">
     <a class="brand" href="#">
-      <svg width="40" height="28" viewBox="0 0 40 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <circle cx="14" cy="14" r="12" class="logo-a"></circle>
-        <circle cx="26" cy="14" r="12" class="logo-b"></circle>
-        <path d="M20 3.61A12 12 0 0 1 20 24.39A12 12 0 0 1 20 3.61Z" fill="#FFFFFF"></path>
+      <!-- The logo, "meeting point": two dotted routes meeting in the middle
+           (colours from styles.css; the browser-tab icon is favicon.svg) -->
+      <svg width="44" height="32" viewBox="2 8 44 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path class="logo-route logo-route-a" d="M8 34 Q13 19 24 19"></path>
+        <path class="logo-route logo-route-b" d="M40 34 Q35 19 24 19"></path>
+        <circle class="logo-a" cx="8" cy="35" r="4.5"></circle>
+        <circle class="logo-b" cx="40" cy="35" r="4.5"></circle>
+        <circle class="logo-meet" cx="24" cy="19" r="10" opacity="0.3"></circle>
+        <circle class="logo-meet" cx="24" cy="19" r="6"></circle>
       </svg>
       <span>Halfway Trips</span>
     </a>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- Browser-tab icon: the "meeting point" logo on the page's cream, with thicker
+       dots so it stays readable at 16 px. Same colours as the top of styles.css
+       (first and second traveller, the mustard action colour, the page). -->
+  <rect width="48" height="48" rx="11" fill="#F5EEE3"/>
+  <path d="M9 35 Q13 18 24 18" stroke="#C24A1F" stroke-width="5" stroke-linecap="round" stroke-dasharray="0.1 8.5" fill="none"/>
+  <path d="M39 35 Q35 18 24 18" stroke="#5B6B2E" stroke-width="5" stroke-linecap="round" stroke-dasharray="0.1 8.5" fill="none"/>
+  <circle cx="9" cy="36" r="5.5" fill="#C24A1F"/>
+  <circle cx="39" cy="36" r="5.5" fill="#5B6B2E"/>
+  <circle cx="24" cy="18" r="8" fill="#F2B33D"/>
+</svg>
