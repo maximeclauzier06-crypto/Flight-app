@@ -273,9 +273,11 @@ function renderPeople(cell) {
 function refreshOrigins() {
   const cells = [...originsEl.querySelectorAll(".origin-cell")];
   const n = cells.length;
-  // At most 3 side by side, and only as many as fit (~165px each) so the names stay readable.
-  const fit = Math.max(1, Math.floor(originsEl.clientWidth / 165));
-  const cols = Math.min(n <= 3 ? n : n === 4 ? 2 : 3, fit);
+  // At most 3 side by side (2 on phones, where the cells are more compact), and
+  // only as many as fit (~165px each, ~120px on phones) so the names stay readable.
+  const phone = window.matchMedia("(max-width: 860px)").matches;
+  const fit = Math.max(1, Math.floor(originsEl.clientWidth / (phone ? 120 : 165)));
+  const cols = Math.min(n <= 3 ? n : n === 4 ? 2 : 3, fit, phone ? 2 : 3);
   originsEl.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   originsEl.classList.toggle("is-dense", originsEl.clientWidth / cols < 220); // narrow cells: a bit tighter
   cells.forEach((cell, i) => {

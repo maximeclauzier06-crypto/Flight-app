@@ -552,20 +552,55 @@ button, input, select { font-family: inherit; }
 }
 
 @media (max-width: 860px) {
-  .nav { flex-wrap: wrap; gap: 12px; }
-  .nav-links { gap: 14px; flex-wrap: wrap; }
-  .hero { padding: 32px 20px 56px; border-radius: 28px; }
-  .hero h1 { font-size: 38px; }
-  .hero-sub { font-size: 16px; }
-  .search-bar { flex-direction: column; padding: 12px; }
-  .search-bar .field, .search-bar .field-when { flex: none; }
-  .origins { grid-template-columns: minmax(0, 1fr) !important; }
-  .origin-cell.has-left { border-left: 0; }
-  .origin-cell + .origin-cell { border-top: 1px solid var(--line); }
-  .divider { width: auto; height: 1px; margin: 0 12px; }
-  .search-btn { justify-content: center; padding: 16px; margin-top: 8px; }
-  .suggestions { min-width: 0; right: 0; }
-  .when-popover { left: 0; right: 0; width: auto; }
+  :root { --content: calc(100% - 32px); } /* 16px on each side */
+
+  /* Top bar on one line: logo, currency, sign in. ("How it works" and
+     "Destinations" come back once they lead to real pages.) */
+  .nav { padding: 16px 2px; gap: 10px; }
+  .brand { gap: 8px; font-size: 19px; }
+  .brand svg { width: 36px; height: 26px; }
+  .nav-links { gap: 8px; }
+  .nav-links > a:not(.btn-signin) { display: none; }
+  .currency-pill select { padding: 7px 28px 7px 12px; font-size: 13px; }
+  .btn-signin { padding: 7px 14px; font-size: 13px; }
+  .brand, .btn-signin { white-space: nowrap; }
+
+  /* Less text before the search: the title and one line, then the search; the
+     badge goes, and the three promises move under the search, smaller */
+  .hero { padding: 24px 16px 52px; border-radius: 26px; }
+  .hero-content { display: flex; flex-direction: column; }
+  .hero-badge { display: none; }
+  .hero h1 { margin-bottom: 6px; font-size: 32px; }
+  .hero-sub { margin-bottom: 16px; font-size: 15px; }
+  .bar-extras { order: 1; }
+  .headliners { order: 2; gap: 6px 12px; margin: 14px 0 0; }
+  .headliners li { gap: 6px; font-size: 12px; }
+  .headliners li::before { width: 15px; height: 15px; font-size: 9px; }
+
+  /* The search bar as a compact grid: the departures two per row (app.js),
+     then "When" (narrower, left) and "Going to" (wider, right), then the button across */
+  .search-bar { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); padding: 6px; border-radius: 20px; }
+  .search-bar .origins { grid-column: 1 / -1; grid-row: 1; }
+  .search-bar .divider-origins { grid-column: 1 / -1; grid-row: 2; width: auto; height: 1px; margin: 0 10px; }
+  .search-bar .field-when { grid-column: 1; grid-row: 3; min-width: 0; border-right: 1px solid var(--line); }
+  .search-bar .field-going { grid-column: 2; grid-row: 3; }
+  .search-btn { grid-column: 1 / -1; grid-row: 4; }
+  .search-bar .divider:not(.divider-origins) { display: none; }
+  .search-bar .field, .origin-cell { padding: 8px 10px; }
+  .search-bar label { font-size: 10px; letter-spacing: 0.6px; }
+  .origin-cell input[type="text"], .going-row input, .when-button { font-size: 15px; }
+  .when-button { white-space: normal; line-height: 1.25; }
+  .people { gap: 6px; margin-top: 5px; }
+  .people-text { display: none; } /* the avatars already show how many */
+  .going-sub { margin-top: 5px; font-size: 11px; }
+  .search-btn { justify-content: center; margin-top: 6px; padding: 13px; border-radius: 14px; font-size: 15px; }
+  /* Dropdowns can be wider than their half of the bar, and stay on screen */
+  .suggestions { min-width: 0; width: min(340px, calc(100vw - 48px)); }
+  .origin-cell.has-left .suggestions, .field-going .suggestions { left: auto; right: 0; } /* fields on the right open leftwards */
+  .when-popover { left: 0; right: auto; width: min(380px, calc(100vw - 48px)); }
+  .bar-extras { gap: 10px; margin-top: 12px; }
+  .bar-hint { font-size: 12px; }
+
   .table-head { display: none; }
   .row { grid-template-columns: 36px minmax(0, 1fr); row-gap: 14px; }
   .row .journeys, .row .total-cell { grid-column: 1 / -1; }
@@ -582,4 +617,14 @@ button, input, select { font-family: inherit; }
   .map-hint { display: none; }
   .page-footer { flex-direction: column; align-items: flex-start; }
   #map { touch-action: pan-y; } /* on phones, swiping up/down over the map still scrolls the page */
+}
+
+/* The narrowest phones (e.g. 320px): a smaller top bar so it stays on one line */
+@media (max-width: 380px) {
+  .brand { gap: 6px; font-size: 16px; }
+  .brand svg { width: 30px; height: 22px; }
+  .nav-links { gap: 6px; }
+  .currency-pill select { padding: 6px 24px 6px 10px; background-position: right 8px center; }
+  .btn-signin { padding: 6px 10px; }
+  .hero h1 { font-size: 29px; }
 }

@@ -36,7 +36,10 @@ No installation needed. Open `index.html` in your browser (double-click it).
 The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
-updates it within a few minutes. The `CNAME` file holds the domain
+updates it within a few minutes. Browsers may keep a file for 10 minutes, so
+`index.html` links our files with a version (`styles.css?v=2026-10-19`): change
+that date in all three links whenever `styles.css`, `geo.js` or `app.js`
+change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
 
 ## The files — and where to change things
