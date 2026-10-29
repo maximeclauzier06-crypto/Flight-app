@@ -80,6 +80,11 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
    than `QUOTA_RESERVE` are left this minute — the next search continues
    where this one stopped. Only **direct flights and flights with one stop**
    are used (`MAX_STOPS`).
+   Each Aviasales site keeps its own saved prices (its "market"); the broad
+   requests ask the markets in `BROAD_MARKETS`. To compare markets, add
+   `&markets=default,us,fr&details=0&debug=1` to a search request: the report's
+   `byMarket` shows the trips and places each market brings (`details=0` skips
+   the slower day-by-day checks).
 3. **The time rule** depends on the stay:
    * **Short stays (up to 3 nights, e.g. a weekend):** the same days for
      everyone, and everyone's **arrival times** AND **return-flight times**

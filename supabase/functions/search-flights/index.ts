@@ -104,6 +104,15 @@ const CACHE_TTL_MS = 24 * 3_600_000; // how long a remembered answer stays valid
 const BROAD_LIMIT = 1000;          // tickets per page (the maximum)
 const BROAD_MAX_PAGES = 2;
 
+// Each Aviasales site keeps its own saved prices (its "market"); by default
+// Travelpayouts answers from the market of the departure city — for cities
+// without an Aviasales site of their own (Sweden, Belgium...) that's Russia's.
+// The broad requests ask these markets ("default" = Travelpayouts' choice).
+// A search may try others with `markets=us,fr` (to compare them).
+const BROAD_MARKETS = ["default"];
+const KNOWN_MARKETS = new Set(["ru", "ua", "by", "kz", "uz", "az", "ge", "tj", "kg", "am", "it", "fr", "pl", "us", "in", "tz", "md", "ro", "ke", "za", "at", "il", "gr", "es", "pt", "nl"]);
+const MAX_MARKETS = 6;
+
 const BASE_CURRENCY = "usd"; // everything is fetched in this, then converted
 
 // --- Group size ---------------------------------------------------------------
@@ -125,7 +134,8 @@ type Traveler = { origin: string; count: number };
 type Place = { code: string; name: string; country: string; lat: number; lon: number; tz: string };
 type CallStats = {
   cap: number;        // new calls allowed so far (MAX_CALLS_PER_SEARCH, or less in an early stage)
-  calls: number;      // new calls attempted
+  calls: number;      // new calls attempted (towards the per-search budget)
+  unbudgetedCalls: number; // new broad calls (only Travelpayouts' quota applies)
   cached: number;     // answers served from memory or the database
   failed: number;     // calls that never got an answer
   retried: number;
@@ -303,10 +313,13 @@ const lowOnQuota = (url: string, stats: CallStats) => (stats.quotaLeft[kindOf(ur
 
 // GET a Travelpayouts URL as JSON. Returns null (and counts why in `stats`) if
 // no answer was obtained — so callers can tell "no data" from "call failed".
-async function getJson(url: string, stats: CallStats): Promise<Record<string, unknown> | null> {
+// `budgeted: false` (the few broad requests) doesn't count towards the
+// per-search budget, only towards Travelpayouts' own per-minute quota.
+async function getJson(url: string, stats: CallStats, budgeted = true): Promise<Record<string, unknown> | null> {
   if (stats.rateLimited) { stats.skipped++; return null; }
-  if (stats.calls >= stats.cap || lowOnQuota(url, stats)) { stats.budgetExhausted = true; stats.skipped++; return null; }
-  stats.calls++;
+  if ((budgeted && stats.calls >= stats.cap) || lowOnQuota(url, stats)) { stats.budgetExhausted = budgeted || stats.budgetExhausted; stats.skipped++; return null; }
+  if (budgeted) stats.calls++;
+  else stats.unbudgetedCalls++;
 
   let tried429 = false;
   for (let attempt = 0; attempt <= CALL_RETRIES; attempt++) {
@@ -317,8 +330,9 @@ async function getJson(url: string, stats: CallStats): Promise<Record<string, un
       const response = await limited(() => (stats.rateLimited || lowOnQuota(url, stats) ? Promise.resolve(null) : fetch(url)));
       if (!response) {
         if (stats.rateLimited) break;
-        stats.calls--; // never sent
-        stats.budgetExhausted = true;
+        if (budgeted) stats.calls--; // never sent
+        else stats.unbudgetedCalls--;
+        stats.budgetExhausted = budgeted || stats.budgetExhausted;
         stats.skipped++;
         return null;
       }
@@ -586,7 +600,8 @@ function usableFares(fares: Record<string, Fare>, options: SearchOptions | null)
    durations and the stops each way.
 --------------------------------------------------------------------------- */
 
-const broadKey = (origin: string, month: string, returnMonth: string) => ["broad", origin, BASE_CURRENCY, month, returnMonth].join("_");
+const broadKey = (origin: string, month: string, returnMonth: string, market: string) =>
+  ["broad", origin, BASE_CURRENCY, month, returnMonth, ...(market === "default" ? [] : [market])].join("_");
 const nextMonth = (month: string) => monthOf(addDays(`${month}-28`, 7));
 const toNumber = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? x : 0);
 
@@ -597,8 +612,8 @@ function broadLookups(options: SearchOptions): Array<[string, string]> {
 }
 
 // One broad answer, as { "LIS|2026-11-07|7": the cheapest such trip }.
-async function fetchBroadFares(origin: string, month: string, returnMonth: string, token: string, stats: CallStats): Promise<Record<string, Fare>> {
-  const key = broadKey(origin, month, returnMonth);
+async function fetchBroadFares(origin: string, month: string, returnMonth: string, market: string, token: string, stats: CallStats): Promise<Record<string, Fare>> {
+  const key = broadKey(origin, month, returnMonth, market);
   const hit = memoryCache.get(key);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
     stats.cached++;
@@ -611,7 +626,8 @@ async function fetchBroadFares(origin: string, month: string, returnMonth: strin
       origin, departure_at: month, return_at: returnMonth, one_way: "false", direct: "false", unique: "false",
       sorting: "price", currency: BASE_CURRENCY, limit: String(BROAD_LIMIT), page: String(page), token,
     });
-    const json = await getJson(`https://api.travelpayouts.com/aviasales/v3/prices_for_dates?${params}`, stats);
+    if (market !== "default") params.set("market", market);
+    const json = await getJson(`https://api.travelpayouts.com/aviasales/v3/prices_for_dates?${params}`, stats, false);
     if (!json) break;
     answered = true;
     const tickets = Array.isArray(json.data) ? (json.data as Array<Record<string, unknown>>) : [];
@@ -1193,6 +1209,11 @@ Deno.serve(async (req) => {
     const gapParam = url.searchParams.get("maxGapHours");
     const maxGapHours = gapParam === null ? DEFAULT_MAX_GAP_HOURS : Number(gapParam);
     const flexNights = Math.min(2, Math.max(0, Number(url.searchParams.get("flexNights") ?? "0") || 0));
+    // Which Aviasales markets the broad requests ask (`markets=us,fr` to compare; see BROAD_MARKETS).
+    const marketsParam = (url.searchParams.get("markets") ?? "").toLowerCase().split(",").map((m) => m.trim()).filter(Boolean);
+    const markets = marketsParam.length ? [...new Set(marketsParam)].filter((m) => m === "default" || KNOWN_MARKETS.has(m)).slice(0, MAX_MARKETS) : BROAD_MARKETS;
+    const detailsOn = url.searchParams.get("details") !== "0"; // `details=0`: broad answers only (for comparing markets)
+    if (markets.length === 0) return fail(`markets must be "default" or among: ${[...KNOWN_MARKETS].join(", ")}`);
 
     // The departures: `origins=STO,BRU,LON` (+ optional `counts=2,1,1` = people from each).
     // The old `originA` / `originB` parameters still work.
@@ -1232,7 +1253,7 @@ Deno.serve(async (req) => {
       searchOptions = { mode: "flexible", weekendOnly: url.searchParams.get("weekendOnly") === "true" };
     }
 
-    const callStats: CallStats = { cap: MAX_CALLS_PER_SEARCH, calls: 0, cached: 0, failed: 0, retried: 0, skipped: 0, statuses: {}, firstError: null, rateLimited: false, budgetExhausted: false, quotaLeft: {}, reserve: destination ? QUOTA_RESERVE_TRIP : QUOTA_RESERVE };
+    const callStats: CallStats = { cap: MAX_CALLS_PER_SEARCH, calls: 0, unbudgetedCalls: 0, cached: 0, failed: 0, retried: 0, skipped: 0, statuses: {}, firstError: null, rateLimited: false, budgetExhausted: false, quotaLeft: {}, reserve: destination ? QUOTA_RESERVE_TRIP : QUOTA_RESERVE };
     // A fresh report on the database for this search.
     Object.assign(dbInfo, { status: "not used yet", loaded: 0, saved: 0, loadFailures: 0, lastProblem: null });
     dbLookedUp.clear();
@@ -1310,13 +1331,23 @@ Deno.serve(async (req) => {
     const originPlaces = codes.map((c) => places[c]);
 
     // Broad answers first: everything from each departure city, month by month
-    // — a handful of requests that cover every destination at once.
+    // (and market by market) — a handful of requests that cover every destination.
     const broad: BroadIndex = new Map();
     const broadPairs = broadLookups(searchOptions);
-    await loadFromDatabase(codes.flatMap((o) => broadPairs.map(([m, r]) => broadKey(o, m, r))));
-    const broadAnswers = await Promise.all(codes.map((o) => Promise.all(broadPairs.map(([m, r]) => fetchBroadFares(o, m, r, token!, callStats)))));
-    codes.forEach((o, i) => indexBroad(o, broadAnswers[i], broad));
-    const broadTrips = broadAnswers.flat().reduce((sum, fares) => sum + Object.keys(fares).length, 0);
+    const jobs = codes.flatMap((o) => markets.flatMap((market) => broadPairs.map(([m, r]) => ({ o, market, m, r }))));
+    await loadFromDatabase(jobs.map((j) => broadKey(j.o, j.m, j.r, j.market)));
+    const broadAnswers = await Promise.all(jobs.map((j) => fetchBroadFares(j.o, j.m, j.r, j.market, token!, callStats)));
+    jobs.forEach((j, i) => indexBroad(j.o, [broadAnswers[i]], broad));
+    const broadTrips = broadAnswers.reduce((sum, fares) => sum + Object.keys(fares).length, 0);
+    // What each market brought: trips, and places reachable from both with a trip in it.
+    const sharedSet = new Set(toCheck);
+    const byMarket = Object.fromEntries(markets.map((market) => {
+      const answers = jobs.map((j, i) => (j.market === market ? { o: j.o, fares: broadAnswers[i] } : null)).filter((x) => x !== null);
+      const placesFor = (o: string) => new Set(answers.filter((a) => a.o === o).flatMap((a) => Object.keys(a.fares).map((k) => k.split("|")[0])));
+      const perOrigin = codes.map(placesFor);
+      const inBoth = [...perOrigin[0]].filter((d) => sharedSet.has(d) && perOrigin.every((p) => p.has(d))).length;
+      return [market, { trips: answers.reduce((s, a) => s + Object.keys(a.fares).length, 0), placesWithTripsForAll: inBoth }];
+    }));
 
     // Accumulators for the debug block.
     const totals = { sameDayPairs: 0, rejectedByGap: 0, withoutTimes: 0 };
@@ -1434,7 +1465,7 @@ Deno.serve(async (req) => {
 
     // Stage 2: day-by-day calendars for the cheapest places we don't know in
     // detail yet (they have dates the broad answers miss), while the budget lasts.
-    if (canContinue()) {
+    if (detailsOn && canContinue()) {
       const detail = toCheck.filter((d) => !calendarsRemembered(codes, d, lengthsNeeded, searchOptions));
       await fetchCalendars(detail, lengthsNeeded);
       keepBest(detail, [baseNights]);
@@ -1472,7 +1503,9 @@ Deno.serve(async (req) => {
           returnsTimed: !dayApart,          // short stays: return flights are timed too
           dayApart,                         // longer stays: someone may arrive / leave a day apart
           resultsWithDayApart: results.filter((r) => r.daysApart).length,
-          broadRequests: codes.length * broadPairs.length, // "everything from this city, this month" answers used
+          broadRequests: jobs.length,                      // "everything from this city, this month" answers used
+          markets,
+          byMarket,                                        // what each market brought
           broadTrips,                                      // round trips they contained
           maxStops: MAX_STOPS,
           sameDayPairs: totals.sameDayPairs,
