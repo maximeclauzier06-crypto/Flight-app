@@ -112,6 +112,25 @@ button, input, select { font-family: inherit; }
 }
 .btn-signin { color: var(--ink); background: #fff; border: 1.5px solid var(--ink); border-radius: 999px; padding: 8px 22px; font-size: 14px; font-weight: 700; }
 
+/* Phones only (see "Smaller screens"): the page links fold into a small menu,
+   a round ☰ at the right of the top bar that opens a panel under it */
+.nav-menu { display: none; }
+.nav-menu summary {
+  display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; cursor: pointer; list-style: none;
+  border: 1.5px solid var(--ink); border-radius: 50%; background: #fff; color: var(--ink);
+}
+.nav-menu summary::-webkit-details-marker { display: none; }
+.nav-menu-close, .nav-menu[open] .nav-menu-open { display: none; }
+.nav-menu[open] .nav-menu-close { display: block; }
+.nav-menu-panel {
+  position: absolute; top: calc(100% - 6px); left: 2px; right: 2px; z-index: 30;
+  display: flex; flex-direction: column; padding: 6px 0; border-radius: 18px;
+  background: #fff; border: 1px solid var(--line); box-shadow: 0 18px 40px rgba(var(--shadow), 0.22);
+}
+.nav-links .nav-menu-panel a { padding: 13px 20px; font-size: 16px; font-weight: 700; text-decoration: none; }
+.nav-menu-panel a + a { border-top: 1px solid var(--line); }
+.nav-links .nav-menu-panel a[aria-current="page"] { color: var(--accent); text-decoration: none; } /* (the page you're on) */
+
 /* ---------- The banner ---------- */
 
 .hero {
@@ -392,6 +411,26 @@ button, input, select { font-family: inherit; }
 .warning button { flex-shrink: 0; border: 0; border-radius: 10px; padding: 8px 14px; cursor: pointer; background: var(--action); color: var(--action-ink); font-size: 13px; font-weight: 800; }
 
 .state-message { padding: 36px 24px; color: var(--soft); font-size: 15px; line-height: 1.6; border-top: 1px solid var(--line); }
+
+/* While a search runs (app.js showProgress): a bar that slowly fills, with a
+   soft shine moving along it, and a line that changes every few seconds */
+.search-progress { padding: 30px 24px 34px; border-top: 1px solid var(--line); }
+.sp-bar { height: 6px; border-radius: 999px; background: var(--tint); overflow: hidden; }
+.sp-bar span {
+  display: block; width: 4%; height: 100%; border-radius: inherit;
+  background: linear-gradient(90deg, var(--action) 0%, #F8D488 50%, var(--action) 100%); background-size: 200% 100%;
+  animation: sp-fill 20s cubic-bezier(0.15, 0.6, 0.35, 1) forwards, sp-shine 1.6s linear infinite;
+}
+@keyframes sp-fill { to { width: 94%; } }
+@keyframes sp-shine { from { background-position: 200% 0; } to { background-position: 0 0; } }
+.sp-text { margin: 16px 0 4px; color: var(--ink); font-size: 15px; font-weight: 700; }
+.sp-text.is-new { animation: sp-in 0.35s ease-out; }
+@keyframes sp-in { from { opacity: 0; transform: translateY(4px); } }
+.sp-note { margin: 0; color: var(--soft); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) {
+  .sp-bar span { width: 40%; animation: none; }
+  .sp-text.is-new { animation: none; }
+}
 .state-message.is-error { color: #A8431F; }
 .inline-retry { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 .table-note { margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--tint); color: var(--soft); font-size: 12px; }
@@ -736,9 +775,12 @@ button, input, select { font-family: inherit; }
 @media (max-width: 860px) {
   :root { --content: calc(100% - 32px); } /* 16px on each side */
 
-  /* Top bar on one line: logo, currency, sign in. ("How it works" and
-     "Destinations" come back once they lead to real pages.) */
-  .nav { padding: 16px 2px; gap: 10px; }
+  /* Top bar on one line: the logo, the currency (or "Find a trip" on the
+     other pages) and the ☰ menu with the page links. Above the banner, so
+     the menu's panel opens over it. ("Sign in" waits until it does something.) */
+  .nav { z-index: 20; padding: 16px 2px; gap: 10px; }
+  .nav-menu { display: block; }
+  .btn-signin:not(.btn-cta) { display: none; }
   .brand { gap: 8px; font-size: 19px; }
   .brand svg { width: 36px; height: 26px; }
   .nav-links { gap: 8px; }

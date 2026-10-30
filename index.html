@@ -12,7 +12,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-10-30.2">
+  <link rel="stylesheet" href="styles.css?v=2026-10-30.3">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -62,8 +62,36 @@
         </select>
       </label>
       <a class="btn-signin" href="#">Sign in</a>
+      <!-- Phones: the page links fold into this small menu (☰) -->
+      <details class="nav-menu">
+        <summary aria-label="Menu">
+          <svg class="nav-menu-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+          <svg class="nav-menu-close" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+        </summary>
+        <div class="nav-menu-panel">
+          <a href="how-it-works.html">How it works</a>
+          <a href="destinations.html">Destinations</a>
+          <a href="about.html">About</a>
+          <a href="contact.html">Contact</a>
+        </div>
+      </details>
     </nav>
   </header>
+  <script>
+    // The phone menu (☰) also closes with a tap outside it, or Escape.
+    (() => {
+      const menu = document.querySelector(".nav-menu");
+      document.addEventListener("click", (event) => {
+        if (menu.open && !menu.contains(event.target)) menu.open = false;
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && menu.open) {
+          menu.open = false;
+          menu.querySelector("summary").focus();
+        }
+      });
+    })();
+  </script>
 
   <main>
     <!-- ===== The big banner with the search bar ===== -->
@@ -257,7 +285,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-10-30.2"></script>
-  <script src="app.js?v=2026-10-30.2"></script>
+  <script src="geo.js?v=2026-10-30.3"></script>
+  <script src="app.js?v=2026-10-30.3"></script>
 </body>
 </html>

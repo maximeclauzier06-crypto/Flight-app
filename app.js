@@ -535,6 +535,67 @@ function showMessage(html, isError = false) {
   rowsEl.innerHTML = `<div class="state-message${isError ? " is-error" : ""}">${html}</div>`;
 }
 
+// While a search runs: a line that changes every few seconds and a bar that
+// slowly fills, so it's clear something is happening — a search can take up
+// to ~20 seconds. (The steps follow the clock: the function answers once, at
+// the end, so they say what it is doing in general, not how far it got.)
+const PROGRESS_STEP_MS = 3000;
+let progressTimer = 0;
+
+function searchSteps(params, departures) {
+  const you = departures === 2 ? "both" : "all";
+  if (params.destination) {
+    const which = params.mode === "specific" ? "your dates"
+      : params.trip === "weekend" ? "the coming weekends"
+      : params.trip === "long" ? "the coming long weekends"
+      : "the coming weeks";
+    return [
+      `Looking at ${which}…`,
+      `Pricing each one for you ${you}…`,
+      "Trying a day earlier or later…",
+      "Comparing everyone's arrival times…",
+      "Almost there…",
+    ];
+  }
+  return [
+    `Finding places you can ${you} fly to…`,
+    "Checking the dates for each place…",
+    `Looking for days that work for you ${you}…`,
+    "Comparing everyone's arrival times…",
+    "Adding up the prices…",
+    "Almost there…",
+  ];
+}
+
+function showProgress(steps) {
+  clearInterval(progressTimer);
+  rowsEl.innerHTML = `
+    <div class="search-progress">
+      <div class="sp-bar" aria-hidden="true"><span></span></div>
+      <p class="sp-text" aria-live="off">${esc(steps[0])}</p>
+      <p class="sp-note">This can take up to 20 seconds.</p>
+    </div>`;
+  let step = 0;
+  progressTimer = setInterval(() => {
+    const text = rowsEl.querySelector(".sp-text");
+    if (!text) return clearInterval(progressTimer); // the results are in
+    if (step >= steps.length - 1) return; // stays on "Almost there…"
+    showProgressText(steps[++step]);
+  }, PROGRESS_STEP_MS);
+}
+
+// A new line under the bar (it fades in). `hold`: keep it until the answer
+// comes, e.g. "… trying 4 h" while the time rule widens.
+function showProgressText(text, { hold = false } = {}) {
+  if (hold) clearInterval(progressTimer);
+  const el = rowsEl.querySelector(".sp-text");
+  if (!el) return showMessage(esc(text));
+  el.textContent = text;
+  el.classList.remove("is-new");
+  void el.offsetWidth; // restart the fade
+  el.classList.add("is-new");
+}
+
 // Calls the Edge Function and returns { results, currency, origins, debug }.
 async function callSearchFunction(origins, params) {
   const query = new URLSearchParams({
@@ -609,8 +670,9 @@ function explainEmptyResult(debug, gapHours) {
 
 let searchCounter = 0; // so an older, slower search can't overwrite a newer one
 
-// After a search from the bar: bring the results up, so you see them — and
-// the routes on the map behind — without having to scroll.
+// A search from the bar: bring the results box up — as soon as it starts (its
+// progress bar), and again at the end if you scrolled back up — so you see
+// them, and the routes on the map behind, without having to scroll.
 function revealResults() {
   const visibleTop = document.querySelector(".hero").getBoundingClientRect().bottom; // the results start under the banner
   if (visibleTop < window.innerHeight * 0.4) return; // already in view
@@ -698,8 +760,12 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
   setResultsMode(Boolean(params.destination));
   updateWarning();
   renderGapBar();
-  showMessage("Searching… (this can take a few seconds)");
+  showProgress(searchSteps(params, origins.length));
   searchButton.disabled = true;
+  // From the bar: bring the results box (and its progress bar) into view
+  // straight away — on a phone the search bar fills the screen, and without
+  // this nothing would seem to happen.
+  if (reveal) revealResults();
 
   try {
     let json = await callSearchFunction(origins, params);
@@ -710,7 +776,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
     // first. The − / + buttons can tighten it again afterwards.
     const widen = WIDEN_SOURCES.has(source);
     for (let next = widen ? widerGap(json, startGap, params) : null; next !== null; next = widerGap(json, next, params)) {
-      showMessage(`Nothing where everyone lands within ${gapLabel(state.maxGapHours)} of each other — trying ${next > 0 ? `${next} h` : "any gap"}…`);
+      showProgressText(`Nothing where everyone lands within ${gapLabel(state.maxGapHours)} of each other — trying ${next > 0 ? `${next} h` : "any gap"}…`, { hold: true });
       params = { ...params, maxGapHours: String(next) };
       state.lastSearch = { origins, params };
       state.maxGapHours = next;
@@ -757,6 +823,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
     renderMap();
   } finally {
     if (thisSearch === searchCounter) {
+      clearInterval(progressTimer);
       state.searching = false;
       state.searchedOnce = true;
       searchButton.disabled = false;
