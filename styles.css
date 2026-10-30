@@ -629,6 +629,8 @@ button, input, select { font-family: inherit; }
 .map-layer.is-dragging #map, .map-layer.is-dragging #map .dest-dot { cursor: grabbing; }
 #map .dest-dot { cursor: pointer; }
 #map .dest-dot:hover .dot-core { r: 7.5; }
+#map .dest-dot.is-open .dot-core { r: 8.5; stroke-width: 3; } /* the dot whose box is open */
+#map .dest-dot.is-open .dot-label { display: none; }
 #map .dot-label {
   font-family: var(--font-body); font-size: 12px; font-weight: 800; fill: var(--ink);
   paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round;
@@ -647,6 +649,33 @@ button, input, select { font-family: inherit; }
   border-radius: 999px; padding: 8px 14px; background: #fff; color: var(--ink); white-space: nowrap;
   font-size: 12px; font-weight: 700; box-shadow: 0 6px 16px rgba(var(--shadow), 0.16);
 }
+/* On a trip's (or good place's) page: the box a dot opens, about that place,
+   with a little arrow towards the dot (app.js places it, and the arrow's height) */
+.map-popup {
+  position: absolute; z-index: 6; width: 268px; box-sizing: border-box; padding: 14px 16px;
+  border-radius: 18px; background: #fff; color: var(--ink); box-shadow: 0 16px 36px rgba(var(--shadow), 0.25);
+}
+.map-popup::before {
+  content: ""; position: absolute; top: calc(var(--arrow-y, 50%) - 8px); left: -7px;
+  width: 16px; height: 16px; border-radius: 3px; background: #fff; transform: rotate(45deg);
+}
+.map-popup.is-left::before { left: auto; right: -7px; }
+.mp-close {
+  position: absolute; top: 10px; right: 10px; width: 26px; height: 26px; border: 0; border-radius: 50%; padding: 0; cursor: pointer;
+  background: var(--tint); color: var(--soft); font-size: 17px; font-weight: 800; line-height: 1;
+}
+.mp-close:hover { color: var(--ink); }
+.mp-kind { display: inline-block; margin-bottom: 6px; border-radius: 999px; padding: 2px 9px; background: var(--good-tint); color: var(--good); font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
+.mp-kind.is-good { background: var(--tag-bg); color: var(--ink); }
+.mp-title { padding-right: 28px; font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.15; }
+.mp-title span { color: var(--soft); font-family: var(--font-body); font-size: 12px; font-weight: 600; }
+.mp-sub { margin-top: 4px; color: var(--soft); font-size: 12.5px; }
+.mp-each { margin-top: 6px; color: var(--ink); font-size: 12.5px; }
+.mp-total { margin-top: 10px; }
+.mp-total strong { font-family: var(--font-display); font-size: 22px; }
+.mp-total small { color: var(--soft); font-size: 12px; }
+.mp-go { width: 100%; justify-content: center; margin-top: 10px; padding: 10px 14px; border-radius: 10px; font-size: 14px; }
+
 /* "● Exact match  ○ Good place, choose dates" — just above the hint and the zoom */
 .map-legend {
   position: absolute; right: 0; bottom: calc(100% + 10px);

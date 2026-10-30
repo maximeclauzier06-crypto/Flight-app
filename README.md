@@ -14,7 +14,9 @@ tablets it is a block under them). On phones the results are compact rows
 opens the map full screen, with a card for the selected place ("Select",
 "← List"). Every result is also a dot on the
 map: hover it for the city and total price, click it to select that
-destination. Zoom with + / −, a pinch, or Ctrl (⌘ on a Mac) + scroll;
+destination. On a trip's page (or a good place's), clicking another dot opens a
+small box next to it — that place's dates and prices — with **See this trip →**
+or **Choose dates →** to go to its page. Zoom with + / −, a pinch, or Ctrl (⌘ on a Mac) + scroll;
 "Recentre" brings back the view of every result.
 
 The results come in **two kinds**. **Exact matches**: flights for everyone on

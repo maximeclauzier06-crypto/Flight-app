@@ -1650,6 +1650,7 @@ function tripPageHtml(t) {
 
 // Shows a page (a trip, or a good place) in place of the list.
 function showPage(html) {
+  closeMapPopup(); // (a box opened on the map belongs to the page before)
   tripPageEl.innerHTML = html;
   listViewEls.forEach((el) => (el.hidden = true));
   tripPageEl.hidden = false;
@@ -1668,6 +1669,7 @@ function openTripPage(trip) {
 function closeTripPage() {
   if (tripPageEl.hidden) return;
   placeView = null; // (a good place's dates still on their way are dropped)
+  closeMapPopup();
   tripPageEl.hidden = true;
   tripPageEl.innerHTML = "";
   listViewEls.forEach((el) => (el.hidden = false));
@@ -1683,6 +1685,7 @@ document.addEventListener("click", (event) => {
     const trip = tripFromSelect(select);
     if (trip) {
       setMapOpen(false); // "Select" on the phone's full-screen map
+      if (select.dataset.dest) selectDestination(select.dataset.dest); // (e.g. "See this trip" in a box on the map)
       openTripPage(trip);
       track("select", {
         kind: select.dataset.dest ? "anywhere" : "destination",
@@ -2141,7 +2144,7 @@ function renderMap() {
         ? `<circle class="dot-core" cx="${px(x)}" cy="${px(y)}" r="5.5" fill="#fff" stroke="${T.goodRing}" stroke-width="2.5"></circle>`
         : `<circle class="dot-core" cx="${px(x)}" cy="${px(y)}" r="5.5" fill="${T.meet}" stroke="#fff" stroke-width="2"></circle>`;
       overlay += `
-        <g class="dest-dot" data-code="${esc(r.destination)}">
+        <g class="dest-dot${r.destination === mapPopup && !tripPageEl.hidden ? " is-open" : ""}" data-code="${esc(r.destination)}">
           <circle cx="${px(x)}" cy="${px(y)}" r="13" fill="transparent"></circle>
           ${core}
           <text class="dot-label" x="${px(x + (left ? -12 : 12))}" y="${px(y + 4)}" text-anchor="${left ? "end" : "start"}">${esc(r.destinationName)} · ${priceOn(r)}</text>
@@ -2201,6 +2204,7 @@ function renderMap() {
     ${overlay}`;
   $("map-labels").innerHTML = labels;
   $("map-card").innerHTML = mapIsOverlay() ? mapCardHtml() : "";
+  placeMapPopup(m, w, h);
 
   $("map-hint").textContent = ready && destinations.length > 1 ? "Drag to explore · click a dot to see another place" : `Drag to explore · ${ZOOM_KEY} + scroll to zoom`;
   $("map-legend").hidden = !ready || state.goodPlaces.length === 0;
@@ -2332,10 +2336,86 @@ $("map-reset").addEventListener("click", () => flyMap(null));
 
 // Clicking (not dragging) a dot selects that destination and shows its row
 // (on the full-screen phone map, its card instead).
+// On a trip's (or good place's) page, a dot opens its box instead (below), and
+// a click elsewhere on the map closes it.
 mapSvg.addEventListener("click", (event) => {
-  if (dragged || !tripPageEl.hidden) return;
+  if (dragged) return;
   const dot = event.target.closest(".dest-dot");
-  if (dot) selectDestination(dot.dataset.code, { scrollToRow: !mapIsOverlay() });
+  if (!tripPageEl.hidden) setMapPopup(dot ? dot.dataset.code : null);
+  else if (dot) selectDestination(dot.dataset.code, { scrollToRow: !mapIsOverlay() });
+});
+
+// --- On a trip's (or good place's) page: a dot opens a small box -------------
+// The other places stay on the map as dots. Clicking one opens a box next to
+// it with that place's dates and prices, and a button to its own page — so
+// you can compare without leaving the page you're on. The box follows its dot
+// when the map moves; ×, Escape or a click elsewhere on the map closes it.
+
+let mapPopup = null; // the code of the place whose box is open, or null
+const POPUP_WIDTH = 268;
+
+function mapPopupHtml(r) {
+  const label = (t, i) => esc(state.origins[i]?.label ?? t.origin);
+  const head = `
+    <button type="button" class="mp-close" aria-label="Close">×</button>
+    <div class="mp-kind${r.isGood ? " is-good" : ""}">${r.isGood ? "GOOD PLACE" : "EXACT MATCH"}</div>
+    <div class="mp-title">${esc(r.destinationName)}${r.country ? ` <span>${esc(r.country)}</span>` : ""}</div>`;
+  if (r.isGood) {
+    const each = r.travelers.map((t, i) => `<span class="gp-each-one">${label(t, i)} from ${formatPrice(t.price, state.currency)}</span>`).join(" · ");
+    return `${head}
+      <div class="mp-sub">Cheap for ${groupWords(r.travelers.length).you}, not on the same dates yet${r.directForAll ? " · direct flights" : ""}</div>
+      <div class="mp-each">${each}</div>
+      <div class="mp-total"><small>together from</small> <strong>${formatPrice(r.total, state.currency)}</strong></div>
+      <button type="button" class="select-btn place-btn mp-go" data-dest="${esc(r.destination)}">Choose dates →</button>`;
+  }
+  const people = r.travelers.reduce((sum, t) => sum + t.count, 0);
+  const each = r.travelers.map((t, i) => `<span class="gp-each-one">${label(t, i)} ${formatPrice(t.subtotal, state.currency)}</span>`).join(" · ");
+  return `${head}
+    <div class="mp-sub">${dayLabel(r.departDate)} → ${dayLabel(r.returnDate)} · ${nightsLabel(r.nights)}${r.daysApart ? " · someone a day apart" : ""}</div>
+    <div class="mp-each">${each}</div>
+    <div class="mp-total"><strong>${formatPrice(r.total, state.currency)}</strong> <small>${peopleLabel(people)}</small></div>
+    <button type="button" class="select-btn mp-go" data-dest="${esc(r.destination)}">See this trip →</button>`;
+}
+
+function setMapPopup(code) {
+  const r = code ? mapPlaces().find((x) => x.destination === code) : null;
+  mapPopup = r ? code : null;
+  $("map-popup").innerHTML = r ? mapPopupHtml(r) : "";
+  renderMap();
+}
+
+function closeMapPopup() {
+  mapPopup = null;
+  $("map-popup").hidden = true;
+  $("map-popup").innerHTML = "";
+}
+
+// Next to its dot — on the right, or on the left when there's no room — with
+// its little arrow pointing at the dot. Hidden when the dot is out of view.
+function placeMapPopup(m, w, h) {
+  const box = $("map-popup");
+  const r = mapPopup && !tripPageEl.hidden ? mapPlaces().find((x) => x.destination === mapPopup) : null;
+  const [x, y] = hasCoords(r) ? m.project(r.lat, r.lon) : [-1, -1];
+  const visibleLeft = mapIsBackground() ? document.querySelector(".map-col").getBoundingClientRect().left : 0; // the page covers the rest
+  if (!r || x < visibleLeft || x > w || y < 0 || y > h) {
+    box.hidden = true;
+    return;
+  }
+  const right = x + 18 + POPUP_WIDTH <= w - 8 || x - 18 - POPUP_WIDTH < visibleLeft + 8;
+  box.hidden = false;
+  box.classList.toggle("is-left", !right);
+  const top = clamp(y - box.offsetHeight / 2, 8, Math.max(8, h - box.offsetHeight - 8));
+  box.style.left = `${Math.round(right ? x + 18 : x - 18 - POPUP_WIDTH)}px`;
+  box.style.top = `${Math.round(top)}px`;
+  box.style.setProperty("--arrow-y", `${Math.round(y - top)}px`);
+}
+
+$("map-popup").addEventListener("click", (event) => {
+  if (event.target.closest(".mp-close")) setMapPopup(null);
+  // (Its "See this trip" / "Choose dates" buttons open that page: sections 7d and 7e.)
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && mapPopup) setMapPopup(null);
 });
 
 window.addEventListener("resize", redrawMapSoon);

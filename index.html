@@ -26,7 +26,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-10-30.3">
+  <link rel="stylesheet" href="styles.css?v=2026-10-30.4">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -262,6 +262,8 @@
         <div class="map-layer" id="map-layer">
           <svg id="map" aria-hidden="true"></svg>
           <div id="map-labels"></div>
+          <!-- On a trip's (or good place's) page: the box a dot opens, about that place (app.js) -->
+          <div class="map-popup" id="map-popup" hidden></div>
           <!-- Phones only: the map opens full screen over the list (the "Map" button
                at the bottom of the page), with a way back and a card for the selected place -->
           <button type="button" class="map-close" id="map-close">← List</button>
@@ -299,7 +301,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-10-30.3"></script>
-  <script src="app.js?v=2026-10-30.3"></script>
+  <script src="geo.js?v=2026-10-30.4"></script>
+  <script src="app.js?v=2026-10-30.4"></script>
 </body>
 </html>
