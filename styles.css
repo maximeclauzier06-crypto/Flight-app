@@ -454,10 +454,35 @@ button, input, select { font-family: inherit; }
 .sp-text.is-new { animation: sp-in 0.35s ease-out; }
 @keyframes sp-in { from { opacity: 0; transform: translateY(4px); } }
 .sp-note { margin: 0; color: var(--soft); font-size: 13px; }
+/* ...and grey "ghost" rows the shape of the results to come, with a soft shine */
+.sk-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) 96px; gap: 16px; align-items: center; padding: 20px 24px; border-top: 1px solid var(--line); }
+.sk-rank { width: 36px; height: 36px; border-radius: 50%; }
+.sk-lines, .sk-price { display: flex; flex-direction: column; gap: 9px; }
+.sk-price { align-items: flex-end; }
+.sk-lines i, .sk-price i { display: block; height: 11px; border-radius: 6px; }
+.sk-lines i:nth-child(1) { width: 38%; height: 16px; }
+.sk-lines i:nth-child(2) { width: 72%; }
+.sk-lines i:nth-child(3) { width: 56%; }
+.sk-price i:nth-child(1) { width: 80px; height: 20px; }
+.sk-price i:nth-child(2) { width: 56px; }
+.sk-rank, .sk-lines i, .sk-price i {
+  background: linear-gradient(90deg, var(--line) 0%, var(--tint-strong) 50%, var(--line) 100%); background-size: 200% 100%;
+  animation: sp-shine 1.6s linear infinite;
+}
 @media (prefers-reduced-motion: reduce) {
   .sp-bar span { width: 40%; animation: none; }
   .sp-text.is-new { animation: none; }
+  .sk-rank, .sk-lines i, .sk-price i { animation: none; }
 }
+
+/* No result (or no exact match): a title, one sentence, and a one-tap way on */
+.empty-state { padding: 26px 24px 28px; border-top: 1px solid var(--line); }
+.empty-state strong { display: block; font-family: var(--font-display); font-size: 20px; font-weight: 600; line-height: 1.25; }
+.empty-state p { margin: 6px 0 0; color: var(--soft); font-size: 14px; line-height: 1.5; }
+.empty-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.empty-actions .chip { border-color: var(--action); background: var(--action); color: var(--action-ink); }
+.empty-actions .chip:hover { background: var(--action-hover); }
+.empty-state.is-short { padding-bottom: 20px; } /* above the good places */
 .state-message.is-error { color: #A8431F; }
 .inline-retry { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 .table-note { margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--tint); color: var(--soft); font-size: 12px; }
@@ -469,7 +494,6 @@ button, input, select { font-family: inherit; }
 .pill { border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 800; letter-spacing: 1px; }
 .pill-exact { background: var(--good-tint); color: var(--good); }
 .pill-good { background: var(--tag-bg); color: var(--ink); }
-.section-empty { padding: 16px 24px 20px; border-top: 1px solid var(--line); color: var(--soft); font-size: 14px; line-height: 1.55; }
 .more-row { padding: 16px 24px; border-top: 1px solid var(--line); text-align: center; }
 .more-btn {
   border: 1.5px solid var(--pill-border); border-radius: 999px; padding: 10px 22px; cursor: pointer;
@@ -902,6 +926,11 @@ button, input, select { font-family: inherit; }
   .row .total-sub { margin: 2px 0 8px; }
   .row .select-btn { padding: 8px 12px; }
   .row .times, .row .gap-note { display: none; }
+  .sk-row { grid-template-columns: 30px minmax(0, 1fr) 76px; gap: 10px; padding: 16px; }
+  .sk-rank { width: 30px; height: 30px; }
+  .sk-price i:nth-child(1) { width: 66px; }
+  .search-progress { padding: 24px 16px 26px; }
+  .empty-state { padding: 22px 16px 24px; }
   .row .traveler + .traveler { margin-top: 6px; padding-top: 6px; }
   .trip-box .total-cell { text-align: left; }
   .gap-more { margin-left: 0; }
@@ -916,7 +945,7 @@ button, input, select { font-family: inherit; }
 
   /* Good places: the place and each price on the left, the total and
      "Choose dates →" on the right (the whole row opens the place) */
-  .section-head, .section-empty, .more-row { padding-left: 16px; padding-right: 16px; }
+  .section-head, .more-row { padding-left: 16px; padding-right: 16px; }
   .good-intro, .gp-note { padding-left: 16px; padding-right: 16px; }
   .gp-head { display: none; }
   .gp-row, .gp-list.is-two .gp-row {

@@ -19,6 +19,12 @@ small box next to it — that place's dates and prices — with **See this trip 
 or **Choose dates →** to go to its page. Zoom with + / −, a pinch, or Ctrl (⌘ on a Mac) + scroll;
 "Recentre" brings back the view of every result.
 
+While a search runs, a bar fills and a line changes every few seconds above
+grey "ghost" rows the shape of the results (so the box fills the screen on a
+phone). When a search finds no exact match, one short line says so, with one
+tap for other dates ("Try a full week instead", "Try flexible dates"), and
+the good places follow straight away.
+
 Before the first search, the results box tells the idea in three small
 pictures joined by dotted lines — you live apart → we find the middle → you
 meet there (drawn in `index.html`, coloured by the variables in `styles.css`;
@@ -269,7 +275,7 @@ sends four events through its small `track()` helper:
 
 | Event | When | Details sent |
 |---|---|---|
-| `search` | a search finishes | `source` (bar, gap, stay, currency, retry), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap` (the limit the results are for), `startGap` (the limit it started from, before widening), `found` (exact matches), `good` (good places), `outcome` (results / good-places / none / error) |
+| `search` | a search finishes | `source` (bar, gap, stay, currency, retry, suggest — the "Try a full week instead" button), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap` (the limit the results are for), `startGap` (the limit it started from, before widening), `found` (exact matches), `good` (good places), `outcome` (results / good-places / none / error) |
 | `select` | "Select" opens a trip page | `kind`, `to`, `nights`, `travellers`, `total`, `currency` |
 | `choose-dates` | "Choose dates" opens a good place's page | `to`, `travellers`, `total`, `currency` |
 | `book-click` | a "Book on Aviasales" or "See live prices on Aviasales" press | `kind` (trip / good-place), `from`, `to`, `seats`, `nights` |

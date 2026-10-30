@@ -569,12 +569,16 @@ function searchSteps(params, departures) {
 
 function showProgress(steps) {
   clearInterval(progressTimer);
+  // Under it, grey "ghost" rows the shape of the results to come: the box
+  // keeps its size while you wait (on a phone it fills the screen).
+  const ghost = '<div class="sk-row"><span class="sk-rank"></span><span class="sk-lines"><i></i><i></i><i></i></span><span class="sk-price"><i></i><i></i></span></div>';
   rowsEl.innerHTML = `
     <div class="search-progress">
       <div class="sp-bar" aria-hidden="true"><span></span></div>
       <p class="sp-text" aria-live="off">${esc(steps[0])}</p>
       <p class="sp-note">This can take up to 20 seconds.</p>
-    </div>`;
+    </div>
+    <div class="skeleton" aria-hidden="true">${ghost.repeat(5)}</div>`;
   let step = 0;
   progressTimer = setInterval(() => {
     const text = rowsEl.querySelector(".sp-text");
@@ -634,38 +638,43 @@ async function callSearchFunction(origins, params) {
   return json;
 }
 
-// Turns the function's `debug` block into a plain-English reason for "nothing found".
-function explainEmptyResult(debug, gapHours) {
-  if (!debug) return "No shared destinations found.";
-  const reports = debug.originReports ?? [];
-  const n = debug.travelerCount ?? reports.length;
+// "Nothing found": a title, one sentence, and a one-tap way on. Short on
+// purpose — people want to see straight away what they can do.
+function emptyHtml(title, text, actions = "", { short = false } = {}) {
+  return `<div class="empty-state${short ? " is-short" : ""}"><strong>${title}</strong>${text ? `<p>${text}</p>` : ""}${actions}</div>`;
+}
+const retryHtml = () => '<div class="empty-actions"><button type="button" id="retry-search" class="chip">Try again</button></div>';
 
+// After a search that found little: one tap for other dates — a full week
+// (weeks have the most saved prices, and someone may fly a day apart), or
+// flexible dates instead of exact ones. (Handled in section 6c.)
+function suggestionsHtml() {
+  const p = state.lastSearch?.params;
+  if (!p || p.destination) return "";
+  const offer = p.mode === "specific" ? ["flexible", "Try flexible dates"] : p.nights !== "7" ? ["week", "Try a full week instead"] : null;
+  return offer ? `<div class="empty-actions"><button type="button" class="chip suggest-btn" data-suggest="${offer[0]}">${offer[1]} →</button></div>` : "";
+}
+
+// Why nothing was found, from the function's `debug` block.
+function explainEmptyResult(debug) {
+  const reports = debug?.originReports ?? [];
+  const n = debug?.travelerCount ?? reports.length;
   const broken = reports.find((r) => !r.ok);
   if (broken) {
-    return `Travelpayouts rejected the request for ${esc(broken.code)}${broken.error ? ` (${esc(broken.error)})` : ""} — likely the token isn't set correctly in Edge Function Secrets.`;
+    return emptyHtml("The search couldn't run", `Travelpayouts refused the request for ${esc(broken.code)}${broken.error ? ` (${esc(broken.error)})` : ""}: check the token in the Edge Function Secrets.`);
   }
-  // Is Travelpayouts rate-limiting us? Then "no results" would be misleading.
-  if (debug.rateLimited) {
-    return `The flight-data service is limiting how many requests we can make (too many in a short time). This is temporary — wait about a minute, then <button type="button" id="retry-search" class="inline-retry">try again</button>. Searches get faster and use fewer requests as the server remembers more answers.`;
+  // Rate-limited, or no answer: then "no results" would be misleading.
+  if (debug?.rateLimited) return emptyHtml("The flight data is busy right now", "Too many searches at once — wait a minute and try again.", retryHtml());
+  const tp = debug?.travelpayouts;
+  if (tp && tp.calls > 0 && tp.failed / tp.calls >= 0.1) return emptyHtml("The flight data didn't answer", "A glitch, not a lack of flights — try again in a moment.", retryHtml());
+  if (!debug?.candidatesConsidered) {
+    return emptyHtml(`No place has flights from ${n === 2 ? "both" : "all"} your airports`, "Not in the prices we have. A bigger airport nearby, or the whole city, often helps.");
   }
-  // Did Travelpayouts simply not answer?
-  const tp = debug.travelpayouts;
-  if (tp && tp.calls > 0 && tp.failed / tp.calls >= 0.1) {
-    return `The flight-data service didn't answer ${tp.failed} of ${tp.calls} requests. That is a temporary glitch, not proof that there are no flights — press <strong>Find destinations</strong> again in a moment.`;
-  }
-  if (!debug.candidatesConsidered) {
-    const counts = reports.map((r) => `${esc(r.code)}: ${r.destinations}`).join(", ");
-    return `No destination is reachable from all ${n} departures (cached routes found — ${counts}). Try a bigger city or a different airport for one of them.`;
-  }
-  if (debug.rejectedByTimeGap > 0 && gapHours > 0) {
-    return `There are ${debug.rejectedByTimeGap} dates where everyone has a fare, but the arrival or return times are more than ${gapHours} hours apart. Press <strong>+</strong> next to “Everyone lands within” to allow a bigger gap, or try other dates.`;
-  }
-  const foundNone = reports.every((r) => !r.destinationsWithFares);
-  const hint = foundNone
-    ? "Travelpayouts has no cached fares at all for that stay length — try a different trip length."
-    : "Everyone has some cached fares, they just never land on the same day — try a more common trip length (a full week tends to have more cached data than an odd number of nights).";
-  const groupHint = n >= 3 ? ` With ${n} departures it is much harder for everyone to have a cached fare on the same day; fewer departures, or the ±1 night option, usually helps.` : "";
-  return `Found ${debug.candidatesConsidered} destination${debug.candidatesConsidered === 1 ? "" : "s"} everyone can reach, but no cached fare matches your dates. ${hint}${groupHint}`;
+  return emptyHtml(
+    `No dates work for ${groupWords(n).you} yet`,
+    n >= 3 ? "Everyone needs a flight on the same days — with fewer airports, it finds more." : "We have no saved prices for both of you on the same days.",
+    suggestionsHtml()
+  );
 }
 
 let searchCounter = 0; // so an older, slower search can't overwrite a newer one
@@ -686,7 +695,7 @@ function searchStats(origins, params, source, failed, startGap) {
   const good = failed ? 0 : state.goodPlaces.length;
   const nights = params.weekendOnly ? `${params.nights} nights, weekend` : `${params.nights} nights`;
   return {
-    source, // bar · gap · stay · currency · retry
+    source, // bar · gap · stay · currency · retry · suggest
     kind: params.destination ? "destination" : "anywhere",
     from: origins.map((o) => o.code).join(","),
     to: params.destination ?? "anywhere",
@@ -705,7 +714,7 @@ function searchStats(origins, params, source, failed, startGap) {
 // Searches that widen the time rule by themselves when nothing fits it. Not
 // the − / + buttons (a deliberate choice), nor a currency change (it keeps
 // the limit the search already ended on).
-const WIDEN_SOURCES = new Set(["bar", "stay", "retry"]);
+const WIDEN_SOURCES = new Set(["bar", "stay", "retry", "suggest"]);
 
 // The stay a search asks for, in nights, and whether it is a short one.
 const stayNights = (params) => (params.mode === "specific" ? daysBetween(params.departDate, params.returnDate) : Number(params.nights));
@@ -810,7 +819,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
     state.exactShown = phoneQuery.matches && state.goodPlaces.length > 0 ? EXACT_SHOWN_PHONE : EXACT_SHOWN;
     state.goodShown = GOOD_SHOWN;
     if (json.results.length === 0 && state.goodPlaces.length === 0) {
-      showMessage(explainEmptyResult(json.debug, state.maxGapHours));
+      rowsEl.innerHTML = explainEmptyResult(json.debug);
       renderMap();
       return;
     }
@@ -857,6 +866,28 @@ $("search-form").addEventListener("submit", (event) => {
   }
   setWhenOpen(false);
   runSearch(departures, params, { reveal: true, source: "bar" });
+});
+
+// "Try a full week instead" / "Try flexible dates" (after a search that found
+// little): the "When" pop-up follows, and the same search runs again.
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".suggest-btn");
+  if (!button || !state.lastSearch) return;
+  $("mode-flexible").checked = true;
+  const nights = stayNights(state.lastSearch.params);
+  if (button.dataset.suggest === "week" || nights === 7) durationSelect.value = "week";
+  else {
+    durationSelect.value = "custom";
+    $("custom-nights").value = String(nights);
+  }
+  updateWhenFields();
+  let params;
+  try {
+    params = collectSearchParams();
+  } catch (error) {
+    return showMessage(esc(error.message), true);
+  }
+  runSearch(state.lastSearch.origins, params, { reveal: true, source: "suggest" });
 });
 
 
@@ -1087,13 +1118,9 @@ function moreHtml(kind, left, words) {
   return left > 0 ? `<div class="more-row"><button type="button" class="more-btn" data-more="${kind}">Show ${left} more ${left === 1 ? words[0] : words[1]}</button></div>` : "";
 }
 
-// No exact match, but good places: why, in a sentence.
-function noExactHtml() {
-  const timed = state.debug?.rejectedByTimeGap > 0 && state.maxGapHours > 0;
-  const why = timed
-    ? `in the prices we have, your flights are never on the same days with landings within ${gapLabel(state.maxGapHours)} of each other`
-    : "in the prices we have, your flights are never on the same days";
-  return `<div class="section-empty">No exact match yet — ${why}. The good places below have cheap flights for each of you: choose dates there, and Aviasales shows you the live prices.</div>`;
+// No exact match, but good places: one short line on top, then the good places.
+function noExactHtml(words) {
+  return emptyHtml(`No dates line up for ${words.you} yet`, "But these places have cheap flights for each of you — pick one and choose your dates.", suggestionsHtml(), { short: true });
 }
 
 function renderTable() {
@@ -1106,9 +1133,11 @@ function renderTable() {
   const exactMore = moreHtml("exact", list.length - state.exactShown, ["exact match", "exact matches"]);
   rowsEl.innerHTML = good.length === 0
     ? exactRows + exactMore
-    : `
+    : list.length === 0
+      ? noExactHtml(words) + goodPlacesHtml(good, words, { intro: false })
+      : `
       <div class="section-head"><span class="pill pill-exact">EXACT MATCHES · ${list.length}</span><span>Flights found for ${words.you}, on dates that work together</span></div>
-      ${list.length ? exactRows + exactMore : noExactHtml()}
+      ${exactRows + exactMore}
       ${goodPlacesHtml(good, words)}`;
   $("sort-chips").hidden = list.length < 2; // sorting needs at least two exact matches
 
@@ -1123,7 +1152,8 @@ function renderTable() {
 
 // The good places: each traveller's lowest price there and the total together.
 // With two travellers each gets a column; with more, a line under the place.
-function goodPlacesHtml(good, words) {
+// `intro: false` when the line above already says what they are.
+function goodPlacesHtml(good, words, { intro = true } = {}) {
   const two = state.origins.length === 2;
   const head = two
     ? `<span>Place</span>${state.origins.map((o) => `<span>${esc(o.label)}</span>`).join("")}<span>Together</span><span></span>`
@@ -1134,7 +1164,7 @@ function goodPlacesHtml(good, words) {
   return `
     <div class="good-places">
       <div class="section-head"><span class="pill pill-good">GOOD PLACES FOR ${words.you.toUpperCase()} · ${good.length}</span></div>
-      <p class="good-intro">Cheap flights from ${words.cities} — just not on dates that work together yet. Choose a place, pick dates that suit you ${words.both}, and see the live prices on Aviasales.</p>
+      ${intro ? `<p class="good-intro">Cheap flights from ${words.cities} — just not on dates that work together yet. Choose a place, pick dates that suit you ${words.both}, and see the live prices on Aviasales.</p>` : ""}
       <div class="gp-list${two ? " is-two" : ""}">
         <div class="gp-head">${head}</div>
         ${good.slice(0, state.goodShown).map((g) => goodRowHtml(g, two, words)).join("")}
