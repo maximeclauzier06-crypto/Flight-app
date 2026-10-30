@@ -26,8 +26,9 @@ shown, then "Show N more places"; on the map they are hollow dots). **Choose
 dates →** opens that place's page: the coming weekends (or weeks) as cards
 with everyone's cheapest prices added up, or your own dates on a calendar —
 then each traveller has a **See live prices on Aviasales** button (the same
-partner link as Book). On phones only 3 exact matches show before "Show
-more", so the good places stay close, and a good place's row opens its page.
+partner link as Book). On phones, when there are good places, only 3 exact
+matches show before "Show more", so the good places stay close; a good
+place's row opens its page.
 
 Right above the results, **"Everyone lands within − 3 h +"** sets how far
 apart everyone may land (and fly home). It appears with the first results.
@@ -52,7 +53,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-10-30.1`): change
+`index.html` links our files with a version (`styles.css?v=2026-10-30.2`): change
 that date in all three links whenever `styles.css`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.

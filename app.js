@@ -65,7 +65,7 @@ const SHORT_STAY_NIGHTS = 3;
 const SHORT_STAY_MAX_GAP = 4;
 
 // How many rows the results show before a "Show N more" button: exact matches
-// (fewer on phones, so the good places aren't far down), then good places.
+// (fewer on phones when good places follow, so they aren't far down), then good places.
 const EXACT_SHOWN = 10;
 const EXACT_SHOWN_PHONE = 3;
 const GOOD_SHOWN = 8;
@@ -740,7 +740,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
     state.results = json.results;
     // (An older search function sends no good places: then there are none.)
     state.goodPlaces = (json.goodPlaces ?? []).map((g) => ({ ...g, isGood: true }));
-    state.exactShown = phoneQuery.matches ? EXACT_SHOWN_PHONE : EXACT_SHOWN;
+    state.exactShown = phoneQuery.matches && state.goodPlaces.length > 0 ? EXACT_SHOWN_PHONE : EXACT_SHOWN;
     state.goodShown = GOOD_SHOWN;
     if (json.results.length === 0 && state.goodPlaces.length === 0) {
       showMessage(explainEmptyResult(json.debug, state.maxGapHours));
