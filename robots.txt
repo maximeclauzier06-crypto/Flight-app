@@ -1,0 +1,7 @@
+# Search engines may read the whole site (tools/ only holds the page the
+# link-preview picture is made from). The list of pages is in the sitemap.
+User-agent: *
+Allow: /
+Disallow: /tools/
+
+Sitemap: https://halfwaytrips.com/sitemap.xml

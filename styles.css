@@ -412,6 +412,33 @@ button, input, select { font-family: inherit; }
 
 .state-message { padding: 36px 24px; color: var(--soft); font-size: 15px; line-height: 1.6; border-top: 1px solid var(--line); }
 
+/* ---------- The story: before the first search, the idea in three small
+   pictures joined by dotted lines (in index.html; a search replaces it) ---------- */
+
+.story { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 34px; margin: 0; padding: 26px 24px 30px; list-style: none; border-top: 1px solid var(--line); }
+.story li { text-align: center; }
+.story-pic { position: relative; }
+.story-pic svg { display: block; width: 100%; height: auto; border-radius: 16px; background: var(--tint-strong); }
+/* The dotted line from the picture before */
+.story li + li .story-pic::before {
+  content: ""; position: absolute; top: calc(50% - 2px); left: -34px; width: 34px; height: 4px;
+  background: radial-gradient(circle, var(--action) 2px, transparent 2.5px) 0 0 / 8px 4px repeat-x;
+}
+.story strong { display: block; margin-top: 12px; font-family: var(--font-display); font-size: 17px; font-weight: 600; }
+.story span { display: block; margin-top: 2px; color: var(--soft); font-size: 13px; line-height: 1.45; }
+.st-a { fill: var(--c0); }
+.st-b { fill: var(--c1); }
+.st-sun { fill: var(--action); }
+.st-home { fill: var(--bar); }
+.st-home-2 { fill: var(--pill-border); }
+.st-ring { fill: #fff; stroke: var(--map-good); stroke-width: 2.5; }
+.st-pin { stroke: #fff; stroke-width: 3; }
+.st-gap { fill: none; stroke: var(--placeholder); stroke-width: 2; stroke-dasharray: 3 5; }
+.st-route { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 0.1 7; }
+.st-route-a { stroke: var(--c0); }
+.st-route-b { stroke: var(--c1); }
+.st-label { fill: var(--ink); font-family: var(--font-body); font-size: 12px; font-weight: 800; }
+
 /* While a search runs (app.js showProgress): a bar that slowly fills, with a
    soft shine moving along it, and a line that changes every few seconds */
 .search-progress { padding: 30px 24px 34px; border-top: 1px solid var(--line); }
@@ -903,6 +930,17 @@ button, input, select { font-family: inherit; }
   .gp-from-wide { display: none; }
   .gp-from-phone { display: block; font-size: 11px; }
   .gp-go, .gp-go:hover, .gp-row.is-selected .gp-go { grid-area: go; align-self: start; border: 0; padding: 0; background: none; color: var(--accent); font-size: 12px; }
+
+  /* The story: one row per picture (picture left, words right), joined by
+     dots going down; the labels in the pictures a little bigger */
+  .story { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 20px 16px 24px; }
+  .story li { display: grid; grid-template-columns: 132px minmax(0, 1fr); align-items: center; gap: 14px; text-align: left; }
+  .story li + li .story-pic::before {
+    top: -18px; left: calc(50% - 2px); width: 4px; height: 18px;
+    background: radial-gradient(circle, var(--action) 2px, transparent 2.5px) 0 0 / 4px 8px repeat-y;
+  }
+  .story strong { margin-top: 0; font-size: 16px; }
+  .st-label { font-size: 15px; }
 
   /* A good place's page: the steps use the whole width */
   .pp-step > :not(.pp-step-head) { margin-left: 0; }

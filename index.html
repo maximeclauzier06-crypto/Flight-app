@@ -26,7 +26,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-10-30.4">
+  <link rel="stylesheet" href="styles.css?v=2026-10-30.6">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -212,7 +212,8 @@
         <div class="table-top">
           <h2 id="results-title">Ranked meeting spots</h2>
           <p id="results-subtitle">Dates that work for everyone · cheapest total first</p>
-          <div class="chips" id="sort-chips">
+          <!-- Sorting: shown once there are at least two exact matches to sort -->
+          <div class="chips" id="sort-chips" hidden>
             <button type="button" class="chip is-selected" data-sort="cheapest">Cheapest</button>
             <button type="button" class="chip" data-sort="fastest">Fastest</button>
             <button type="button" class="chip" data-sort="stops">Fewest stops</button>
@@ -246,10 +247,67 @@
 
         <!-- Rows are drawn here by app.js: the exact matches, then the good places -->
         <div id="table-rows" aria-live="polite">
-          <div class="state-message">Enter your departures above (add more with <strong>+ Add a departure</strong>) and press <strong>Find destinations</strong> to see where you can meet.</div>
+          <!-- Before the first search: the idea in three small pictures, joined by
+               dotted lines (colours: the variables in styles.css, "The story") -->
+          <ol class="story" aria-label="How it works, in three steps">
+            <li>
+              <div class="story-pic">
+                <svg viewBox="0 0 196 150" aria-hidden="true">
+                  <rect class="st-home" x="20" y="104" width="44" height="26" rx="3"></rect>
+                  <rect class="st-home-2" x="28" y="90" width="12" height="40" rx="2"></rect>
+                  <rect class="st-home" x="44" y="96" width="14" height="34" rx="2"></rect>
+                  <circle class="st-a" cx="48" cy="52" r="11"></circle>
+                  <path class="st-a" d="M32 90 Q32 66 48 66 Q64 66 64 90 Z"></path>
+                  <rect class="st-home" x="132" y="102" width="46" height="28" rx="3"></rect>
+                  <path class="st-home-2" d="M138 102 L155 86 L172 102 Z"></path>
+                  <circle class="st-b" cx="148" cy="52" r="11"></circle>
+                  <path class="st-b" d="M132 90 Q132 66 148 66 Q164 66 164 90 Z"></path>
+                  <path class="st-gap" d="M72 58 H124"></path>
+                  <text class="st-label" x="48" y="26" text-anchor="middle">Stockholm</text>
+                  <text class="st-label" x="148" y="26" text-anchor="middle">Brussels</text>
+                </svg>
+              </div>
+              <div><strong>You live apart</strong><span>Add your airport and theirs</span></div>
+            </li>
+            <li>
+              <div class="story-pic">
+                <svg viewBox="0 0 196 150" aria-hidden="true">
+                  <circle class="st-ring" cx="38" cy="96" r="4"></circle>
+                  <circle class="st-ring" cx="150" cy="120" r="4"></circle>
+                  <circle class="st-ring" cx="128" cy="72" r="4"></circle>
+                  <circle class="st-ring" cx="66" cy="128" r="4"></circle>
+                  <path class="st-route st-route-a" d="M58 32 Q58 87 98 104"></path>
+                  <path class="st-route st-route-b" d="M168 50 Q158 92 98 104"></path>
+                  <circle class="st-a st-pin" cx="58" cy="32" r="7"></circle>
+                  <circle class="st-b st-pin" cx="168" cy="50" r="7"></circle>
+                  <circle class="st-sun" cx="98" cy="104" r="20" opacity="0.3"></circle>
+                  <circle class="st-sun st-pin" cx="98" cy="104" r="9"></circle>
+                  <rect class="st-sun" x="104" y="118" width="66" height="24" rx="12"></rect>
+                  <text class="st-label" x="137" y="134" text-anchor="middle">Milan</text>
+                </svg>
+              </div>
+              <div><strong>We find the middle</strong><span>The same dates, the cheapest for both of you</span></div>
+            </li>
+            <li>
+              <div class="story-pic">
+                <svg viewBox="0 0 196 150" aria-hidden="true">
+                  <path class="st-sun" d="M36 150 A62 62 0 0 1 160 150 Z" opacity="0.45"></path>
+                  <circle class="st-a" cx="80" cy="62" r="11"></circle>
+                  <path class="st-a" d="M64 100 Q64 76 80 76 Q96 76 96 100 Z"></path>
+                  <circle class="st-b" cx="116" cy="62" r="11"></circle>
+                  <path class="st-b" d="M100 100 Q100 76 116 76 Q132 76 132 100 Z"></path>
+                  <path class="st-a" d="M98 32 c-4 -6 -12 -2 -8 4 l8 8 l8 -8 c4 -6 -4 -10 -8 -4 z"></path>
+                  <rect class="st-home" x="54" y="104" width="92" height="8" rx="4"></rect>
+                  <text class="st-label" x="98" y="138" text-anchor="middle">Milan</text>
+                </svg>
+              </div>
+              <div><strong>You meet there</strong><span>Each of you books on Aviasales</span></div>
+            </li>
+          </ol>
         </div>
 
-        <p class="table-note">≈ means estimated. The free price data only has departure times, so arrival times and flight durations are worked out from distance and time zones. Prices come from recent searches, so the live price on Aviasales can be a little different.</p>
+        <!-- (shown from the first search on: before it, there is nothing to explain) -->
+        <p class="table-note" id="table-note" hidden>≈ means estimated. The free price data only has departure times, so arrival times and flight durations are worked out from distance and time zones. Prices come from recent searches, so the live price on Aviasales can be a little different.</p>
       </div>
 
       <!-- The trip page: shown instead of the list after "Select" (filled by app.js) -->
@@ -301,7 +359,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-10-30.4"></script>
-  <script src="app.js?v=2026-10-30.4"></script>
+  <script src="geo.js?v=2026-10-30.6"></script>
+  <script src="app.js?v=2026-10-30.6"></script>
 </body>
 </html>

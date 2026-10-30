@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page not found — Halfway Trips</title>
+  <!-- GitHub Pages shows this page for any address that doesn't exist, at that
+       address (e.g. /old/link) — so every link and file here starts with "/". -->
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=Manrope:wght@400;600;700;800&amp;display=swap">
+  <link rel="stylesheet" href="/styles.css?v=2026-10-30.6">
+  <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal
+       (it also shows which wrong addresses people arrive at) -->
+  <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
+</head>
+<body>
+
+  <header class="nav">
+    <a class="brand" href="/">
+      <svg width="44" height="32" viewBox="2 8 44 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path class="logo-route logo-route-a" d="M8 34 Q13 19 24 19"></path>
+        <path class="logo-route logo-route-b" d="M40 34 Q35 19 24 19"></path>
+        <circle class="logo-a" cx="8" cy="35" r="4.5"></circle>
+        <circle class="logo-b" cx="40" cy="35" r="4.5"></circle>
+        <circle class="logo-meet" cx="24" cy="19" r="10" opacity="0.3"></circle>
+        <circle class="logo-meet" cx="24" cy="19" r="6"></circle>
+      </svg>
+      <span>Halfway Trips</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/how-it-works.html">How it works</a>
+      <a href="/destinations.html">Destinations</a>
+      <a href="/about.html">About</a>
+      <a class="btn-signin btn-cta" href="/">Find a trip</a>
+      <!-- Phones: the page links fold into this small menu (☰) -->
+      <details class="nav-menu">
+        <summary aria-label="Menu">
+          <svg class="nav-menu-open" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+          <svg class="nav-menu-close" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+        </summary>
+        <div class="nav-menu-panel">
+          <a href="/how-it-works.html">How it works</a>
+          <a href="/destinations.html">Destinations</a>
+          <a href="/about.html">About</a>
+          <a href="/contact.html">Contact</a>
+        </div>
+      </details>
+    </nav>
+  </header>
+  <script>
+    // The phone menu (☰) also closes with a tap outside it, or Escape.
+    (() => {
+      const menu = document.querySelector(".nav-menu");
+      document.addEventListener("click", (event) => {
+        if (menu.open && !menu.contains(event.target)) menu.open = false;
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && menu.open) {
+          menu.open = false;
+          menu.querySelector("summary").focus();
+        }
+      });
+    })();
+  </script>
+
+  <main>
+    <section class="page-hero">
+      <div class="hero-badge">PAGE NOT FOUND</div>
+      <h1>This route doesn't go anywhere</h1>
+      <p>The page you're looking for isn't here — maybe the link is old, or a letter went missing.</p>
+    </section>
+
+    <article class="doc">
+      <p class="lead">Let's get you back on track.</p>
+      <div class="cta-box">
+        <p>Find where you can meet in the middle</p>
+        <a class="btn" href="/">Find a trip <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="small" style="margin-top: 22px;">Or have a look at <a href="/how-it-works.html">how it works</a>, the <a href="/destinations.html">destinations</a>, or <a href="/contact.html">tell us</a> which link brought you here.</p>
+    </article>
+  </main>
+
+  <footer class="page-footer">
+    <span>Halfway Trips — find where you and someone else can meet. Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span>
+    <span class="footer-links"><a href="/how-it-works.html">How it works</a><a href="/destinations.html">Destinations</a><a href="/about.html">About</a><a href="/privacy.html">Privacy</a><a href="/contact.html">Contact</a></span>
+  </footer>
+
+</body>
+</html>

@@ -761,6 +761,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
   updateWarning();
   renderGapBar();
   showProgress(searchSteps(params, origins.length));
+  $("table-note").hidden = false; // the note about estimated times, from now on
   searchButton.disabled = true;
   // From the bar: bring the results box (and its progress bar) into view
   // straight away — on a phone the search bar fills the screen, and without
@@ -1062,7 +1063,7 @@ function rowHtml(r, index, currency) {
 // Two ways to show results in the same box: the ranked table of places, or —
 // with a destination chosen — the weekends strip and its options.
 function setResultsMode(trip) {
-  $("sort-chips").hidden = trip;
+  $("sort-chips").hidden = true; // (renderTable shows them when there's something to sort)
   $("trip-chips").hidden = !trip;
   if (!trip) $("results-title").textContent = "Ranked meeting spots";
 }

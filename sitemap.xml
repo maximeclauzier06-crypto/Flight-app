@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The pages search engines should know about (robots.txt points here).
+     Add a line when a page is added; update lastmod when a page's text changes. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://halfwaytrips.com/</loc><lastmod>2026-10-30</lastmod></url>
+  <url><loc>https://halfwaytrips.com/how-it-works.html</loc><lastmod>2026-10-30</lastmod></url>
+  <url><loc>https://halfwaytrips.com/destinations.html</loc><lastmod>2026-10-30</lastmod></url>
+  <url><loc>https://halfwaytrips.com/about.html</loc><lastmod>2026-10-30</lastmod></url>
+  <url><loc>https://halfwaytrips.com/privacy.html</loc><lastmod>2026-10-30</lastmod></url>
+  <url><loc>https://halfwaytrips.com/contact.html</loc><lastmod>2026-10-30</lastmod></url>
+</urlset>
