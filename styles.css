@@ -51,6 +51,7 @@
   --map-land: #FFFDF8;
   --map-borders: rgba(90, 60, 30, 0.15);
   --map-grid: rgba(90, 60, 30, 0.05);
+  --map-good: #D99A2B;      /* the ring of a "good place" dot (exact matches are full mustard dots) */
 
   /* One colour per departure (1st = you, 2nd = them, ... up to 8):
      the dots in the table, the avatars, the routes and pins on the map */
@@ -323,14 +324,10 @@ button, input, select { font-family: inherit; }
 .gap-more { margin-left: auto; border: 0; padding: 0; background: none; cursor: pointer; color: var(--accent); font-size: 12.5px; font-weight: 800; }
 .gap-more:hover { text-decoration: underline; }
 
-.table-head, .row {
+.row {
   display: grid; grid-template-columns: 36px 160px minmax(0, 1fr) 104px; column-gap: 16px; align-items: center;
-  padding: 0 24px;
+  padding: 20px 24px; border-top: 1px solid var(--line); background: #fff; cursor: pointer;
 }
-.table-head { padding-top: 11px; padding-bottom: 11px; background: var(--tint); color: var(--soft); font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; }
-.table-head .right { text-align: right; }
-
-.row { padding-top: 20px; padding-bottom: 20px; border-top: 1px solid var(--line); background: #fff; cursor: pointer; }
 .row:hover { background: var(--row-hover); }
 .row.is-selected { background: var(--tint-strong); }
 .rank {
@@ -398,6 +395,54 @@ button, input, select { font-family: inherit; }
 .state-message.is-error { color: #A8431F; }
 .inline-retry { border: 0; padding: 0; background: none; color: var(--accent); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
 .table-note { margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--tint); color: var(--soft); font-size: 12px; }
+
+/* ---------- Two kinds of results: exact matches, then good places ---------- */
+
+.section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; padding: 18px 24px 12px; border-top: 1px solid var(--line); }
+.section-head > span:not(.pill) { color: var(--soft); font-size: 13px; }
+.pill { border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 800; letter-spacing: 1px; }
+.pill-exact { background: var(--good-tint); color: var(--good); }
+.pill-good { background: var(--tag-bg); color: var(--ink); }
+.section-empty { padding: 16px 24px 20px; border-top: 1px solid var(--line); color: var(--soft); font-size: 14px; line-height: 1.55; }
+.more-row { padding: 16px 24px; border-top: 1px solid var(--line); text-align: center; }
+.more-btn {
+  border: 1.5px solid var(--pill-border); border-radius: 999px; padding: 10px 22px; cursor: pointer;
+  background: #fff; color: var(--ink); font-size: 14px; font-weight: 800;
+}
+.more-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.good-places { border-top: 6px solid var(--page); }
+.good-places .section-head { border-top: 0; padding-top: 24px; }
+.good-intro { margin: 0; padding: 0 24px 16px; color: var(--ink); font-size: 14px; line-height: 1.55; }
+/* Place · (each traveller's price, with two travellers) · together · "Choose dates" */
+/* (fixed widths, so the heading row and every row line up) */
+.gp-head, .gp-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 142px; column-gap: 12px; align-items: center; padding: 0 24px; }
+.gp-list.is-two .gp-head, .gp-list.is-two .gp-row { grid-template-columns: minmax(0, 1fr) 92px 92px 104px 142px; }
+.gp-head { padding-top: 11px; padding-bottom: 11px; background: var(--tint); color: var(--soft); font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; }
+.gp-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gp-row { padding-top: 14px; padding-bottom: 14px; border-top: 1px solid var(--line); background: #fff; cursor: pointer; }
+.gp-row:hover { background: var(--row-hover); }
+.gp-row.is-selected { background: var(--tint-strong); }
+.gp-name { font-family: var(--font-display); font-size: 19px; font-weight: 600; line-height: 1.2; }
+.gp-name span { color: var(--soft); font-family: var(--font-body); font-size: 12px; font-weight: 600; }
+.gp-each { margin-top: 3px; color: var(--soft); font-size: 12px; }
+.gp-each b { color: var(--ink); }
+.gp-each-one { white-space: nowrap; } /* "Brussels from 32 €" stays on one line */
+.gp-list.is-two .gp-each { display: none; } /* two travellers: their prices have columns */
+.gp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.gp-tag { border-radius: 999px; padding: 2px 8px; background: var(--tint); color: var(--soft); font-size: 10px; font-weight: 800; letter-spacing: 0.6px; }
+.gp-tag.is-direct { background: var(--good-tint); color: var(--good); }
+.gp-col, .gp-together { color: var(--soft); font-size: 13px; white-space: nowrap; }
+.gp-col b { font-family: var(--font-display); font-size: 17px; color: var(--ink); }
+.gp-col small, .gp-each small { font-size: 11px; }
+.gp-together b { font-family: var(--font-display); font-size: 22px; color: var(--ink); }
+.gp-from-phone { display: none; }
+.gp-go {
+  justify-self: end; border: 1.5px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  background: #fff; color: var(--accent); font-size: 13px; font-weight: 800; white-space: nowrap;
+}
+.gp-go:hover, .gp-row.is-selected .gp-go { border-color: var(--action); background: var(--action); color: var(--action-ink); }
+.gp-note { margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--tint); color: var(--soft); font-size: 12px; line-height: 1.55; }
 
 /* ---------- One destination: the weekends strip, the other days, the trip ---------- */
 
@@ -496,6 +541,45 @@ button, input, select { font-family: inherit; }
   background: var(--tint-strong); color: var(--soft); font-size: 14px; text-align: center;
 }
 
+/* ---------- A good place (after "Choose dates"): 1 choose dates, 2 the live prices ---------- */
+
+.pp-step-head { display: flex; align-items: center; gap: 12px; }
+.pp-step-head h3 { margin: 0; }
+.pp-num {
+  flex: none; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--action); color: var(--action-ink); font-family: var(--font-display); font-size: 15px; font-weight: 700;
+}
+/* Everything in a step lines up after its number */
+.pp-step > :not(.pp-step-head) { margin-left: 42px; }
+.pp-sub { margin-top: 8px; margin-bottom: 16px; color: var(--soft); font-size: 14px; }
+.pp-stays { margin-bottom: 16px; }
+.pp-weeks { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; }
+.pp-week {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
+  border: 1px solid var(--line); border-radius: 16px; padding: 12px; cursor: pointer;
+  background: #fff; color: var(--ink); font: inherit;
+}
+.pp-week:hover { border-color: var(--pill-border); background: var(--row-hover); }
+.pp-week.is-selected { border: 2px solid var(--accent); padding: 11px; background: var(--tint-strong); }
+.pp-week.is-empty { border-style: dashed; border-color: var(--pill-border); color: var(--soft); }
+.pp-week.is-empty.is-selected { border-style: solid; border-color: var(--accent); }
+.pp-week-dates { font-size: 13px; font-weight: 800; white-space: nowrap; }
+.pp-week-days { color: var(--soft); font-size: 11px; }
+.pp-week-price { margin-top: 6px; font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+.pp-week.is-empty .pp-week-price { font-family: var(--font-body); font-size: 13px; }
+.pp-week.is-selected .pp-week-price { color: var(--accent); }
+.pp-week-tag { color: var(--good); font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
+.pp-chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 16px; padding: 12px 16px; border-radius: 14px; background: var(--tint); font-size: 14px; }
+.pp-link { border: 0; padding: 0; background: none; cursor: pointer; color: var(--accent); font: inherit; font-size: 13px; font-weight: 800; }
+.pp-link:hover { text-decoration: underline; }
+.pp-custom { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pp-custom input { border: 1.5px solid var(--line); border-radius: 10px; padding: 7px 10px; background: #fff; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; }
+.pp-custom > span { color: var(--soft); font-size: 13px; }
+.pp-note { margin-top: 12px; margin-bottom: 0; color: var(--soft); font-size: 13px; }
+.pp-note.is-error { color: #A8431F; }
+.pp-loading { margin: 0; padding: 18px 0; color: var(--soft); font-size: 14px; }
+.pp-tip { margin-top: 6px; margin-bottom: 0; padding: 12px 14px; border-radius: 12px; background: var(--tint-strong); color: var(--soft); font-size: 12px; line-height: 1.55; }
+
 /* ---------- The map: behind the whole page on wide screens ---------- */
 
 .map-col { min-width: 0; }
@@ -524,6 +608,15 @@ button, input, select { font-family: inherit; }
   border-radius: 999px; padding: 8px 14px; background: #fff; color: var(--ink); white-space: nowrap;
   font-size: 12px; font-weight: 700; box-shadow: 0 6px 16px rgba(var(--shadow), 0.16);
 }
+/* "● Exact match  ○ Good place, choose dates" — just above the hint and the zoom */
+.map-legend {
+  position: absolute; right: 0; bottom: calc(100% + 10px);
+  display: flex; gap: 14px; border-radius: 999px; padding: 8px 14px; background: #fff; color: var(--ink); white-space: nowrap;
+  font-size: 12px; font-weight: 700; box-shadow: 0 6px 16px rgba(var(--shadow), 0.16);
+}
+.map-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.lg-exact { width: 11px; height: 11px; border-radius: 50%; background: var(--action); }
+.lg-good { width: 10px; height: 10px; border-radius: 50%; border: 2.5px solid var(--map-good); background: #fff; }
 .map-reset {
   border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer;
   background: #fff; color: var(--accent); font: inherit; font-size: 12px; font-weight: 800;
@@ -697,7 +790,6 @@ button, input, select { font-family: inherit; }
   .table-top h2 { font-size: 26px; }
   .chip { padding: 7px 13px; font-size: 12px; }
   .gap-bar { margin: 0 16px 14px; }
-  .table-head { display: none; }
   .row {
     grid-template-columns: 30px minmax(0, 1fr) auto;
     grid-template-areas: "rank dest total" "rank journeys journeys";
@@ -722,7 +814,32 @@ button, input, select { font-family: inherit; }
   .tp-flight { grid-template-columns: minmax(0, 1fr); }
   .tp-buy { text-align: left; }
   .alts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .map-hint { display: none; }
+  .map-hint, .map-legend { display: none; }
+
+  /* Good places: the place and each price on the left, the total and
+     "Choose dates →" on the right (the whole row opens the place) */
+  .section-head, .section-empty, .more-row { padding-left: 16px; padding-right: 16px; }
+  .good-intro, .gp-note { padding-left: 16px; padding-right: 16px; }
+  .gp-head { display: none; }
+  .gp-row, .gp-list.is-two .gp-row {
+    grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "place together" "place go";
+    column-gap: 10px; row-gap: 4px; padding: 14px 16px;
+  }
+  .gp-place { grid-area: place; }
+  .gp-col { display: none; }
+  .gp-list.is-two .gp-each { display: block; }
+  .gp-together { grid-area: together; text-align: right; }
+  .gp-from-wide { display: none; }
+  .gp-from-phone { display: block; font-size: 11px; }
+  .gp-go, .gp-go:hover, .gp-row.is-selected .gp-go { grid-area: go; align-self: start; border: 0; padding: 0; background: none; color: var(--accent); font-size: 12px; }
+
+  /* A good place's page: the steps use the whole width */
+  .pp-step > :not(.pp-step-head) { margin-left: 0; }
+  .pp-step-head h3 { font-size: 21px; }
+  /* The coming weeks: one row you swipe sideways (app.js keeps the chosen one in view) */
+  .pp-weeks { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px; }
+  .pp-week { flex: 0 0 auto; min-width: 104px; padding: 10px; scroll-snap-align: start; }
+  .pp-week.is-selected { padding: 9px; }
   .page-footer { flex-direction: column; align-items: flex-start; }
 
   /* The other pages */

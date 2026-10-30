@@ -17,6 +17,18 @@ map: hover it for the city and total price, click it to select that
 destination. Zoom with + / −, a pinch, or Ctrl (⌘ on a Mac) + scroll;
 "Recentre" brings back the view of every result.
 
+The results come in **two kinds**. **Exact matches**: flights for everyone on
+dates that work together ("Select" → the trip page with the Book buttons).
+**Good places for both of you**: everyone has a cheap flight there, just not
+on the same dates in the prices we have — each traveller's lowest price and
+the total together, with "DIRECT FROM BOTH" / "CHEAPEST IN NOV" tags (8
+shown, then "Show N more places"; on the map they are hollow dots). **Choose
+dates →** opens that place's page: the coming weekends (or weeks) as cards
+with everyone's cheapest prices added up, or your own dates on a calendar —
+then each traveller has a **See live prices on Aviasales** button (the same
+partner link as Book). On phones only 3 exact matches show before "Show
+more", so the good places stay close, and a good place's row opens its page.
+
 Right above the results, **"Everyone lands within − 3 h +"** sets how far
 apart everyone may land (and fly home). It appears with the first results.
 A search that finds nothing within 3 h widens the limit by itself — 4 h,
@@ -40,7 +52,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-10-19`): change
+`index.html` links our files with a version (`styles.css?v=2026-10-30.1`): change
 that date in all three links whenever `styles.css`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
@@ -54,10 +66,10 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 | `favicon.svg` | The browser-tab icon (the logo on cream, with thicker dots) | Its colours are written in the file itself |
 | `CNAME` | The site's domain for GitHub Pages | Only if the domain changes |
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-bg`, `--action`, `--accent`...). Change them and the whole site follows. |
-| `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the table, the trip page after "Select" (with the "Book on Aviasales" buttons), the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`); the trip page is section 7d |
+| `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the results (exact matches, then good places), the trip page after "Select" (with the "Book on Aviasales" buttons), a good place's page after "Choose dates", the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`, how many rows show before "Show more": `EXACT_SHOWN`, `EXACT_SHOWN_PHONE`, `GOOD_SHOWN`); the trip page is section 7d, a good place's page 7e |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
 | `geo.js` | The flat world map: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--map-sea`, `--map-land`, `--map-borders`, `--map-grid` in `styles.css` |
-| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | At the top: `MAX_DESTINATIONS`, `MAX_STOPS`, `DEFAULT_MAX_GAP_HOURS`, `DAY_APART_FROM_NIGHTS`, `DAY_APART_PENALTY_USD`, `MAX_CALLS_PER_SEARCH`, `QUOTA_RESERVE`, `CACHE_TTL_MS`; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
+| `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | At the top: `MAX_DESTINATIONS`, `MAX_GOOD_PLACES`, `MAX_STOPS`, `DEFAULT_MAX_GAP_HOURS`, `DAY_APART_FROM_NIGHTS`, `DAY_APART_PENALTY_USD`, `MAX_CALLS_PER_SEARCH`, `QUOTA_RESERVE`, `CACHE_TTL_MS`; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
 
 ## How a search works
 
@@ -104,6 +116,16 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 4. **Widening (short stays, fewer than 6 matches):** it also tries the whole
    group a night shorter/longer (the "±1 night" checkbox). Rows show the real
    number of nights. The page gets the 50 cheapest places (`MAX_RESULTS`).
+5. **Good places:** every other destination where **each** traveller has a
+   fare for this kind of trip (direct or one stop, in the months searched —
+   or around your dates), just not on days or at times that work together.
+   From what the function already knows, so no extra requests: each
+   traveller's lowest price, whether a direct flight exists (also from phase
+   1), and the cheapest month for everyone together when there is a choice.
+   The page gets the 100 cheapest (`MAX_GOOD_PLACES`). A good place's page
+   then makes a one-destination search (below), whose answer also gives each
+   traveller's cheapest fare around every weekend or week (`each`), even when
+   no day works for everyone.
 
 ### Searching towards one destination ("Going to")
 
@@ -233,13 +255,14 @@ and nothing personal, so no cookie banner is needed. The script is in the
 computer is never counted.
 
 Besides visits (pages, countries, devices, where people came from), `app.js`
-sends three events through its small `track()` helper:
+sends four events through its small `track()` helper:
 
 | Event | When | Details sent |
 |---|---|---|
-| `search` | a search finishes | `source` (bar, gap, stay, currency, retry), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap` (the limit the results are for), `startGap` (the limit it started from, before widening), `found`, `outcome` (results / none / error) |
+| `search` | a search finishes | `source` (bar, gap, stay, currency, retry), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap` (the limit the results are for), `startGap` (the limit it started from, before widening), `found` (exact matches), `good` (good places), `outcome` (results / good-places / none / error) |
 | `select` | "Select" opens a trip page | `kind`, `to`, `nights`, `travellers`, `total`, `currency` |
-| `book-click` | a "Book on Aviasales" press | `from`, `to`, `seats`, `nights` |
+| `choose-dates` | "Choose dates" opens a good place's page | `to`, `travellers`, `total`, `currency` |
+| `book-click` | a "Book on Aviasales" or "See live prices on Aviasales" press | `kind` (trip / good-place), `from`, `to`, `seats`, `nights` |
 
 Compare `book-click` with the clicks and sales in Travelpayouts. To keep your
 own visits out, open the console (F12) on the live site once per browser and

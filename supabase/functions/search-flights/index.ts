@@ -23,10 +23,15 @@
 //      Only direct flights and flights with one stop are used (MAX_STOPS).
 //   3. Short stays with only a few matches also try the whole group a night
 //      shorter / longer.
+//   4. "Good places": the destinations where everyone has a cheap flight for
+//      this kind of trip, just not on days (or at times) that work together —
+//      each traveller's lowest price, for the page to offer "choose dates".
 //   OR, when the destination is already chosen (`destination=LIS`): it
 //   compares DATES instead of places — the next TRIP_WEEKS weekends (or weeks),
 //   each with a few variations (leave a day earlier, come back a day later...),
-//   cheapest first. Same time rule, and far fewer calls.
+//   cheapest first. Same time rule, and far fewer calls. Each weekend (or week)
+//   also gives every traveller's cheapest fare on their own (`each`), so a good
+//   place's dates can be compared even when no day works for everyone.
 //   AND (`book=1`): makes the Travelpayouts partner link behind each
 //   "Book on Aviasales" button (see bookingLink below).
 //
@@ -58,6 +63,7 @@ const MAX_DESTINATIONS = 250;     // destinations everyone can reach that get ch
 const MIN_RESULTS = 6;            // short stays: fewer matches than this -> also try a night shorter / longer
 const SHORT_RETRY_DESTINATIONS = 40; // ...for this many of the cheapest destinations without a match
 const MAX_RESULTS = 50;           // places sent back to the page (cheapest first)
+const MAX_GOOD_PLACES = 100;      // "good places" sent back too (cheapest together first)
 const FLEXIBLE_SEARCH_MONTHS = 4; // months ahead a "flexible dates" search scans
 const TIME_BUDGET_MS = 20_000;    // don't START new search stages after this long
 
@@ -388,14 +394,25 @@ function extractPrices(data: Record<string, unknown>): Record<string, number> {
   return prices;
 }
 
+// The destinations with a direct fare in the same answer: there, the variants
+// are keyed by the number of stops ("0" = direct).
+function directDestinations(data: Record<string, unknown>): Set<string> {
+  const direct = new Set<string>();
+  for (const [destination, value] of Object.entries(data ?? {})) {
+    if (value && typeof value === "object" && !("price" in value) && "0" in value) direct.add(destination);
+  }
+  return direct;
+}
+
 // Phase 1: cheapest cached fare from `origin` to every destination, no date
 // filtering — used only to discover which destinations are worth a closer look.
 async function fetchCheapestByDestination(origin: string, token: string, stats: CallStats) {
   const params = new URLSearchParams({ origin, destination: "-", currency: BASE_CURRENCY, token });
   const json = await getJson(`https://api.travelpayouts.com/v1/prices/cheap?${params}`, stats);
-  if (!json) return { prices: {} as Record<string, number>, success: false, rawError: stats.firstError ?? "request failed" };
+  if (!json) return { prices: {} as Record<string, number>, direct: new Set<string>(), success: false, rawError: stats.firstError ?? "request failed" };
   return {
     prices: extractPrices((json.data ?? {}) as Record<string, unknown>),
+    direct: directDestinations((json.data ?? {}) as Record<string, unknown>),
     // If success is false, the token or request was rejected, and any "0
     // destinations found" result is actually THIS, not a lack of overlap.
     success: json.success !== false,
@@ -738,6 +755,21 @@ type TripResult = {
   arrivalGapHours: number | null; // null when not everyone arrives the same day
   returnGapHours: number | null;
   daysApart: boolean;  // someone arrives or leaves a day apart
+};
+
+// A "good place": everyone has a cheap flight there for this kind of trip,
+// just not on days (or at times) that work together — each traveller's
+// lowest price on their own, for the page's "choose dates".
+type GoodPlace = {
+  destination: string;
+  destinationName: string;
+  country: string;
+  lat: number | null;
+  lon: number | null;
+  total: number;                 // everyone's lowest prices added up (x people from each departure)
+  travelers: Array<{ origin: string; count: number; price: number; direct: boolean }>; // price per person
+  directForAll: boolean;         // a direct flight from every departure
+  cheapestMonth: string | null;  // "2026-11": the cheapest month for everyone together (when 2+ months are known)
 };
 
 // Everything we can say about one traveler's trip on a given day.
@@ -1096,7 +1128,17 @@ async function searchTrip(o: {
     });
     // Cheapest first; then the ones with times too far apart; then the ones without fares.
     options.sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || (a.total ?? 0) - (b.total ?? 0));
-    return { departDate: w.departDate, returnDate: w.returnDate, options };
+    // Each traveller's cheapest fare around this weekend (or week), on their
+    // own — an idea of the price even when no day works for everyone (null = none).
+    const each = o.codes.map((origin) => {
+      let pick: { fare: Fare; departDate: string; returnDate: string } | null = null;
+      for (const trip of w.trips) {
+        const fare = calendars.get(`${origin}_${trip.nights}`)?.[trip.departDate];
+        if (fare && (!pick || fare.price < pick.fare.price)) pick = { fare, departDate: trip.departDate, returnDate: trip.returnDate };
+      }
+      return pick ? { price: o.toWanted(pick.fare.price), transfers: pick.fare.transfers, departDate: pick.departDate, returnDate: pick.returnDate } : null;
+    });
+    return { departDate: w.departDate, returnDate: w.returnDate, options, each };
   });
 
   return {
@@ -1277,7 +1319,7 @@ Deno.serve(async (req) => {
           tripType: searchOptions.mode === "specific" ? "dates" : type ? tripParam : "nights",
           nights, // of the base trip; the variations are a night shorter or longer
           destination: trip.destination,
-          windows: trip.windows, // one per weekend / week: { departDate, returnDate, options (cheapest first) }
+          windows: trip.windows, // one per weekend / week: { departDate, returnDate, options (cheapest first), each (per traveller) }
           currency: rate === null ? BASE_CURRENCY : wantedCurrency,
           origins: trip.originPlaces.map((p, i) => placeOut(p, codes[i], counts[i])),
           debug: {
@@ -1325,6 +1367,7 @@ Deno.serve(async (req) => {
     const nightsAround = [baseNights - 1, baseNights, baseNights + 1].filter((n) => n >= 1 && n <= 30);
 
     const lengthsNeeded = dayApart ? [baseNights, ...nightsAround.filter((n) => n !== baseNights)] : [baseNights];
+    const goodLengths = new Set(lengthsNeeded); // the stays whose prices count for a good place
 
     // Names / coordinates / time zones for every departure and every destination we may check.
     const places = await resolvePlaces([...codes, ...toCheck]);
@@ -1480,6 +1523,7 @@ Deno.serve(async (req) => {
       const retry = toCheck.filter((d) => !best.has(d)).slice(0, SHORT_RETRY_DESTINATIONS);
       await fetchCalendars(retry, usable);
       keepBest(retry, usable);
+      usable.forEach((n) => goodLengths.add(n));
       stages.push({ stage: "stay length ± nights", destinations: retry.length, stayLengths: usable, matchesAfter: best.size });
     }
 
@@ -1487,9 +1531,57 @@ Deno.serve(async (req) => {
 
     const results = [...best.values()].sort((x, y) => x.total - y.total).slice(0, MAX_RESULTS);
 
+    // Good places: everyone has a cheap flight there for this kind of trip
+    // (direct or one stop, in the dates searched), just not on days — or at
+    // times — that work together. From what we already know: no new calls.
+    const tomorrow = addDays(new Date().toISOString().slice(0, 10), 1);
+    const inDates = (date: string) =>
+      searchOptions.mode === "flexible" ? date >= tomorrow : Math.abs(Date.parse(date) - Date.parse(searchOptions.departDate)) <= 86_400_000;
+    function goodPlace(destination: string): GoodPlace | null {
+      const each = codes.map((o, i) => {
+        let cheapest: Fare | null = null;
+        let direct = reports[i].direct.has(destination);
+        const byMonth = new Map<string, number>(); // month -> lowest price that month
+        for (const n of goodLengths) {
+          for (const [date, fare] of Object.entries(rememberedFares(o, destination, n, searchOptions, broad))) {
+            if (!inDates(date)) continue;
+            if (!cheapest || fare.price < cheapest.price) cheapest = fare;
+            if (fare.transfers === 0) direct = true;
+            byMonth.set(monthOf(date), Math.min(byMonth.get(monthOf(date)) ?? Infinity, fare.price));
+          }
+        }
+        return cheapest ? { price: cheapest.price, direct, byMonth } : null;
+      });
+      if (each.some((e) => e === null)) return null;
+      const known = each as Array<NonNullable<(typeof each)[number]>>;
+      // The cheapest month for everyone together — only worth saying when there's a choice.
+      const months = [...known[0].byMonth.keys()].filter((m) => known.every((e) => e.byMonth.has(m)));
+      const monthTotal = (m: string) => known.reduce((sum, e, i) => sum + e.byMonth.get(m)! * counts[i], 0);
+      const cheapestMonth = months.length >= 2 ? months.reduce((a, b) => (monthTotal(b) < monthTotal(a) ? b : a)) : null;
+      const travelers = known.map((e, i) => ({ origin: codes[i], count: counts[i], price: toWanted(e.price), direct: e.direct }));
+      const dest = places[destination];
+      return {
+        destination,
+        destinationName: dest?.name ?? destination,
+        country: dest?.country ?? "",
+        lat: dest?.lat ?? null,
+        lon: dest?.lon ?? null,
+        total: travelers.reduce((sum, t) => sum + t.price * t.count, 0),
+        travelers,
+        directForAll: travelers.every((t) => t.direct),
+        cheapestMonth,
+      };
+    }
+    const goodPlaces = toCheck
+      .filter((d) => !best.has(d))
+      .map(goodPlace)
+      .filter((g): g is GoodPlace => g !== null)
+      .sort((x, y) => x.total - y.total);
+
     return new Response(
       JSON.stringify({
         results,
+        goodPlaces: goodPlaces.slice(0, MAX_GOOD_PLACES), // everyone has a cheap flight there, not yet on the same dates
         currency, // the currency the prices above are in (USD if we couldn't convert)
         origins: originPlaces.map((p, i) => placeOut(p, codes[i], counts[i])),
         debug: {
@@ -1499,6 +1591,7 @@ Deno.serve(async (req) => {
           sharedDestinations: shared.length,
           candidatesConsidered: checked.size,
           candidatesWithDateMatch: best.size, // places with a trip (the page gets the MAX_RESULTS cheapest)
+          goodPlacesFound: goodPlaces.length, // places with cheap flights for everyone, not on the same dates (the page gets MAX_GOOD_PLACES)
           maxGapHours,
           returnsTimed: !dayApart,          // short stays: return flights are timed too
           dayApart,                         // longer stays: someone may arrive / leave a day apart

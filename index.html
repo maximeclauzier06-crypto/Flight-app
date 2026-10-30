@@ -12,7 +12,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-10-19.5">
+  <link rel="stylesheet" href="styles.css?v=2026-10-30.1">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -202,11 +202,7 @@
         <!-- Shown when Travelpayouts didn't answer some requests (filled by app.js) -->
         <div class="warning" id="results-warning" hidden></div>
 
-        <div class="table-head">
-          <span>#</span><span>Destination</span><span>Journeys</span><span class="right">Total</span>
-        </div>
-
-        <!-- Rows are drawn here by app.js -->
+        <!-- Rows are drawn here by app.js: the exact matches, then the good places -->
         <div id="table-rows" aria-live="polite">
           <div class="state-message">Enter your departures above (add more with <strong>+ Add a departure</strong>) and press <strong>Find destinations</strong> to see where you can meet.</div>
         </div>
@@ -229,6 +225,11 @@
           <button type="button" class="map-close" id="map-close">← List</button>
           <div class="map-card" id="map-card" aria-live="polite"></div>
           <div class="map-ui">
+            <!-- With good places in the results: what the two kinds of dots mean -->
+            <div class="map-legend" id="map-legend" hidden>
+              <span><span class="lg-exact"></span>Exact match</span>
+              <span><span class="lg-good"></span>Good place, choose dates</span>
+            </div>
             <div class="map-hint" id="map-hint">Drag the map to explore</div>
             <button type="button" class="map-reset" id="map-reset" hidden>↺ Recentre</button>
             <div class="map-zoom">
@@ -256,7 +257,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-10-19.5"></script>
-  <script src="app.js?v=2026-10-19.5"></script>
+  <script src="geo.js?v=2026-10-30.1"></script>
+  <script src="app.js?v=2026-10-30.1"></script>
 </body>
 </html>

@@ -9,14 +9,19 @@
 //     search-flights) for matching destinations (or, with a destination, for
 //     the cheapest dates). That function holds the Travelpayouts token safely
 //     on the server — this file never sees it.
-//   * The results fill the table (or the weekends strip); the world map behind
-//     the page shows everyone's routes to the selected destination (geo.js
-//     draws the countries).
+//   * The results fill the table (or the weekends strip) in two kinds: exact
+//     matches (flights for everyone on dates that work together) and "good
+//     places" (cheap flights for everyone, just not on the same dates yet —
+//     "Choose dates" compares the coming weeks there, then each traveller
+//     opens Aviasales for the live prices). The world map behind the page
+//     shows everyone's routes to the selected destination (geo.js draws the
+//     countries).
 //
 // Sections:  1 Settings · 2 Small helpers · 3 Airport autocomplete + 3b Departures +
 //            3c Going to · 4 Currency · 5 The "When" pop-up · 6 Searching +
-//            6b The arrival-time rule (− / +) · 7 The results table ·
-//            7b One destination · 7c Booking · 7d The trip page (after "Select") ·
+//            6b The arrival-time rule (− / +) · 7 The results (exact matches,
+//            good places) · 7b One destination · 7c Booking · 7d The trip page
+//            (after "Select") · 7e A good place (after "Choose dates") ·
 //            8 The map (with, at its end, the full-screen map on phones)
 // ---------------------------------------------------------------------------
 
@@ -59,9 +64,18 @@ const GAP_STEPS = [1, 2, 3, 4, 5, 6, 0];
 const SHORT_STAY_NIGHTS = 3;
 const SHORT_STAY_MAX_GAP = 4;
 
+// How many rows the results show before a "Show N more" button: exact matches
+// (fewer on phones, so the good places aren't far down), then good places.
+const EXACT_SHOWN = 10;
+const EXACT_SHOWN_PHONE = 3;
+const GOOD_SHOWN = 8;
+
 // What the page remembers between actions.
 const state = {
-  results: [],       // destinations returned by the last search
+  results: [],       // destinations returned by the last search (exact matches)
+  goodPlaces: [],    // ...and the good places: cheap for everyone, not on the same dates yet
+  exactShown: EXACT_SHOWN, // how many of each are shown ("Show N more" adds the rest)
+  goodShown: GOOD_SHOWN,
   origins: [],       // one { label, lat, lon, count } per departure of the last search
   sort: "cheapest",  // cheapest | fastest | stops
   selected: null,    // destination code of the highlighted row
@@ -100,6 +114,8 @@ function debounce(fn, delayMs) {
 // "2026-10-22" -> "Oct 22" (no time-zone shifting: these are plain dates)
 const DAY_FORMAT = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" });
 const formatDay = (dateStr) => DAY_FORMAT.format(new Date(`${dateStr}T00:00:00Z`));
+const MONTH_FORMAT = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" });
+const monthName = (month) => MONTH_FORMAT.format(new Date(`${month}-01T00:00:00Z`)); // "2026-11" -> "Nov"
 
 function formatPrice(amount, currencyCode) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: currencyCode.toUpperCase(), maximumFractionDigits: 0 }).format(amount);
@@ -605,6 +621,7 @@ function revealResults() {
 // A search, for the statistics: its shape and how it went (nothing personal).
 function searchStats(origins, params, source, failed, startGap) {
   const found = failed ? 0 : state.trip ? state.trip.windows.filter(cheapestOption).length : state.results.length;
+  const good = failed ? 0 : state.goodPlaces.length;
   const nights = params.weekendOnly ? `${params.nights} nights, weekend` : `${params.nights} nights`;
   return {
     source, // bar · gap · stay · currency · retry
@@ -617,8 +634,9 @@ function searchStats(origins, params, source, failed, startGap) {
     gap: gapLabel(Number(params.maxGapHours)), // the limit the results are for...
     startGap: gapLabel(startGap),              // ...and the one the search started from
     found, // places (anywhere) or weekends that work (destination)
+    good,  // good places (anywhere): cheap for everyone, not on the same dates
     dayApart: state.results.filter((r) => r.daysApart).length, // of those, with someone a day apart
-    outcome: failed ? "error" : found > 0 ? "results" : "none",
+    outcome: failed ? "error" : found > 0 ? "results" : good > 0 ? "good-places" : "none",
   };
 }
 
@@ -715,11 +733,16 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
 
     if (json.mode === "trip") {
       state.results = [];
+      state.goodPlaces = [];
       showTrip(json);
       return;
     }
     state.results = json.results;
-    if (json.results.length === 0) {
+    // (An older search function sends no good places: then there are none.)
+    state.goodPlaces = (json.goodPlaces ?? []).map((g) => ({ ...g, isGood: true }));
+    state.exactShown = phoneQuery.matches ? EXACT_SHOWN_PHONE : EXACT_SHOWN;
+    state.goodShown = GOOD_SHOWN;
+    if (json.results.length === 0 && state.goodPlaces.length === 0) {
       showMessage(explainEmptyResult(json.debug, state.maxGapHours));
       renderMap();
       return;
@@ -729,6 +752,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
     if (thisSearch !== searchCounter) return;
     failed = true;
     state.results = [];
+    state.goodPlaces = [];
     showMessage(esc(error.message), true);
     renderMap();
   } finally {
@@ -798,6 +822,8 @@ function gapFoundText() {
     return working ? `${working} option${working === 1 ? "" : "s"} work` : "nothing works yet";
   }
   const n = state.results.length;
+  const good = state.goodPlaces.length;
+  if (good) return `${n} exact match${n === 1 ? "" : "es"} · ${good} good place${good === 1 ? "" : "s"}`;
   return n ? `${n} trip${n === 1 ? "" : "s"} found` : "no trip found yet";
 }
 
@@ -872,8 +898,12 @@ $("gap-more").addEventListener("click", (event) => setGap(Number(event.currentTa
 
 
 // ===========================================================================
-// 7. THE RESULTS TABLE
+// 7. THE RESULTS — exact matches, then good places
 // ===========================================================================
+// Exact matches: flights for everyone, on dates that work together (the time
+// rule included) — "Select" opens the trip page with the Book buttons. Good
+// places: everyone has a cheap flight there, just not on the same dates in
+// the prices we have — "Choose dates" opens their page (section 7e).
 
 const BIG = 1e9;
 const sumOver = (r, field) => r.travelers.reduce((total, t) => total + t[field], 0);
@@ -965,26 +995,107 @@ function rowHtml(r, index, currency) {
 // Two ways to show results in the same box: the ranked table of places, or —
 // with a destination chosen — the weekends strip and its options.
 function setResultsMode(trip) {
-  document.querySelector(".table-head").hidden = trip;
   $("sort-chips").hidden = trip;
   $("trip-chips").hidden = !trip;
   if (!trip) $("results-title").textContent = "Ranked meeting spots";
 }
 
+// "a full week · flexible dates", "a weekend · flexible dates", "Nov 14 – 21"
+function describeStay(params) {
+  if (params.mode === "specific") return dateRange(params.departDate, params.returnDate);
+  const nights = Number(params.nights);
+  const stay = params.weekendOnly === "true" && nights === 2 ? "a weekend"
+    : params.weekendOnly === "true" && nights === 3 ? "a long weekend"
+    : nights === 7 ? "a full week"
+    : nightsLabel(nights);
+  return `${stay} · flexible dates`;
+}
+
+// The words for "both of you" / "all of you" (2 departures, or more).
+const groupWords = (n) => (n === 2 ? { both: "both", you: "both of you", cities: "both cities" } : { both: "all", you: "all of you", cities: "every city" });
+
+// "Show 4 more exact matches" / "Show 89 more places" (nothing when all are shown).
+function moreHtml(kind, left, words) {
+  return left > 0 ? `<div class="more-row"><button type="button" class="more-btn" data-more="${kind}">Show ${left} more ${left === 1 ? words[0] : words[1]}</button></div>` : "";
+}
+
+// No exact match, but good places: why, in a sentence.
+function noExactHtml() {
+  const timed = state.debug?.rejectedByTimeGap > 0 && state.maxGapHours > 0;
+  const why = timed
+    ? `in the prices we have, your flights are never on the same days with landings within ${gapLabel(state.maxGapHours)} of each other`
+    : "in the prices we have, your flights are never on the same days";
+  return `<div class="section-empty">No exact match yet — ${why}. The good places below have cheap flights for each of you: choose dates there, and Aviasales shows you the live prices.</div>`;
+}
+
 function renderTable() {
   const list = sortedResults();
-  if (!list.some((r) => r.destination === state.selected)) state.selected = list[0].destination;
+  const good = state.goodPlaces;
+  if (![...list, ...good].some((r) => r.destination === state.selected)) state.selected = (list[0] ?? good[0]).destination;
+  const words = groupWords(state.origins.length);
 
-  rowsEl.innerHTML = list.map((r, i) => rowHtml(r, i, state.currency)).join("");
+  const exactRows = list.slice(0, state.exactShown).map((r, i) => rowHtml(r, i, state.currency)).join("");
+  const exactMore = moreHtml("exact", list.length - state.exactShown, ["exact match", "exact matches"]);
+  rowsEl.innerHTML = good.length === 0
+    ? exactRows + exactMore
+    : `
+      <div class="section-head"><span class="pill pill-exact">EXACT MATCHES · ${list.length}</span><span>Flights found for ${words.you}, on dates that work together</span></div>
+      ${list.length ? exactRows + exactMore : noExactHtml()}
+      ${goodPlacesHtml(good, words)}`;
+  $("sort-chips").hidden = list.length < 2; // sorting needs at least two exact matches
 
   // (The time rule isn't repeated here: "Everyone lands within" shows it.)
   const d = state.debug;
-  const checkedText = d && d.sharedDestinations ? ` (checked ${d.candidatesConsidered} of the ${d.sharedDestinations} everyone can reach)` : "";
   const currencyText = d && d.currencyConverted === false ? " · prices shown in USD (exchange rates unavailable)" : "";
-  const datesText = list.some((r) => r.daysApart) ? "the same dates, or one day apart for someone" : "same dates for everyone";
-  $("results-subtitle").textContent = `Showing ${list.length} destination${list.length === 1 ? "" : "s"}${checkedText} · ${datesText}${currencyText}`;
+  const names = state.origins.map((o) => o.label).join(" + ");
+  $("results-subtitle").textContent = `${names} · ${describeStay(state.lastSearch.params)} · cheapest total first${currencyText}`;
   updateWarning();
   renderMap();
+}
+
+// The good places: each traveller's lowest price there and the total together.
+// With two travellers each gets a column; with more, a line under the place.
+function goodPlacesHtml(good, words) {
+  const two = state.origins.length === 2;
+  const head = two
+    ? `<span>Place</span>${state.origins.map((o) => `<span>${esc(o.label)}</span>`).join("")}<span>Together</span><span></span>`
+    : "<span>Place</span><span>Together</span><span></span>";
+  const note = state.lastSearch.params.mode === "specific"
+    ? "“From” is the cheapest price we've seen recently for each of you, around your dates. Aviasales shows the live price before you book."
+    : "“From” is the cheapest price we've seen recently for each of you, for this kind of trip, on any dates in the next 4 months. The real price depends on the dates you choose — Aviasales shows it live before you book.";
+  return `
+    <div class="good-places">
+      <div class="section-head"><span class="pill pill-good">GOOD PLACES FOR ${words.you.toUpperCase()} · ${good.length}</span></div>
+      <p class="good-intro">Cheap flights from ${words.cities} — just not on dates that work together yet. Choose a place, pick dates that suit you ${words.both}, and see the live prices on Aviasales.</p>
+      <div class="gp-list${two ? " is-two" : ""}">
+        <div class="gp-head">${head}</div>
+        ${good.slice(0, state.goodShown).map((g) => goodRowHtml(g, two, words)).join("")}
+      </div>
+      ${moreHtml("good", good.length - state.goodShown, ["place", "places"])}
+      <p class="gp-note">${note}</p>
+    </div>`;
+}
+
+function goodRowHtml(g, two, words) {
+  const currency = state.currency;
+  const seats = (t) => (t.count > 1 ? ` <small>×${t.count}</small>` : "");
+  const tags = [
+    g.directForAll && `<span class="gp-tag is-direct">DIRECT FROM ${words.both.toUpperCase()}</span>`,
+    g.cheapestMonth && `<span class="gp-tag">CHEAPEST IN ${monthName(g.cheapestMonth).toUpperCase()}</span>`,
+  ].filter(Boolean).join("");
+  const each = g.travelers.map((t, i) => `<span class="gp-each-one">${esc(state.origins[i]?.label ?? t.origin)} from <b>${formatPrice(t.price, currency)}</b>${seats(t)}</span>`).join(" · ");
+  const columns = two ? g.travelers.map((t) => `<div class="gp-col">from <b>${formatPrice(t.price, currency)}</b>${seats(t)}</div>`).join("") : "";
+  return `
+    <div class="gp-row${g.destination === state.selected ? " is-selected" : ""}" data-code="${esc(g.destination)}" role="button" tabindex="0">
+      <div class="gp-place">
+        <div class="gp-name">${esc(g.destinationName)}${g.country ? ` <span>${esc(g.country)}</span>` : ""}</div>
+        <div class="gp-each">${each}</div>
+        ${tags ? `<div class="gp-tags">${tags}</div>` : ""}
+      </div>
+      ${columns}
+      <div class="gp-together"><span class="gp-from-wide">from </span><span class="gp-from-phone">together from</span><b>${formatPrice(g.total, currency)}</b></div>
+      <button type="button" class="gp-go place-btn" data-dest="${esc(g.destination)}">Choose dates →</button>
+    </div>`;
 }
 
 // A small notice when Travelpayouts didn't answer some requests, so a short
@@ -992,10 +1103,11 @@ function renderTable() {
 function updateWarning() {
   const box = $("results-warning");
   const tp = state.debug?.travelpayouts;
-  if (state.results.length > 0 && state.debug?.rateLimited) {
+  const shown = state.results.length > 0 || state.goodPlaces.length > 0;
+  if (shown && state.debug?.rateLimited) {
     box.innerHTML = `<span>Heads-up: the flight-data service is limiting our requests, so this list is incomplete. Wait about a minute and try again for more options.</span><button type="button" id="retry-search">Try again</button>`;
     box.hidden = false;
-  } else if (tp && tp.failed > 0 && state.results.length > 0) {
+  } else if (tp && tp.failed > 0 && shown) {
     box.innerHTML = `<span>Heads-up: the flight-data service didn't answer ${tp.failed} of ${tp.calls} requests, so a few options may be missing.</span><button type="button" id="retry-search">Try again</button>`;
     box.hidden = false;
   } else {
@@ -1012,21 +1124,46 @@ document.addEventListener("click", (event) => {
 function selectDestination(code, { scrollToRow = false } = {}) {
   if (code === state.selected) return;
   state.selected = code;
-  rowsEl.querySelectorAll(".row").forEach((row) => row.classList.toggle("is-selected", row.dataset.code === code));
+  const rowFor = () => rowsEl.querySelector(`.row[data-code="${CSS.escape(code)}"], .gp-row[data-code="${CSS.escape(code)}"]`);
+  if (!state.trip && !rowFor()) {
+    // Picked on the map, but its row is behind "Show N more": show the rows up to it.
+    state.exactShown = Math.max(state.exactShown, sortedResults().findIndex((r) => r.destination === code) + 1);
+    state.goodShown = Math.max(state.goodShown, state.goodPlaces.findIndex((g) => g.destination === code) + 1);
+    renderTable();
+  }
+  rowsEl.querySelectorAll(".row, .gp-row").forEach((row) => row.classList.toggle("is-selected", row.dataset.code === code));
   showOnMap(code);
-  if (scrollToRow) rowsEl.querySelector(`.row[data-code="${CSS.escape(code)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (scrollToRow) rowFor()?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// A row: picks that place (its routes on the map). On phones, where the map
+// is hidden, a good place's row opens its page straight away.
+function pickRow(row) {
+  if (row.classList.contains("gp-row") && phoneQuery.matches) openPlacePage(row.dataset.code);
+  else selectDestination(row.dataset.code);
 }
 
 rowsEl.addEventListener("click", (event) => {
-  const row = event.target.closest(".row");
-  if (row) selectDestination(row.dataset.code);
+  if (event.target.closest(".place-btn")) return; // "Choose dates" (handled in section 7e)
+  const more = event.target.closest(".more-btn");
+  if (more) {
+    const rows = more.dataset.more === "exact" ? ".row" : ".gp-row";
+    const before = rowsEl.querySelectorAll(rows).length;
+    if (more.dataset.more === "exact") state.exactShown = Infinity;
+    else state.goodShown = Infinity;
+    renderTable();
+    rowsEl.querySelectorAll(rows)[before]?.focus({ preventScroll: true }); // the first of the new rows
+    return;
+  }
+  const row = event.target.closest(".row, .gp-row");
+  if (row) pickRow(row);
 });
 rowsEl.addEventListener("keydown", (event) => {
   if (event.target.closest("button")) return; // Enter on "Select" presses the button, as usual
-  const row = event.target.closest(".row");
+  const row = event.target.closest(".row, .gp-row");
   if (row && (event.key === "Enter" || event.key === " ")) {
     event.preventDefault();
-    selectDestination(row.dataset.code);
+    pickRow(row);
   }
 });
 
@@ -1333,7 +1470,8 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest(".book-btn");
   if (!button || button.disabled) return;
   const { from, to, depart, return: back, adults } = button.dataset;
-  track("book-click", { from, to, seats: Number(adults), nights: daysBetween(depart, back || depart) });
+  // kind: "trip" (an exact match's Book button) or "good-place" (its "See live prices")
+  track("book-click", { kind: button.dataset.kind ?? "trip", from, to, seats: Number(adults), nights: daysBetween(depart, back || depart) });
 
   // Browsers only allow a new tab straight after a click, so open it now and
   // send it on once the link is ready.
@@ -1365,7 +1503,7 @@ document.addEventListener("click", async (event) => {
 
 const tripPageEl = $("trip-page");
 const listViewEls = [document.querySelector(".hero"), document.querySelector(".table-box")];
-let lastTrip = null; // so the browser's Forward button can reopen it
+let lastPage = null; // the page open last, { trip } or { place } — so the browser's Forward button can reopen it
 
 // The trip behind a "Select" button, in one shape for both kinds of search.
 function tripFromSelect(button) {
@@ -1443,9 +1581,9 @@ function tripPageHtml(t) {
     </section>`;
 }
 
-function openTripPage(trip) {
-  lastTrip = trip;
-  tripPageEl.innerHTML = tripPageHtml(trip);
+// Shows a page (a trip, or a good place) in place of the list.
+function showPage(html) {
+  tripPageEl.innerHTML = html;
   listViewEls.forEach((el) => (el.hidden = true));
   tripPageEl.hidden = false;
   if (!history.state?.tripPage) history.pushState({ tripPage: true }, "", "#trip"); // so Back returns to the list
@@ -1454,14 +1592,22 @@ function openTripPage(trip) {
   updateMapButton();
 }
 
+function openTripPage(trip) {
+  lastPage = { trip };
+  placeView = null;
+  showPage(tripPageHtml(trip));
+}
+
 function closeTripPage() {
   if (tripPageEl.hidden) return;
+  placeView = null; // (a good place's dates still on their way are dropped)
   tripPageEl.hidden = true;
   tripPageEl.innerHTML = "";
   listViewEls.forEach((el) => (el.hidden = false));
   updateMapButton();
+  renderMap(); // a good place's label goes back to its price
   // Back where you were: the selected row (or the trip box).
-  (rowsEl.querySelector(".row.is-selected") ?? rowsEl.querySelector(".trip-box"))?.scrollIntoView({ block: "center" });
+  (rowsEl.querySelector(".row.is-selected, .gp-row.is-selected") ?? rowsEl.querySelector(".trip-box"))?.scrollIntoView({ block: "center" });
 }
 
 document.addEventListener("click", (event) => {
@@ -1491,11 +1637,289 @@ document.addEventListener("click", (event) => {
 history.scrollRestoration = "manual";
 window.addEventListener("popstate", () => {
   if (!history.state?.tripPage) closeTripPage();
-  else if (lastTrip && tripPageEl.hidden) openTripPage(lastTrip);
+  else if (lastPage && tripPageEl.hidden) lastPage.trip ? openTripPage(lastPage.trip) : openPlacePage(lastPage.place.destination);
 });
 
 // A reload on "#trip" has no trip to show any more: start from the search.
 if (location.hash === "#trip") history.replaceState(null, "", location.pathname + location.search);
+
+
+// ===========================================================================
+// 7e. A GOOD PLACE (after "Choose dates")
+// ===========================================================================
+// Everyone has a cheap flight there, just not on days that work together in
+// the prices we have. So the page compares the coming weekends (or weeks):
+// each traveller's cheapest price around each one, added up (the search
+// function's one-destination answer, `each`). You pick one — or your own
+// dates — and each of you opens Aviasales for the live prices and books.
+// It uses the same place as the trip page (#trip-page, the Back button...).
+
+let placeView = null; // the open good place: { place, stay, answer, loading, error, window, custom, calendarOpen }
+let placeCounter = 0; // so an older answer can't overwrite a newer one
+
+// The kind of stay the search was for: weekend · long · week (the chips),
+// "nights" (a custom number of nights) or "dates" (specific dates).
+function stayOfSearch(params) {
+  if (params.mode === "specific") return "dates";
+  if (params.weekendOnly === "true") return params.nights === "2" ? "weekend" : params.nights === "3" ? "long" : "nights";
+  return params.nights === "7" ? "week" : "nights";
+}
+
+// The one-destination search for this place and kind of stay.
+function placeParams(code, stay) {
+  const p = state.lastSearch.params;
+  const common = { currency: p.currency, maxGapHours: String(state.maxGapHours), destination: code };
+  if (stay === "dates") return { ...common, mode: "specific", departDate: p.departDate, returnDate: p.returnDate };
+  if (stay in TRIP_NIGHTS) return { ...common, mode: "flexible", trip: stay, nights: String(TRIP_NIGHTS[stay]) };
+  return { ...common, mode: "flexible", nights: p.nights };
+}
+
+function openPlacePage(code) {
+  const place = state.goodPlaces.find((g) => g.destination === code);
+  if (!place) return;
+  lastPage = { place };
+  selectDestination(code); // its row in the list (for coming back), its routes on the map
+  placeView = { place, stay: stayOfSearch(state.lastSearch.params), answer: null, loading: true, error: null, window: null, custom: null, calendarOpen: false };
+  showPage(placePageHtml());
+  renderMap(); // its label on the map: "meet here"
+  loadPlaceDates();
+  track("choose-dates", {
+    to: code,
+    travellers: place.travelers.reduce((sum, t) => sum + t.count, 0),
+    total: Math.round(place.total),
+    currency: state.currency.toUpperCase(),
+  });
+}
+
+async function loadPlaceDates() {
+  const view = placeView;
+  const thisLoad = ++placeCounter;
+  Object.assign(view, { answer: null, loading: true, error: null, window: null });
+  renderPlacePage();
+  try {
+    const json = await callSearchFunction(state.lastSearch.origins, placeParams(view.place.destination, view.stay));
+    if (thisLoad !== placeCounter || placeView !== view) return;
+    if (!json.windows.every((w) => Array.isArray(w.each))) console.warn("The deployed search-flights function sends no prices per traveller yet — redeploy supabase/functions/search-flights/index.ts.");
+    view.answer = json;
+    // Start on the cheapest weekend (or week) with a price for everyone.
+    const totals = json.windows.map(windowTotal);
+    const best = Math.min(...totals.filter((t) => t !== null));
+    view.window = Number.isFinite(best) ? totals.indexOf(best) : 0;
+  } catch (error) {
+    if (thisLoad !== placeCounter || placeView !== view) return;
+    view.error = error.message;
+  }
+  view.loading = false;
+  renderPlacePage();
+}
+
+// Everyone's cheapest prices around one weekend (or week), added up (null = someone has none).
+function windowTotal(w) {
+  if (!Array.isArray(w.each) || w.each.some((e) => !e)) return null;
+  return w.each.reduce((sum, e, i) => sum + e.price * (state.origins[i]?.count ?? 1), 0);
+}
+
+// The dates chosen: your own ones, or the weekend (or week) picked.
+function chosenDates() {
+  const v = placeView;
+  if (v.custom) return v.custom;
+  const w = v.answer?.windows[v.window];
+  return w ? { departDate: w.departDate, returnDate: w.returnDate } : null;
+}
+
+// Re-draws the page, keeping the focus where it was (e.g. on the card just picked).
+function renderPlacePage(focusSelector = null) {
+  if (!placeView || tripPageEl.hidden) return;
+  const active = focusSelector ?? (tripPageEl.contains(document.activeElement) && document.activeElement.id ? `#${document.activeElement.id}` : null);
+  tripPageEl.innerHTML = placePageHtml();
+  if (active) tripPageEl.querySelector(active)?.focus({ preventScroll: true });
+  // On phones the weeks are one row you swipe: keep the chosen one in the middle.
+  const strip = tripPageEl.querySelector(".pp-weeks");
+  const picked = strip?.querySelector(".pp-week.is-selected");
+  if (picked && strip.scrollWidth > strip.clientWidth) strip.scrollLeft = picked.offsetLeft - (strip.clientWidth - picked.offsetWidth) / 2;
+}
+
+const STAY_CHIPS = [["weekend", "Weekend"], ["long", "Long weekend"], ["week", "A week"]];
+
+function placePageHtml() {
+  const v = placeView;
+  const g = v.place;
+  const n = g.travelers.length;
+  const words = groupWords(n);
+  const people = g.travelers.reduce((sum, t) => sum + t.count, 0);
+  const labels = state.origins.map((o) => o.label);
+  const fromLine = g.travelers.map((t, i) => `${esc(labels[i] ?? t.origin)} from ${formatPrice(t.price, state.currency)}`).join(" · ");
+  const direct = g.directForAll ? ` · direct flights from ${labels.length === 2 ? `${esc(labels[0])} and from ${esc(labels[1])}` : `all ${labels.length} cities`}` : "";
+  const stayText = stayWords({ tripType: v.stay, nights: Number(state.lastSearch.params.nights) });
+  const d = chosenDates();
+
+  return `
+    <button type="button" class="back-link" id="trip-back">← Back to results</button>
+    <div class="tp-head">
+      <div>
+        <div class="hero-badge">A GOOD PLACE FOR ${words.you.toUpperCase()}</div>
+        <h2>${esc(g.destinationName)}</h2>
+        <div class="tp-country">${esc(g.country)}${direct}</div>
+      </div>
+      <div class="tp-total"><span>together, usually from</span><strong>${formatPrice(g.total, state.currency)}</strong><span>${fromLine}</span></div>
+    </div>
+
+    <section class="tp-card pp-step">
+      <div class="pp-step-head"><span class="pp-num">1</span><h3>Choose your dates</h3></div>
+      <p class="pp-sub">${v.stay === "dates"
+        ? `The price below is the cheapest we've seen recently for each of you, around your dates.`
+        : `The prices below are the cheapest we've seen recently for each ${stayText.unit}. Pick one that suits you ${words.both}.`}</p>
+      <div class="chips pp-stays" id="pp-stays">${stayChipsHtml(v.stay)}</div>
+      ${placeWeeksHtml(stayText)}
+      ${d ? chosenHtml(d, people) : ""}
+    </section>
+
+    <section class="tp-card pp-step">
+      <div class="pp-step-head"><span class="pp-num">2</span><h3>See the live prices and book</h3></div>
+      <p class="pp-sub">Aviasales searches the airlines right now, for exactly these dates — you see the real flights and prices, and each of you books their own.</p>
+      ${d ? g.travelers.map((t, i) => placeFlightHtml(t, i, d)).join("") : `<p class="pp-note">Choose your dates above first.</p>`}
+      <p class="pp-tip">Tip: open ${n === 2 ? "both" : "them all"} before booking, to check you can land close together. If the times don't suit you ${words.both}, come back and pick another ${v.stay === "dates" ? "day" : stayText.unit}.</p>
+      <p class="tp-disclosure">If you book through these buttons we may earn a small commission, at no extra cost to you.</p>
+    </section>
+
+    <!-- Room for what goes with the trip: hotels for these dates, offers... -->
+    <section class="tp-card">
+      <h3>Where to stay in ${esc(g.destinationName)}</h3>
+      <p class="tp-sub">${d ? `${dateRange(d.departDate, d.returnDate)} · ${nightsLabel(daysBetween(d.departDate, d.returnDate))} · ` : ""}${travellersLabel(people)}</p>
+      <div class="tp-placeholder">Hotel ideas for these dates will appear here.</div>
+    </section>`;
+}
+
+// Weekend · Long weekend · A week — plus "Your dates" / "5 nights" when the search was for those.
+function stayChipsHtml(stay) {
+  const p = state.lastSearch.params;
+  const own = stayOfSearch(p);
+  const chips = [...STAY_CHIPS];
+  if (own === "dates") chips.unshift(["dates", "Your dates"]);
+  if (own === "nights") chips.push(["nights", nightsLabel(Number(p.nights))]);
+  return chips.map(([key, label]) => `<button type="button" class="chip${key === stay ? " is-selected" : ""}" data-stay="${key}" id="pp-stay-${key}">${label}</button>`).join("");
+}
+
+// The coming weekends (or weeks) as cards: everyone's cheapest prices added up.
+function placeWeeksHtml(stayText) {
+  const v = placeView;
+  if (v.loading) return `<p class="pp-loading">Looking at the coming ${v.stay === "dates" ? "days" : stayText.plural}…</p>`;
+  if (v.error) return `<p class="pp-note is-error">${esc(v.error)} <button type="button" class="inline-retry" id="pp-retry">Try again</button></p>`;
+  const windows = v.answer.windows;
+  const totals = windows.map(windowTotal);
+  const priced = totals.filter((t) => t !== null);
+  const min = Math.min(...priced);
+  const cards = windows.map((w, i) => {
+    const total = totals[i];
+    const classes = ["pp-week", i === v.window && !v.custom && "is-selected", total === null && "is-empty"].filter(Boolean).join(" ");
+    return `
+      <button type="button" class="${classes}" data-window="${i}" id="pp-week-${i}">
+        <span class="pp-week-dates">${dateRange(w.departDate, w.returnDate)}</span>
+        <span class="pp-week-days">${daysLabel(w)}</span>
+        <span class="pp-week-price">${total === null ? "no price yet" : formatPrice(total, state.currency)}</span>
+        ${total !== null && total === min && priced.length > 1 ? `<span class="pp-week-tag">CHEAPEST</span>` : ""}
+      </button>`;
+  });
+  const busy = v.answer.debug?.rateLimited ? `<p class="pp-note">The flight-data service is busy right now, so some prices may be missing — you can still pick any dates.</p>` : "";
+  const none = priced.length === 0 ? `<p class="pp-note">No saved prices for everyone on these dates yet — pick the ones you like: Aviasales shows the live prices.</p>` : "";
+  return `<div class="pp-weeks">${cards.join("")}</div>${busy || none}`;
+}
+
+// "Sat Nov 14 → Sat Nov 21 · 7 nights · 2 travellers", and your own dates instead.
+function chosenHtml(d, people) {
+  const v = placeView;
+  const custom = v.calendarOpen
+    ? `<span class="pp-custom">
+         <input type="date" id="pp-depart" aria-label="Depart date" min="${today}" value="${esc(d.departDate)}">
+         <span>to</span>
+         <input type="date" id="pp-return" aria-label="Return date" min="${esc(addDaysIso(d.departDate, 1))}" value="${esc(d.returnDate)}">
+       </span>`
+    : `<button type="button" class="pp-link" id="pp-calendar">or pick other dates on a calendar</button>`;
+  return `
+    <div class="pp-chosen">
+      <strong>${dayLabel(d.departDate)} → ${dayLabel(d.returnDate)} · ${nightsLabel(daysBetween(d.departDate, d.returnDate))} · ${travellersLabel(people)}</strong>
+      ${custom}
+    </div>`;
+}
+
+const addDaysIso = (dateStr, days) => {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+// One traveller: their route on the chosen dates, an idea of the price, and
+// the button to Aviasales' live prices (the partner link, section 7c).
+function placeFlightHtml(t, i, d) {
+  const v = placeView;
+  const n = v.place.travelers.length;
+  const info = state.origins[i] ?? {};
+  const name = i === 0 ? `You · ${info.label}` : n === 2 ? `Them · ${info.label}` : info.label;
+  const around = v.custom ? null : v.answer?.windows[v.window]?.each?.[i];
+  const price = around
+    ? `around these dates from <b>${formatPrice(around.price, state.currency)}</b>`
+    : `usually from <b>${formatPrice(t.price, state.currency)}</b>`;
+  const seats = t.count > 1 ? ` per person · ${t.count} seats` : "";
+  return `
+    <div class="tp-flight">
+      <div>
+        <div class="traveler-head"><span class="dot dot-${i % 8}"></span><span class="who">${esc(name)}</span></div>
+        <div class="tp-route">${esc(info.label)} → ${esc(v.place.destinationName)}</div>
+        <div class="tp-legs">${dayLabel(d.departDate)} → ${dayLabel(d.returnDate)} · ${price}${seats}${t.direct ? " · direct flights exist" : ""}</div>
+      </div>
+      <div class="tp-buy">
+        <button type="button" class="book-btn is-primary" data-kind="good-place" data-from="${esc(info.code ?? t.origin)}" data-to="${esc(v.place.destination)}" data-depart="${esc(d.departDate)}" data-return="${esc(d.returnDate)}" data-adults="${t.count}">See live prices on Aviasales<span class="book-arrow" aria-hidden="true">↗</span></button>
+      </div>
+    </div>`;
+}
+
+// "Choose dates →" (in the list, and on the phone's full-screen map).
+document.addEventListener("click", (event) => {
+  const button = event.target.closest(".place-btn");
+  if (!button) return;
+  setMapOpen(false);
+  openPlacePage(button.dataset.dest);
+});
+
+// On the page: a weekend (or week), another kind of stay, your own dates, "Try again".
+tripPageEl.addEventListener("click", (event) => {
+  const v = placeView;
+  if (!v) return;
+  const week = event.target.closest(".pp-week");
+  const stay = event.target.closest("#pp-stays .chip");
+  if (week) {
+    v.window = Number(week.dataset.window);
+    v.custom = null;
+    v.calendarOpen = false;
+    renderPlacePage(`#${week.id}`);
+  } else if (stay && stay.dataset.stay !== v.stay) {
+    v.stay = stay.dataset.stay;
+    v.custom = null;
+    v.calendarOpen = false;
+    loadPlaceDates();
+    tripPageEl.querySelector(`#pp-stay-${v.stay}`)?.focus({ preventScroll: true });
+  } else if (event.target.closest("#pp-calendar")) {
+    v.calendarOpen = true;
+    renderPlacePage("#pp-depart");
+  } else if (event.target.closest("#pp-retry")) {
+    loadPlaceDates();
+  }
+});
+
+tripPageEl.addEventListener("change", (event) => {
+  const v = placeView;
+  if (!v || !["pp-depart", "pp-return"].includes(event.target.id)) return;
+  const departDate = $("pp-depart").value;
+  let returnDate = $("pp-return").value;
+  if (!departDate) return;
+  // A new depart date after the return date: keep the same number of nights.
+  if (!returnDate || returnDate <= departDate) {
+    const current = chosenDates();
+    returnDate = addDaysIso(departDate, current ? Math.max(1, daysBetween(current.departDate, current.returnDate)) : 1);
+  }
+  v.custom = { departDate, returnDate };
+  renderPlacePage(`#${event.target.id}`);
+});
 
 
 // ===========================================================================
@@ -1517,13 +1941,24 @@ function themeColors() {
   const v = (name) => style.getPropertyValue(name).trim();
   themeCache = {
     sea: v("--map-sea"), land: v("--map-land"), borders: v("--map-borders"), grid: v("--map-grid"),
-    meet: v("--action"),
+    meet: v("--action"), goodRing: v("--map-good"),
     pins: Array.from({ length: 8 }, (_, i) => v(`--c${i}`)),
   };
   return themeCache;
 }
 
 const hasCoords = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lon);
+
+// The places on the map: the exact matches (full dots), then the good places (hollow dots).
+const mapPlaces = () => [...state.results, ...state.goodPlaces];
+
+// What the map frames by itself: the exact matches and the first good places
+// (not all of them — some are far away), plus the selected one.
+function fitPlaces() {
+  const good = state.goodPlaces.slice(0, GOOD_SHOWN);
+  const selected = state.goodPlaces.find((g) => g.destination === state.selected);
+  return [...state.results, ...good, ...(selected && !good.includes(selected) ? [selected] : [])].filter(hasCoords);
+}
 const clamp = (x, low, high) => Math.min(high, Math.max(low, x));
 const px = (n) => n.toFixed(1);
 
@@ -1577,7 +2012,7 @@ const DEFAULT_POINTS = [{ lat: 30, lon: -25 }, { lat: 62, lon: 35 }];
 
 function autoView() {
   const origins = state.origins ?? [];
-  const destinations = state.results.filter(hasCoords);
+  const destinations = fitPlaces();
   const hasRoutes = destinations.length > 0 && origins.length > 0 && origins.every(hasCoords);
   const area = openArea();
   if (!hasRoutes && mapIsBackground()) {
@@ -1612,9 +2047,10 @@ function renderMap() {
   const T = themeColors();
 
   const origins = state.origins ?? [];
-  const destinations = state.results.filter(hasCoords);
+  const destinations = mapPlaces().filter(hasCoords);
   const selected = destinations.find((r) => r.destination === state.selected);
   const ready = selected && origins.length > 0 && origins.every(hasCoords);
+  const priceOn = (r) => (r.isGood ? `from ${formatPrice(r.total, state.currency)}` : formatPrice(r.total, state.currency));
 
   shownView = state.mapView ?? autoView();
   const m = (shownMap = Geo.createMap(shownView, w, h));
@@ -1627,17 +2063,21 @@ function renderMap() {
     const pins = origins.map((o, i) => ({ o, i, p: m.project(o.lat, o.lon), color: T.pins[i % 8] }));
     const [middleX] = areaCentre(openArea());
 
-    // 1. Every other result: a small dot you can hover (name + price) and click.
+    // 1. Every other result: a small dot you can hover (name + price) and
+    //    click — full for an exact match, hollow for a good place.
     for (const r of destinations) {
       if (r.destination === selected.destination) continue;
       const [x, y] = m.project(r.lat, r.lon);
       if (!onScreen([x, y])) continue;
       const left = x > middleX; // the hover label goes on the side facing the middle
+      const core = r.isGood
+        ? `<circle class="dot-core" cx="${px(x)}" cy="${px(y)}" r="5.5" fill="#fff" stroke="${T.goodRing}" stroke-width="2.5"></circle>`
+        : `<circle class="dot-core" cx="${px(x)}" cy="${px(y)}" r="5.5" fill="${T.meet}" stroke="#fff" stroke-width="2"></circle>`;
       overlay += `
         <g class="dest-dot" data-code="${esc(r.destination)}">
           <circle cx="${px(x)}" cy="${px(y)}" r="13" fill="transparent"></circle>
-          <circle class="dot-core" cx="${px(x)}" cy="${px(y)}" r="5.5" fill="${T.meet}" stroke="#fff" stroke-width="2"></circle>
-          <text class="dot-label" x="${px(x + (left ? -12 : 12))}" y="${px(y + 4)}" text-anchor="${left ? "end" : "start"}">${esc(r.destinationName)} · ${formatPrice(r.total, state.currency)}</text>
+          ${core}
+          <text class="dot-label" x="${px(x + (left ? -12 : 12))}" y="${px(y + 4)}" text-anchor="${left ? "end" : "start"}">${esc(r.destinationName)} · ${priceOn(r)}</text>
         </g>`;
     }
 
@@ -1676,7 +2116,8 @@ function renderMap() {
       }
     }
     if (onScreen(pd)) {
-      const text = selected.mapLabel ?? `${selected.destinationName} — meet here`;
+      // A good place in the list shows its price; once its page is open, "meet here".
+      const text = selected.mapLabel ?? (selected.isGood && tripPageEl.hidden ? `${selected.destinationName} · ${priceOn(selected)}` : `${selected.destinationName} — meet here`);
       const half = labelWidth(text) / 2;
       const x = half * 2 + 16 < w ? clamp(dx, half + 8, w - half - 8) : dx; // kept on the map
       labels += `<div class="map-label is-dest" style="left:${x.toFixed(0)}px;top:${(dy + 30).toFixed(0)}px;transform:translate(-50%,0)">${esc(text)}</div>`;
@@ -1695,6 +2136,7 @@ function renderMap() {
   $("map-card").innerHTML = mapIsOverlay() ? mapCardHtml() : "";
 
   $("map-hint").textContent = ready && destinations.length > 1 ? "Drag to explore · click a dot to see another place" : `Drag to explore · ${ZOOM_KEY} + scroll to zoom`;
+  $("map-legend").hidden = !ready || state.goodPlaces.length === 0;
   $("map-reset").hidden = state.mapView === null;
   $("zoom-in").disabled = shownView.k >= MAP_MAX_ZOOM - 1;
   $("zoom-out").disabled = shownView.k <= MAP_MIN_ZOOM + 1;
@@ -1747,7 +2189,7 @@ function flyMap(target) {
 // After picking a row in the table: if you had moved the map away from that
 // destination, glide back so it's in view.
 function showOnMap(code) {
-  const r = state.results.find((x) => x.destination === code);
+  const r = mapPlaces().find((x) => x.destination === code);
   const [[left, top], [right, bottom]] = openArea();
   const inView = ([x, y]) => x >= left - 60 && x <= right + 60 && y >= top - 60 && y <= bottom + 60;
   if (state.mapView && hasCoords(r) && !inView(shownMap.project(r.lat, r.lon))) flyMap(null);
@@ -1839,7 +2281,7 @@ window.addEventListener("resize", redrawMapSoon);
 const phoneQuery = window.matchMedia("(max-width: 860px)");
 
 function updateMapButton() {
-  $("map-open").hidden = !phoneQuery.matches || mapIsOverlay() || !tripPageEl.hidden || !state.results.some(hasCoords);
+  $("map-open").hidden = !phoneQuery.matches || mapIsOverlay() || !tripPageEl.hidden || !mapPlaces().some(hasCoords);
 }
 
 function setMapOpen(open) {
@@ -1852,10 +2294,19 @@ function setMapOpen(open) {
 
 // The card at the bottom of the full-screen map: the selected place, its total, "Select".
 function mapCardHtml() {
-  const r = state.results.find((x) => x.destination === state.selected);
+  const r = mapPlaces().find((x) => x.destination === state.selected);
   if (!r) return "";
   const people = state.origins.reduce((sum, o) => sum + o.count, 0);
   const title = `<div class="mc-title">${esc(r.destinationName)}${r.country ? ` <span>${esc(r.country)}</span>` : ""}</div>`;
+  const hint = mapPlaces().length > 1 ? '<div class="mc-hint">Tap another dot to compare</div>' : "";
+  if (r.isGood) {
+    // A good place: everyone's lowest price there, and the way to its dates.
+    const each = r.travelers.map((t, i) => `<span class="gp-each-one">${esc(state.origins[i]?.label ?? t.origin)} from ${formatPrice(t.price, state.currency)}</span>`).join(" · ");
+    return `${title}
+      <div class="mc-sub">A good place: ${each}</div>
+      <div class="mc-bottom"><strong><small>from</small> ${formatPrice(r.total, state.currency)}</strong><button type="button" class="select-btn place-btn" data-dest="${esc(r.destination)}">Choose dates</button></div>
+      ${hint}`;
+  }
   if (state.trip) {
     // One destination: the weekend and option chosen in the list.
     const o = state.trip.windows[state.tripWindow]?.options[state.tripOption];
@@ -1867,7 +2318,7 @@ function mapCardHtml() {
   return `${title}
     <div class="mc-sub">${formatDay(r.departDate)} – ${formatDay(r.returnDate)} · ${nightsLabel(r.nights)} · ${peopleLabel(people)}</div>
     <div class="mc-bottom"><strong>${formatPrice(r.total, state.currency)}</strong><button type="button" class="select-btn" data-dest="${esc(r.destination)}">Select</button></div>
-    ${state.results.length > 1 ? '<div class="mc-hint">Tap another dot to compare</div>' : ""}`;
+    ${hint}`;
 }
 
 $("map-open").addEventListener("click", () => setMapOpen(true));
