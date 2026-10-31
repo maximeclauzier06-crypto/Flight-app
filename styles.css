@@ -1062,19 +1062,23 @@ button, input, select { font-family: inherit; }
   .cta-box { flex-direction: column; align-items: flex-start; }
   .contact-card .cc-email { font-size: 20px; }
 
-  /* About: a timeline — the pictures in a column on the left, the words right */
+  /* About: the same route, smaller — the pictures towards the right, swinging
+     between 70% and 86% of the width, and the words along the curves */
   .page-hero.is-plain { padding-bottom: 32px; }
-  .ab-story { width: var(--content); margin-top: 32px; }
-  .ab-intro { margin-bottom: 32px; font-size: 19px; }
-  .ab-ch { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 16px; align-items: start; min-height: 0; margin-bottom: 40px; }
-  .ab-shape, .ab-shape-left { display: none; }
-  .ab-text { padding: 0; }
-  .ab-pics { position: relative; inset: auto; order: -1; height: 76px; }
-  .ab-pic, .ab-pic.at-1 { left: 50%; width: 72px; height: 72px; box-shadow: 0 10px 22px rgba(var(--shadow), 0.16); }
-  .ab-pic svg { width: 78%; height: 78%; }
-  .ab-route path { stroke-width: 4; stroke-dasharray: 0.1 9; }
+  .ab-story { width: var(--content); margin-top: 28px; }
+  .ab-intro { margin-bottom: 4px; font-size: 19px; }
+  .ab-ch { min-height: 0; }
+  .ab-text { padding: 26px 0 30px; }
+  .ab-pic, .ab-pic.at-1 { width: 80px; height: 80px; box-shadow: 0 10px 22px rgba(var(--shadow), 0.16); }
+  .ab-pic.at-1 { --x: 0.84; }
+  .ab-pic.at-2 { --x: 0.7; }
+  .ab-pic.at-3 { --x: 0.86; }
+  .ab-pic.at-4 { --x: 0.7; }
+  .ab-pic.at-5 { --x: 0.84; }
+  .ab-pic svg { width: 80%; height: 80%; }
+  .ab-route path { stroke-width: 3.5; stroke-dasharray: 0.1 8; }
   .ab-text h2 { font-size: 22px; }
-  .ab-text p { font-size: 15px; }
+  .ab-text p { font-size: 15px; line-height: 1.6; }
   .ab-values h2 { font-size: 23px; }
 
   /* The map: not under the list (nobody would scroll that far) — the "Map"

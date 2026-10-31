@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=Manrope:wght@400;600;700;800&amp;display=swap">
-  <link rel="stylesheet" href="styles.css?v=2026-10-31.1">
+  <link rel="stylesheet" href="styles.css?v=2026-10-31.2">
   <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal -->
   <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
 </head>
@@ -242,18 +242,23 @@
     //    and the circles (CSS shape-outside), so the lines of text end along the
     //    curve. Shaping the words can make a chapter taller, which moves its
     //    picture, so it's done a few times until nothing moves any more.
-    //  * On phones: a simple timeline (pictures left, words right), no shapes.
+    //  * Phones get the same, smaller and a little tighter (see tune()).
     // Everything is measured from the page, and redone when its size changes.
     (() => {
       const story = document.querySelector(".ab-story");
       const svg = story.querySelector(".ab-route");
       const chapters = [...story.querySelectorAll(".ab-ch")];
       const phone = matchMedia("(max-width: 860px)");
-      const ROOM = 30;        // between the end of the lines and the route
-      const HALO = 110;       // ...and around each picture: the lines bend around it in an arc
-      const MAX_TEXT = 0.7;   // lines never reach further right than this share of the width
-      const SWAY = 0.6;       // how much the left edge of the words follows the route
-      const MIN_TEXT = 0.36;  // the words always keep at least this share of the width
+      // How the words follow the route (in pixels, or shares of the width):
+      //   room: between the end of the lines and the route
+      //   halo: ...and around each picture — the lines bend around it in an arc
+      //   maxText: lines never reach further right than this
+      //   sway: how much the left edge of the words follows the route
+      //   minText: the words always keep at least this much of the width
+      // Phones: tighter, so the lines stay long enough to read.
+      const tune = () => (phone.matches
+        ? { room: 12, halo: 16, maxText: 0.8, sway: 0.3, minText: 0.52 }
+        : { room: 30, halo: 110, maxText: 0.7, sway: 0.6, minText: 0.36 });
 
       // Two invisible shapes per chapter, one on each side of the words.
       const shapes = chapters.map((chapter) => {
@@ -289,16 +294,7 @@
           const [a, b] = [pics[i], pics[i + 1]];
           const q = [b.x, b.y];
           const dy = b.y - a.y;
-          if (phone.matches) {
-            // The timeline: straight down (the first piece: you and them, side by side).
-            if (i === 0) {
-              const spread = a.r * 0.45;
-              pieces.push({ cls: "ab-route-a", curve: [[a.x - spread, a.y + a.r * 0.4], [a.x - spread, a.y + dy / 2], [b.x, b.y - dy / 2], q] });
-              pieces.push({ cls: "ab-route-b", curve: [[a.x + spread, a.y + a.r * 0.4], [a.x + spread, a.y + dy / 2], [b.x, b.y - dy / 2], q] });
-            } else {
-              pieces.push({ cls: "ab-route-c", curve: [[a.x, a.y], [a.x, a.y + dy / 2], [b.x, b.y - dy / 2], q] });
-            }
-          } else if (i === 0) {
+          if (i === 0) {
             // You (left) and them (right) swing out on either side and meet at the idea.
             pieces.push({ cls: "ab-route-a", curve: [[a.x - a.r * 0.45, a.y + a.r * 0.4], [a.x - 0.17 * W, a.y + 0.5 * dy], [b.x - 0.15 * W, b.y - 0.45 * dy], q] });
             pieces.push({ cls: "ab-route-b", curve: [[a.x + a.r * 0.45, a.y + a.r * 0.4], [a.x + 0.11 * W, a.y + 0.5 * dy], [b.x + 0.1 * W, b.y - 0.45 * dy], q] });
@@ -319,6 +315,7 @@
       function shapeChapter(chapter, shape, points, pics, W) {
         const top = chapter.offsetTop;
         const h = chapter.offsetHeight;
+        const { room, halo, maxText, sway, minText } = tune();
         const lefts = [];
         const rights = [];
         for (let y = 0; y <= h; y += 6) {
@@ -326,13 +323,13 @@
           let route = Infinity; // the route's leftmost point at this height
           for (const [x, py] of points) if (Math.abs(py - Y) <= 7) route = Math.min(route, x);
           if (route === Infinity) route = pics.reduce((near, c) => (Math.abs(c.y - Y) < Math.abs(near.y - Y) ? c : near)).x;
-          let edge = Math.min(W * MAX_TEXT, route - ROOM);
+          let edge = Math.min(W * maxText, route - room);
           for (const c of pics) {
-            const reach = c.r + HALO;
+            const reach = c.r + halo;
             if (Math.abs(Y - c.y) < reach) edge = Math.min(edge, c.x - Math.sqrt(reach * reach - (Y - c.y) ** 2));
           }
-          const indent = Math.max(0, (route - W * 0.55) * SWAY);
-          edge = Math.max(edge, indent + W * MIN_TEXT);
+          const indent = Math.max(0, (route - W * 0.55) * sway);
+          edge = Math.max(edge, indent + W * minText);
           lefts.push([indent, y]);
           rights.push([edge, y]);
         }
@@ -352,11 +349,10 @@
           const heights = chapters.map((c) => c.offsetHeight);
           const pics = pictures();
           pieces = route(pics, W);
-          if (phone.matches) break;
           const points = pieces.flatMap((piece) => Array.from({ length: 121 }, (_, k) => at(piece.curve, k / 120)));
           chapters.forEach((chapter, i) => shapeChapter(chapter, shapes[i], points, pics, W));
           if (chapters.every((c, i) => c.offsetHeight === heights[i])) break;
-          if (chapters.some((c) => c.offsetHeight > 1600)) { // (should never happen: then no shapes)
+          if (chapters.some((c) => c.offsetHeight > 2400)) { // (should never happen: then no shapes)
             shapes.forEach((shape) => [shape.left, shape.right].forEach((s) => s.removeAttribute("style")));
             break;
           }
@@ -373,6 +369,7 @@
       };
       layout();
       addEventListener("resize", soon);
+      phone.addEventListener("change", soon);
       document.fonts?.ready.then(soon); // the words take their real size once the fonts are in
     })();
   </script>
