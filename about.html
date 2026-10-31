@@ -23,7 +23,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=Manrope:wght@400;600;700;800&amp;display=swap">
-  <link rel="stylesheet" href="styles.css?v=2026-10-30.7">
+  <link rel="stylesheet" href="styles.css?v=2026-10-31.1">
   <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal -->
   <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
 </head>
@@ -78,38 +78,153 @@
   </script>
 
   <main>
-    <section class="page-hero">
+    <section class="page-hero is-plain">
       <div class="hero-badge">ABOUT US</div>
       <h1>Made for people who live apart</h1>
       <p>For long-distance love, friends and family.</p>
     </section>
 
-    <article class="doc">
-      <p class="lead">Halfway Trips helps people who live in different cities — or different countries — find a place to meet, on dates that work for all of them, for the lowest total price.</p>
+    <!-- The story as a route: pictures in circles joined by dotted lines (drawn by
+         the small script at the end of the page), the words beside them, on the
+         cream page. On phones: a timeline, pictures left and words right. -->
+    <article class="ab-story">
+      <svg class="ab-route" aria-hidden="true"></svg>
 
-      <h2>How it started</h2>
-      <p>Hi, I'm Maxime. I live in Stockholm, and for more than a year my girlfriend has lived in Belgium. Seeing each other means flying, so we decided to make every trip count: we meet in European capitals that neither of us knows yet.</p>
-      <p>Flying that often adds up, so we always look for cheap flights — and that was the hard part. First we'd find a weekend with a good price from Stockholm to one city, then check the same dates from Brussels, where the price was often much higher. So we'd start again with another city, and another.</p>
-      <p>Our evenings on the phone, the little time we have together, went into comparing flights instead of talking. We looked for a site that would do it for us, and it didn't exist. So I built it.</p>
+      <p class="ab-intro">Halfway Trips helps people who live in different cities — or different countries — find a place to meet, on dates that work for all of them, for the lowest total price.</p>
 
-      <h2>What it does</h2>
-      <p>Halfway Trips searches from both airports — or everyone's, for a group — at once, keeps only the dates that work for all of you, and shows the full price for everyone, cheapest first. All the options are in front of you, and the only question left is the fun one: where do we want to go?</p>
+      <section class="ab-ch">
+        <div class="ab-text">
+          <div class="ab-kicker">WHERE IT STARTED</div>
+          <h2>Far apart, and always searching</h2>
+          <p>Hi, I'm Maxime. I live in Stockholm, and for more than a year my girlfriend has lived in Belgium. Seeing each other means flying, so we decided to make every trip count: we meet in European capitals that neither of us knows yet.</p>
+          <p>Finding the flights was the hard part. A good weekend from Stockholm was often expensive from Brussels, so we started again with another city, and another — and our evenings on the phone went into comparing flights instead of talking.</p>
+        </div>
+        <div class="ab-pics">
+          <div class="ab-pic at-1">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ab-cloud" cx="41" cy="44" r="2.5"></circle>
+              <circle class="ab-cloud" cx="47" cy="37" r="3.5"></circle>
+              <path class="ab-cloud" d="M52 31 a7 7 0 0 1 10 -8 a8 8 0 0 1 14 2 a6 6 0 0 1 3 11 h-23 a6 6 0 0 1 -4 -5 z"></path>
+              <text class="ab-q" x="65" y="33" text-anchor="middle">?</text>
+              <path class="ab-hair" d="M22 62 L24 52 L28 57 L31 49 L35 56 L39 50 L42 62 Z"></path>
+              <circle class="ab-a" cx="32" cy="63" r="10"></circle>
+              <path class="ab-a" d="M18 99 Q18 77 32 77 Q46 77 46 99 Z"></path>
+              <rect class="ab-phone" x="41" y="75" width="9" height="15" rx="2"></rect>
+              <ellipse class="ab-hair" cx="88" cy="66" rx="12" ry="14"></ellipse>
+              <circle class="ab-b" cx="88" cy="62" r="10"></circle>
+              <path class="ab-b" d="M74 99 Q74 77 88 77 Q102 77 102 99 Z"></path>
+              <rect class="ab-phone" x="70" y="75" width="9" height="15" rx="2"></rect>
+              <path class="ab-gap" d="M52 70 H66"></path>
+            </svg>
+          </div>
+        </div>
+      </section>
 
-      <h2>What we care about</h2>
-      <ul>
-        <li><strong>The real price.</strong> Everyone's flights added up, not a price per person.</li>
-        <li><strong>Time together.</strong> Dates that work for everyone, and arrivals close together, so nobody waits alone at the airport.</li>
-        <li><strong>Honesty.</strong> We say when a price or a time is an estimate, and you always book directly with Aviasales.</li>
-        <li><strong>Simplicity.</strong> No account and no fees.</li>
-      </ul>
+      <section class="ab-ch">
+        <div class="ab-text">
+          <div class="ab-kicker">THE IDEA</div>
+          <h2>One search, from both airports</h2>
+          <p>Flight search sites start from one city. We wanted the opposite: both our airports at once, the same dates for both of us, and both prices added up — every place we could meet, cheapest first. We looked for it, and it didn't exist.</p>
+        </div>
+        <div class="ab-pics">
+          <div class="ab-pic at-2">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <g class="ab-rays"><path d="M60 10 V18"></path><path d="M30 22 L35 28"></path><path d="M90 22 L85 28"></path><path d="M18 50 H26"></path><path d="M94 50 H102"></path></g>
+              <path class="ab-sun" d="M60 28 a24 24 0 0 1 14 43 v6 h-28 v-6 a24 24 0 0 1 14 -43 z"></path>
+              <path class="ab-filament" d="M52 56 L56 48 L60 56 L64 48 L68 56"></path>
+              <rect class="ab-base" x="47" y="80" width="26" height="8" rx="3"></rect>
+              <rect class="ab-base" x="49" y="90" width="22" height="7" rx="3"></rect>
+              <rect class="ab-base-2" x="54" y="99" width="12" height="6" rx="3"></rect>
+            </svg>
+          </div>
+        </div>
+      </section>
 
-      <h2>Get in touch</h2>
-      <p>Ideas, feedback, or something that doesn't work? We'd love to hear from you: <a href="mailto:hello@halfwaytrips.com">hello@halfwaytrips.com</a>, or see the <a href="contact.html">contact page</a>.</p>
+      <section class="ab-ch">
+        <div class="ab-text">
+          <div class="ab-kicker">THE START</div>
+          <h2>So I built it</h2>
+          <p>I started from one simple question — where can we both fly, on the same weekend, for the least money? — and built Halfway Trips piece by piece to answer it.</p>
+          <p>What keeps me going: every trip we plan this way leaves more of our time for each other. I'd like that for everyone who lives apart from someone they love.</p>
+        </div>
+        <div class="ab-pics">
+          <div class="ab-pic at-3">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ab-teeth ab-teeth-a" cx="48" cy="66" r="25"></circle>
+              <circle class="ab-a" cx="48" cy="66" r="21"></circle>
+              <circle class="ab-hole" cx="48" cy="66" r="7"></circle>
+              <circle class="ab-teeth ab-teeth-b" cx="82" cy="40" r="15"></circle>
+              <circle class="ab-b" cx="82" cy="40" r="12"></circle>
+              <circle class="ab-hole" cx="82" cy="40" r="4.5"></circle>
+              <circle class="ab-teeth ab-teeth-c" cx="85" cy="85" r="10"></circle>
+              <circle class="ab-sun" cx="85" cy="85" r="8"></circle>
+              <circle class="ab-hole" cx="85" cy="85" r="3"></circle>
+            </svg>
+          </div>
+        </div>
+      </section>
 
-      <div class="cta-box">
+      <section class="ab-ch">
+        <div class="ab-text">
+          <div class="ab-kicker">WHAT IT DOES</div>
+          <h2>Every place you can meet, in one list</h2>
+          <p>Add your airport and theirs — or everyone's, for a group. Halfway Trips keeps only the dates that work for all of you, adds up everyone's flights, and shows the cheapest first. Then each of you books your own flight on Aviasales.</p>
+        </div>
+        <div class="ab-pics">
+          <div class="ab-pic at-4">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="ab-ring" cx="30" cy="88" r="4"></circle>
+              <circle class="ab-ring" cx="96" cy="86" r="4"></circle>
+              <circle class="ab-ring" cx="76" cy="22" r="4"></circle>
+              <path class="ab-line ab-line-a" d="M28 34 Q 30 72 62 82"></path>
+              <path class="ab-line ab-line-b" d="M96 44 Q 92 74 62 82"></path>
+              <circle class="ab-a ab-pin" cx="28" cy="34" r="7"></circle>
+              <circle class="ab-b ab-pin" cx="96" cy="44" r="7"></circle>
+              <circle class="ab-sun" cx="62" cy="82" r="17" opacity="0.3"></circle>
+              <circle class="ab-sun ab-pin" cx="62" cy="82" r="8"></circle>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section class="ab-ch">
+        <div class="ab-text">
+          <div class="ab-kicker">WHY WE DO IT</div>
+          <h2>Spend it on the trip, not the search</h2>
+          <p>Couples who live apart, friends in different countries, families spread across a continent: meeting up shouldn't start with hours of searching, or with paying far more than you need to. We want to make that part easy — all the options in front of you, and only the fun question left: where do we go?</p>
+        </div>
+        <div class="ab-pics">
+          <div class="ab-pic at-5">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <path class="ab-sun" d="M18 112 A42 42 0 0 1 102 112 Z" opacity="0.45"></path>
+              <circle class="ab-a" cx="40" cy="60" r="10"></circle>
+              <path class="ab-a" d="M26 96 Q26 74 40 74 Q54 74 54 96 Z"></path>
+              <circle class="ab-b" cx="63" cy="55" r="11"></circle>
+              <path class="ab-b" d="M48 96 Q48 70 63 70 Q78 70 78 96 Z"></path>
+              <circle class="ab-c" cx="85" cy="68" r="8"></circle>
+              <path class="ab-c" d="M74 96 Q74 79 85 79 Q96 79 96 96 Z"></path>
+              <path class="ab-a" d="M63 30 c-4 -6 -12 -2 -8 4 l8 8 l8 -8 c4 -6 -4 -10 -8 -4 z"></path>
+              <rect class="ab-ground" x="22" y="96" width="78" height="6" rx="3"></rect>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section class="ab-values">
+        <h2>What we care about</h2>
+        <div class="ab-value-grid">
+          <div class="ab-value"><strong>The real price</strong><span>Everyone's flights added up, not a price per person.</span></div>
+          <div class="ab-value"><strong>Time together</strong><span>Dates that work for everyone, and arrivals close together, so nobody waits alone at the airport.</span></div>
+          <div class="ab-value"><strong>Honesty</strong><span>We say when a price or a time is an estimate, and you always book directly with Aviasales.</span></div>
+          <div class="ab-value"><strong>Simplicity</strong><span>No account and no fees.</span></div>
+        </div>
+      </section>
+
+      <div class="cta-box ab-cta">
         <p>Find your halfway point</p>
         <a class="btn" href="index.html">Find where to meet <span aria-hidden="true">→</span></a>
       </div>
+      <p class="ab-contact">Ideas, feedback, or something that doesn't work? We'd love to hear from you: <a href="mailto:hello@halfwaytrips.com">hello@halfwaytrips.com</a>, or see the <a href="contact.html">contact page</a>.</p>
     </article>
   </main>
 
@@ -117,6 +232,150 @@
     <span>Halfway Trips — find where you and someone else can meet. Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span>
     <span class="footer-links"><a href="how-it-works.html">How it works</a><a href="destinations.html">Destinations</a><a href="about.html">About</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></span>
   </footer>
+
+  <script>
+    // The route through the story, and the words along it.
+    //  * From the first picture two dotted routes — you and them — swing out on
+    //    either side and meet at the idea; then one route swings from picture
+    //    to picture in wide S-curves.
+    //  * Each chapter gets an invisible shape on its right that traces the route
+    //    and the circles (CSS shape-outside), so the lines of text end along the
+    //    curve. Shaping the words can make a chapter taller, which moves its
+    //    picture, so it's done a few times until nothing moves any more.
+    //  * On phones: a simple timeline (pictures left, words right), no shapes.
+    // Everything is measured from the page, and redone when its size changes.
+    (() => {
+      const story = document.querySelector(".ab-story");
+      const svg = story.querySelector(".ab-route");
+      const chapters = [...story.querySelectorAll(".ab-ch")];
+      const phone = matchMedia("(max-width: 860px)");
+      const ROOM = 30;        // between the end of the lines and the route
+      const HALO = 110;       // ...and around each picture: the lines bend around it in an arc
+      const MAX_TEXT = 0.7;   // lines never reach further right than this share of the width
+      const SWAY = 0.6;       // how much the left edge of the words follows the route
+      const MIN_TEXT = 0.36;  // the words always keep at least this share of the width
+
+      // Two invisible shapes per chapter, one on each side of the words.
+      const shapes = chapters.map((chapter) => {
+        const [left, right] = ["ab-shape-left", "ab-shape"].map((cls) => {
+          const shape = document.createElement("div");
+          shape.className = cls;
+          shape.setAttribute("aria-hidden", "true");
+          return shape;
+        });
+        chapter.prepend(left, right);
+        return { left, right };
+      });
+
+      // A point on a curve [start, control 1, control 2, end], t from 0 to 1.
+      const at = ([p, c1, c2, q], t) => {
+        const u = 1 - t;
+        return [0, 1].map((k) => u * u * u * p[k] + 3 * u * u * t * c1[k] + 3 * u * t * t * c2[k] + t * t * t * q[k]);
+      };
+      const pathOf = ([p, c1, c2, q]) => `M${p} C${c1} ${c2} ${q}`.replace(/\.\d+/g, "");
+
+      function pictures() {
+        const box = story.getBoundingClientRect();
+        return [...story.querySelectorAll(".ab-pic")].map((pic) => {
+          const r = pic.getBoundingClientRect();
+          return { x: r.left - box.left + r.width / 2, y: r.top - box.top + r.height / 2, r: r.width / 2 };
+        });
+      }
+
+      // The route's pieces: { cls, curve }.
+      function route(pics, W) {
+        const pieces = [];
+        for (let i = 0; i + 1 < pics.length; i++) {
+          const [a, b] = [pics[i], pics[i + 1]];
+          const q = [b.x, b.y];
+          const dy = b.y - a.y;
+          if (phone.matches) {
+            // The timeline: straight down (the first piece: you and them, side by side).
+            if (i === 0) {
+              const spread = a.r * 0.45;
+              pieces.push({ cls: "ab-route-a", curve: [[a.x - spread, a.y + a.r * 0.4], [a.x - spread, a.y + dy / 2], [b.x, b.y - dy / 2], q] });
+              pieces.push({ cls: "ab-route-b", curve: [[a.x + spread, a.y + a.r * 0.4], [a.x + spread, a.y + dy / 2], [b.x, b.y - dy / 2], q] });
+            } else {
+              pieces.push({ cls: "ab-route-c", curve: [[a.x, a.y], [a.x, a.y + dy / 2], [b.x, b.y - dy / 2], q] });
+            }
+          } else if (i === 0) {
+            // You (left) and them (right) swing out on either side and meet at the idea.
+            pieces.push({ cls: "ab-route-a", curve: [[a.x - a.r * 0.45, a.y + a.r * 0.4], [a.x - 0.17 * W, a.y + 0.5 * dy], [b.x - 0.15 * W, b.y - 0.45 * dy], q] });
+            pieces.push({ cls: "ab-route-b", curve: [[a.x + a.r * 0.45, a.y + a.r * 0.4], [a.x + 0.11 * W, a.y + 0.5 * dy], [b.x + 0.1 * W, b.y - 0.45 * dy], q] });
+          } else {
+            // A wide S from one side of the page to the other: it leaves a picture
+            // going down, crosses on a long diagonal, and comes into the next one
+            // from above — the diagonal is what the lines of text lean along.
+            pieces.push({ cls: "ab-route-c", curve: [[a.x, a.y], [a.x, a.y + 0.3 * dy], [b.x, b.y - 0.3 * dy], q] });
+          }
+        }
+        return pieces;
+      }
+
+      // The two edges of one chapter's words, from its top to its bottom:
+      //  * right: left of the route, and around the pictures in a wide arc;
+      //  * left: it moves in and out with the route — when the route swings
+      //    right, the words move right too — so they flow alongside it.
+      function shapeChapter(chapter, shape, points, pics, W) {
+        const top = chapter.offsetTop;
+        const h = chapter.offsetHeight;
+        const lefts = [];
+        const rights = [];
+        for (let y = 0; y <= h; y += 6) {
+          const Y = top + y;
+          let route = Infinity; // the route's leftmost point at this height
+          for (const [x, py] of points) if (Math.abs(py - Y) <= 7) route = Math.min(route, x);
+          if (route === Infinity) route = pics.reduce((near, c) => (Math.abs(c.y - Y) < Math.abs(near.y - Y) ? c : near)).x;
+          let edge = Math.min(W * MAX_TEXT, route - ROOM);
+          for (const c of pics) {
+            const reach = c.r + HALO;
+            if (Math.abs(Y - c.y) < reach) edge = Math.min(edge, c.x - Math.sqrt(reach * reach - (Y - c.y) ** 2));
+          }
+          const indent = Math.max(0, (route - W * 0.55) * SWAY);
+          edge = Math.max(edge, indent + W * MIN_TEXT);
+          lefts.push([indent, y]);
+          rights.push([edge, y]);
+        }
+        // The two shapes sit side by side: the left one as wide as its deepest
+        // point, the right one the rest (its points are measured from its own left side).
+        const split = Math.ceil(Math.max(1, ...lefts.map(([x]) => x)));
+        const pts = (list, dx) => list.map(([x, y]) => `${Math.round(Math.max(0, x - dx))}px ${y}px`).join(", ");
+        Object.assign(shape.left.style, { width: `${split}px`, height: `${h}px`, shapeOutside: `polygon(0px 0px, ${pts(lefts, 0)}, 0px ${h}px)` });
+        Object.assign(shape.right.style, { width: `${W - split}px`, height: `${h}px`, shapeOutside: `polygon(${pts(rights, split)}, ${W - split}px ${h}px, ${W - split}px 0px)` });
+      }
+
+      function layout() {
+        shapes.forEach((shape) => [shape.left, shape.right].forEach((s) => s.removeAttribute("style")));
+        const W = story.clientWidth;
+        let pieces = [];
+        for (let pass = 0; pass < 5; pass++) {
+          const heights = chapters.map((c) => c.offsetHeight);
+          const pics = pictures();
+          pieces = route(pics, W);
+          if (phone.matches) break;
+          const points = pieces.flatMap((piece) => Array.from({ length: 121 }, (_, k) => at(piece.curve, k / 120)));
+          chapters.forEach((chapter, i) => shapeChapter(chapter, shapes[i], points, pics, W));
+          if (chapters.every((c, i) => c.offsetHeight === heights[i])) break;
+          if (chapters.some((c) => c.offsetHeight > 1600)) { // (should never happen: then no shapes)
+            shapes.forEach((shape) => [shape.left, shape.right].forEach((s) => s.removeAttribute("style")));
+            break;
+          }
+        }
+        const box = story.getBoundingClientRect();
+        svg.setAttribute("viewBox", `0 0 ${Math.round(box.width)} ${Math.round(box.height)}`);
+        svg.innerHTML = pieces.map((piece) => `<path class="${piece.cls}" d="${pathOf(piece.curve)}"></path>`).join("");
+      }
+
+      let frame = 0;
+      const soon = () => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(layout);
+      };
+      layout();
+      addEventListener("resize", soon);
+      document.fonts?.ready.then(soon); // the words take their real size once the fonts are in
+    })();
+  </script>
 
 </body>
 </html>
