@@ -20,13 +20,14 @@
   <meta property="og:locale" content="en_GB">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&amp;family=Manrope:wght@400;600;700;800&amp;display=swap">
+  <!-- Our two fonts (the fonts/ folder, set up at the top of styles.css), fetched
+       early so the words don't change shape just after the page appears -->
+  <link rel="preload" href="fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-10-31.2">
+  <link rel="stylesheet" href="styles.css?v=2026-11-02.1">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -359,7 +360,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-10-31.2"></script>
-  <script src="app.js?v=2026-10-31.2"></script>
+  <script src="geo.js?v=2026-11-02.1"></script>
+  <script src="app.js?v=2026-11-02.1"></script>
 </body>
 </html>
