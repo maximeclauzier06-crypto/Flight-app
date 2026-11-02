@@ -27,7 +27,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-11-02.1">
+  <link rel="stylesheet" href="styles.css?v=2026-11-02.2">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -107,6 +107,19 @@
       });
     })();
   </script>
+
+  <!-- Once you've searched and scrolled past the search bar: a thin white line at
+       the top of the screen with what you searched for (filled by app.js). Each
+       part takes you back up to change it in the search bar. -->
+  <div class="search-summary" id="search-summary" hidden>
+    <div class="ss-inner">
+      <div class="ss-parts" id="ss-parts"></div>
+      <button type="button" class="ss-edit" data-edit="bar" aria-label="Change your search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"></path><path d="M14 6l4 4"></path></svg>
+        <span>Change</span>
+      </button>
+    </div>
+  </div>
 
   <main>
     <!-- ===== The big banner with the search bar ===== -->
@@ -360,7 +373,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="geo.js?v=2026-11-02.1"></script>
-  <script src="app.js?v=2026-11-02.1"></script>
+  <script src="geo.js?v=2026-11-02.2"></script>
+  <script src="app.js?v=2026-11-02.2"></script>
 </body>
 </html>

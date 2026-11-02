@@ -19,7 +19,8 @@
 //
 // Sections:  1 Settings · 2 Small helpers · 3 Airport autocomplete + 3b Departures +
 //            3c Going to · 4 Currency · 5 The "When" pop-up · 6 Searching +
-//            6b The arrival-time rule (− / +) · 7 The results (exact matches,
+//            6a Your search at the top of the screen + 6b The arrival-time
+//            rule (− / +) · 7 The results (exact matches,
 //            good places) · 7b One destination · 7c Booking · 7d The trip page
 //            (after "Select") · 7e A good place (after "Choose dates") ·
 //            8 The map (with, at its end, the full-screen map on phones)
@@ -86,6 +87,7 @@ const state = {
   debug: null,       // the function's report on the last search (counts, failures...)
   currency: "usd",   // the currency the prices in `results` are actually in
   lastSearch: null,  // so a currency change or "Try again" can re-run the same search
+  searchedTo: null,  // the "Going to" city of the last search from the bar (null = Anywhere)
   mapView: null,     // {k, tx, ty} once you drag/zoom the map; null = it frames everything itself
   trip: null,        // with a destination chosen: the answer (weekends and their options); null otherwise
   tripWindow: 0,     // which weekend (or week) of the strip is selected
@@ -571,7 +573,7 @@ function showProgress(steps) {
   clearInterval(progressTimer);
   // Under it, grey "ghost" rows the shape of the results to come: the box
   // keeps its size while you wait (on a phone it fills the screen).
-  const ghost = '<div class="sk-row"><span class="sk-rank"></span><span class="sk-lines"><i></i><i></i><i></i></span><span class="sk-price"><i></i><i></i></span></div>';
+  const ghost = '<div class="sk-row"><span class="sk-lines"><i></i><i></i><i></i></span><span class="sk-price"><i></i><i></i></span></div>';
   rowsEl.innerHTML = `
     <div class="search-progress">
       <div class="sp-bar" aria-hidden="true"><span></span></div>
@@ -686,7 +688,7 @@ function revealResults() {
   const visibleTop = document.querySelector(".hero").getBoundingClientRect().bottom; // the results start under the banner
   if (visibleTop < window.innerHeight * 0.4) return; // already in view
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
-  window.scrollTo({ top: window.scrollY + visibleTop, behavior: smooth ? "smooth" : "auto" });
+  window.scrollTo({ top: window.scrollY + visibleTop - SUMMARY_HEIGHT, behavior: smooth ? "smooth" : "auto" }); // (just under the line at the top, 6a)
 }
 
 // A search, for the statistics: its shape and how it went (nothing personal).
@@ -760,7 +762,9 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
   const thisSearch = ++searchCounter;
   let failed = false;
   const startGap = Number(params.maxGapHours);
+  if (source === "bar") state.searchedTo = params.destination ? goingInput.dataset.label || params.destination : null;
   state.lastSearch = { origins, params };
+  renderSearchSummary();
   state.maxGapHours = startGap;
   if (source !== "currency") state.widenedFrom = null;
   state.searching = true;
@@ -892,6 +896,74 @@ document.addEventListener("click", (event) => {
 
 
 // ===========================================================================
+// 6a. YOUR SEARCH, AT THE TOP OF THE SCREEN
+// ===========================================================================
+// Once you've searched and scrolled past the search bar, a thin white line at
+// the top of the screen keeps what you searched for in view: "Stockholm +
+// Paris → Anywhere · Full week". A tap on a part takes you back up to it in
+// the search bar — that airport, "Going to", or the "When" pop-up — to change it.
+
+const summaryEl = $("search-summary");
+const SUMMARY_HEIGHT = 45; // its height (.ss-inner in styles.css, and its line): the results scroll in just under it
+
+// "Full week", "Weekend", "Long weekend", "5 nights", "Nov 14 – 21"
+function whenShort(params) {
+  if (params.mode === "specific") return dateRange(params.departDate, params.returnDate);
+  const nights = Number(params.nights);
+  const weekend = params.weekendOnly === "true" || Boolean(params.trip);
+  if (weekend && nights === 2) return "Weekend";
+  if (weekend && nights === 3) return "Long weekend";
+  return nights === 7 ? "Full week" : nightsLabel(nights);
+}
+
+function renderSearchSummary() {
+  const search = state.lastSearch;
+  summaryEl.hidden = !search;
+  if (!search) return;
+  const part = (text, edit, index = "") => `<a class="ss-part" href="#search-form" data-edit="${edit}"${index === "" ? "" : ` data-index="${index}"`}>${esc(text)}</a>`;
+  const sep = (mark) => `<span class="ss-sep">${mark}</span>`;
+  const from = search.origins.map((o, i) => part(o.count > 1 ? `${o.label} ×${o.count}` : o.label, "origin", i)).join(sep("+"));
+  const to = part(search.params.destination ? state.searchedTo ?? search.params.destination : "Anywhere", "going");
+  $("ss-parts").innerHTML = `${from}${sep("→")}${to}${sep("·")}${part(whenShort(search.params), "when")}`;
+}
+
+// It slides in while the search bar AND the top bar (logo, menu) are out of
+// sight — on a trip's page the search bar is hidden, so it waits until you
+// scroll past the top bar. (Under the line counts as out of sight.)
+const inSight = new Map();
+const sightWatch = new IntersectionObserver((entries) => {
+  entries.forEach((entry) => inSight.set(entry.target, entry.isIntersecting));
+  summaryEl.classList.toggle("is-shown", ![...inSight.values()].some(Boolean));
+}, { rootMargin: `-${SUMMARY_HEIGHT}px 0px 0px 0px` });
+sightWatch.observe($("search-form"));
+sightWatch.observe(document.querySelector(".nav"));
+
+summaryEl.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-edit]");
+  if (!target) return;
+  event.preventDefault();
+  event.stopPropagation(); // (or this click would close the "When" pop-up straight after it opens)
+  // From a trip's page: back to the list first (where the search bar is).
+  if (!tripPageEl.hidden) {
+    closeTripPage();
+    if (history.state?.tripPage) history.replaceState(null, "", location.pathname + location.search);
+  }
+  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const top = $("search-form").getBoundingClientRect().top + window.scrollY - 24;
+  window.scrollTo({ top: Math.max(0, top), behavior: smooth ? "smooth" : "auto" });
+  const edit = target.dataset.edit;
+  if (edit === "when") setWhenOpen(true);
+  const field = edit === "origin" ? originsEl.querySelectorAll(".origin-cell input[type=text]")[Number(target.dataset.index)]
+    : edit === "going" ? goingInput
+    : null;
+  if (field) {
+    field.focus({ preventScroll: true });
+    field.select();
+  }
+});
+
+
+// ===========================================================================
 // 6b. THE ARRIVAL-TIME RULE — "Everyone lands within [−] 3 h [+]"
 // ===========================================================================
 // So nobody waits alone at the airport for hours: everyone's arrivals (and
@@ -1017,8 +1089,6 @@ function sortedResults() {
   return list;
 }
 
-const TAG_FOR_SORT = { cheapest: "CHEAPEST", fastest: "FASTEST", stops: "FEWEST STOPS" };
-
 // One traveller's block inside a row: who, price, duration, stops, flight times.
 // (Booking happens on the trip page, after "Select" — section 7d.)
 function travelerHtml(leg, index, info, totalTravelers, currency) {
@@ -1064,30 +1134,42 @@ function gapNoteHtml(r) {
 
 const peopleLabel = (people) => (people === 2 ? "both of you" : `${people} travellers`);
 
-function rowHtml(r, index, currency) {
-  const n = r.travelers.length;
-  const people = r.travelers.reduce((total, t) => total + t.count, 0);
-  const gapNote = gapNoteHtml(r);
-  const selected = r.destination === state.selected;
+// A row of the list keeps only what you choose a place by: where, when, how
+// easy the flights are, and the total — with each departure's share small
+// under it. Everything else (flight times, how far apart you land) is on the
+// trip page, which the whole row opens. Good places use the same row.
+const CHEVRON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>';
+const rowTag = (text, kind = "") => `<span class="r-tag${kind ? ` is-${kind}` : ""}">${esc(text)}</span>`;
 
+// "Direct for both", "1 stop for all" — or, when it differs, "Direct from
+// Stockholm" + "1 stop from Paris" (with more departures: "Direct for 2 of 3").
+function stopsTagsHtml(stops, labels, words) {
+  if (stops.every((s) => s === stops[0])) return rowTag(`${stopsLabel(stops[0])} for ${words.both}`, stops[0] === 0 ? "direct" : "");
+  if (stops.length === 2) return stops.map((s, i) => rowTag(`${stopsLabel(s)} from ${labels[i]}`, s === 0 ? "direct" : "")).join("");
+  const direct = stops.filter((s) => s === 0).length;
+  return direct > 0 ? rowTag(`Direct for ${direct} of ${stops.length}`, "direct") : rowTag("With stops");
+}
+
+// Under the total: "737 kr + 1 159 kr" (up to three departures), or "5 travellers".
+const sharesText = (shares, people, currency) => (shares.length <= 3 ? shares.map((p) => formatPrice(p, currency)).join(" + ") : peopleLabel(people));
+
+function rowHtml(r, currency, words) {
+  const labels = state.origins.map((o) => o.label);
+  const people = r.travelers.reduce((total, t) => total + t.count, 0);
+  const shares = r.travelers.map((t) => (t.count > 1 ? t.subtotal : t.price));
+  // Sorted by "Fastest": how long everyone flies, so the order makes sense.
+  const flying = state.sort === "fastest" && r.travelers.every((t) => t.timesKnown) ? rowTag(`Flights ≈${r.travelers.map((t) => durationLabel(t.outMinutes)).join(" + ")}`) : "";
+  // Someone a day apart from the others (longer stays): "Paris arrives a day later".
+  const apart = r.travelers.map((t, i) => (APART_WORDS[t.apart] ? rowTag(`${labels[i]} ${APART_WORDS[t.apart]}`, "apart") : "")).join("");
   return `
-    <div class="row${selected ? " is-selected" : ""}" data-code="${esc(r.destination)}" role="button" tabindex="0">
-      <div class="rank">${index + 1}</div>
-      <div class="dest">
-        <div class="dest-city">${esc(r.destinationName)}</div>
-        ${r.country ? `<div class="dest-country">${esc(r.country)}</div>` : ""}
-        <div class="dest-dates">${formatDay(r.departDate)} – ${formatDay(r.returnDate)}</div>
-        <div class="dest-meta"><span class="code-chip">${esc(r.destination)}</span><span>${r.nights} night${r.nights === 1 ? "" : "s"}</span>${index === 0 ? `<span class="tag">${TAG_FOR_SORT[state.sort]}</span>` : ""}</div>
+    <div class="row${r.destination === state.selected ? " is-selected" : ""}" data-code="${esc(r.destination)}" role="button" tabindex="0">
+      <div class="r-place">
+        <div class="r-name">${esc(r.destinationName)}${r.country ? ` <span>${esc(r.country)}</span>` : ""}</div>
+        <div class="r-when">${dayLabel(r.departDate)} – ${dayLabel(r.returnDate)}</div>
+        <div class="r-tags">${stopsTagsHtml(r.travelers.map((t) => t.transfers), labels, words)}${flying}${apart}</div>
       </div>
-      <div class="journeys">
-        ${r.travelers.map((leg, i) => travelerHtml(leg, i, state.origins[i], n, currency)).join("")}
-        ${gapNote}
-      </div>
-      <div class="total-cell">
-        <div class="total">${formatPrice(r.total, currency)}</div>
-        <div class="total-sub">${peopleLabel(people)}</div>
-        <button type="button" class="select-btn" data-dest="${esc(r.destination)}">Select</button>
-      </div>
+      <div class="r-total"><b>${formatPrice(r.total, currency)}</b><span>${sharesText(shares, people, currency)}</span></div>
+      <span class="r-go">${CHEVRON}</span>
     </div>`;
 }
 
@@ -1129,7 +1211,7 @@ function renderTable() {
   if (![...list, ...good].some((r) => r.destination === state.selected)) state.selected = (list[0] ?? good[0]).destination;
   const words = groupWords(state.origins.length);
 
-  const exactRows = list.slice(0, state.exactShown).map((r, i) => rowHtml(r, i, state.currency)).join("");
+  const exactRows = list.slice(0, state.exactShown).map((r) => rowHtml(r, state.currency, words)).join("");
   const exactMore = moreHtml("exact", list.length - state.exactShown, ["exact match", "exact matches"]);
   rowsEl.innerHTML = good.length === 0
     ? exactRows + exactMore
@@ -1150,14 +1232,11 @@ function renderTable() {
   renderMap();
 }
 
-// The good places: each traveller's lowest price there and the total together.
-// With two travellers each gets a column; with more, a line under the place.
-// `intro: false` when the line above already says what they are.
+// The good places, in the same rows as the exact matches: "from" the total
+// of everyone's lowest prices there (each share under it); the row opens the
+// place's page to choose dates. `intro: false` when the line above already
+// says what they are.
 function goodPlacesHtml(good, words, { intro = true } = {}) {
-  const two = state.origins.length === 2;
-  const head = two
-    ? `<span>Place</span>${state.origins.map((o) => `<span>${esc(o.label)}</span>`).join("")}<span>Together</span><span></span>`
-    : "<span>Place</span><span>Together</span><span></span>";
   const note = state.lastSearch.params.mode === "specific"
     ? "“From” is the cheapest price we've seen recently for each of you, around your dates. Aviasales shows the live price before you book."
     : "“From” is the cheapest price we've seen recently for each of you, for this kind of trip, on any dates in the next 4 months. The real price depends on the dates you choose — Aviasales shows it live before you book.";
@@ -1165,34 +1244,29 @@ function goodPlacesHtml(good, words, { intro = true } = {}) {
     <div class="good-places">
       <div class="section-head"><span class="pill pill-good">GOOD PLACES FOR ${words.you.toUpperCase()} · ${good.length}</span></div>
       ${intro ? `<p class="good-intro">Cheap flights from ${words.cities} — just not on dates that work together yet. Choose a place, pick dates that suit you ${words.both}, and see the live prices on Aviasales.</p>` : ""}
-      <div class="gp-list${two ? " is-two" : ""}">
-        <div class="gp-head">${head}</div>
-        ${good.slice(0, state.goodShown).map((g) => goodRowHtml(g, two, words)).join("")}
-      </div>
+      ${good.slice(0, state.goodShown).map((g) => goodRowHtml(g, words)).join("")}
       ${moreHtml("good", good.length - state.goodShown, ["place", "places"])}
       <p class="gp-note">${note}</p>
     </div>`;
 }
 
-function goodRowHtml(g, two, words) {
+function goodRowHtml(g, words) {
   const currency = state.currency;
-  const seats = (t) => (t.count > 1 ? ` <small>×${t.count}</small>` : "");
+  const people = g.travelers.reduce((total, t) => total + t.count, 0);
+  const shares = g.travelers.map((t) => t.price * t.count);
   const tags = [
-    g.directForAll && `<span class="gp-tag is-direct">DIRECT FROM ${words.both.toUpperCase()}</span>`,
-    g.cheapestMonth && `<span class="gp-tag">CHEAPEST IN ${monthName(g.cheapestMonth).toUpperCase()}</span>`,
+    g.directForAll && rowTag(`Direct for ${words.both}`, "direct"),
+    g.cheapestMonth && rowTag(`Cheapest in ${monthName(g.cheapestMonth)}`),
   ].filter(Boolean).join("");
-  const each = g.travelers.map((t, i) => `<span class="gp-each-one">${esc(state.origins[i]?.label ?? t.origin)} from <b>${formatPrice(t.price, currency)}</b>${seats(t)}</span>`).join(" · ");
-  const columns = two ? g.travelers.map((t) => `<div class="gp-col">from <b>${formatPrice(t.price, currency)}</b>${seats(t)}</div>`).join("") : "";
   return `
     <div class="gp-row${g.destination === state.selected ? " is-selected" : ""}" data-code="${esc(g.destination)}" role="button" tabindex="0">
-      <div class="gp-place">
-        <div class="gp-name">${esc(g.destinationName)}${g.country ? ` <span>${esc(g.country)}</span>` : ""}</div>
-        <div class="gp-each">${each}</div>
-        ${tags ? `<div class="gp-tags">${tags}</div>` : ""}
+      <div class="r-place">
+        <div class="r-name">${esc(g.destinationName)}${g.country ? ` <span>${esc(g.country)}</span>` : ""}</div>
+        <div class="r-when">Choose your dates</div>
+        <div class="r-tags">${tags}</div>
       </div>
-      ${columns}
-      <div class="gp-together"><span class="gp-from-wide">from </span><span class="gp-from-phone">together from</span><b>${formatPrice(g.total, currency)}</b></div>
-      <button type="button" class="gp-go place-btn" data-dest="${esc(g.destination)}">Choose dates →</button>
+      <div class="r-total"><b><small>from</small> ${formatPrice(g.total, currency)}</b><span>${sharesText(shares, people, currency)}</span></div>
+      <span class="r-go">${CHEVRON}</span>
     </div>`;
 }
 
@@ -1234,11 +1308,11 @@ function selectDestination(code, { scrollToRow = false } = {}) {
   if (scrollToRow) rowFor()?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-// A row: picks that place (its routes on the map). On phones, where the map
-// is hidden, a good place's row opens its page straight away.
+// A row opens what's behind it: an exact match its trip page (with the routes
+// on the map), a good place its page to choose dates.
 function pickRow(row) {
-  if (row.classList.contains("gp-row") && phoneQuery.matches) openPlacePage(row.dataset.code);
-  else selectDestination(row.dataset.code);
+  if (row.classList.contains("gp-row")) openPlacePage(row.dataset.code);
+  else chooseTrip(placeTrip(row.dataset.code), row.dataset.code);
 }
 
 rowsEl.addEventListener("click", (event) => {
@@ -1603,12 +1677,14 @@ const tripPageEl = $("trip-page");
 const listViewEls = [document.querySelector(".hero"), document.querySelector(".table-box")];
 let lastPage = null; // the page open last, { trip } or { place } — so the browser's Forward button can reopen it
 
-// The trip behind a "Select" button, in one shape for both kinds of search.
+// The trip behind a "Select" button (or a row of the list), in one shape for
+// both kinds of search.
+function placeTrip(code) {
+  const r = state.results.find((x) => x.destination === code);
+  return r ? { ...r, code: r.destination, name: r.destinationName } : null;
+}
 function tripFromSelect(button) {
-  if (button.dataset.dest) {
-    const r = state.results.find((x) => x.destination === button.dataset.dest);
-    return r ? { ...r, code: r.destination, name: r.destinationName } : null;
-  }
+  if (button.dataset.dest) return placeTrip(button.dataset.dest);
   const option = state.trip?.windows[state.tripWindow]?.options[state.tripOption];
   const d = state.trip?.destination;
   return option?.status === "ok" ? { ...option, code: d.code, name: d.name, country: d.country } : null;
@@ -1710,23 +1786,27 @@ function closeTripPage() {
   (rowsEl.querySelector(".row.is-selected, .gp-row.is-selected") ?? rowsEl.querySelector(".trip-box"))?.scrollIntoView({ block: "center" });
 }
 
+// Opens a trip's page: a row of the list, "Select", "See this trip" in a box
+// on the map. `dest`: the place it is for, in a search from anywhere.
+function chooseTrip(trip, dest) {
+  if (!trip) return;
+  setMapOpen(false); // ("Select" on the phone's full-screen map)
+  if (dest) selectDestination(dest);
+  openTripPage(trip);
+  track("select", {
+    kind: dest ? "anywhere" : "destination",
+    to: trip.code,
+    nights: trip.nights,
+    travellers: trip.travelers.reduce((sum, leg) => sum + leg.count, 0),
+    total: Math.round(trip.total),
+    currency: state.currency.toUpperCase(),
+  });
+}
+
 document.addEventListener("click", (event) => {
   const select = event.target.closest(".select-btn");
   if (select) {
-    const trip = tripFromSelect(select);
-    if (trip) {
-      setMapOpen(false); // "Select" on the phone's full-screen map
-      if (select.dataset.dest) selectDestination(select.dataset.dest); // (e.g. "See this trip" in a box on the map)
-      openTripPage(trip);
-      track("select", {
-        kind: select.dataset.dest ? "anywhere" : "destination",
-        to: trip.code,
-        nights: trip.nights,
-        travellers: trip.travelers.reduce((sum, leg) => sum + leg.count, 0),
-        total: Math.round(trip.total),
-        currency: state.currency.toUpperCase(),
-      });
-    }
+    chooseTrip(tripFromSelect(select), select.dataset.dest);
   } else if (event.target.closest("#trip-back")) {
     if (history.state?.tripPage) history.back(); // the popstate below closes the page
     else closeTripPage();

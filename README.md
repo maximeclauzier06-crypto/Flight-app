@@ -30,18 +30,25 @@ pictures joined by dotted lines — you live apart → we find the middle → yo
 meet there (drawn in `index.html`, coloured by the variables in `styles.css`;
 on phones one row per picture). The search replaces it.
 
-The results come in **two kinds**. **Exact matches**: flights for everyone on
-dates that work together ("Select" → the trip page with the Book buttons).
-**Good places for both of you**: everyone has a cheap flight there, just not
-on the same dates in the prices we have — each traveller's lowest price and
-the total together, with "DIRECT FROM BOTH" / "CHEAPEST IN NOV" tags (8
-shown, then "Show N more places"; on the map they are hollow dots). **Choose
-dates →** opens that place's page: the coming weekends (or weeks) as cards
-with everyone's cheapest prices added up, or your own dates on a calendar —
-then each traveller has a **See live prices on Aviasales** button (the same
-partner link as Book). On phones, when there are good places, only 3 exact
-matches show before "Show more", so the good places stay close; a good
-place's row opens its page.
+The results come in **two kinds**, in the same simple rows: the place and
+its country, the dates, a "Direct for both" / "1 stop from Paris" tag, and
+the total big on the right with each departure's share small under it
+("737 kr + 1 159 kr"). The flight times and how far apart you land are on
+the page the row opens. **Exact matches**: flights for everyone on dates that
+work together (the row → the trip page with the Book buttons). **Good places
+for both of you**: everyone has a cheap flight there, just not on the same
+dates in the prices we have — "from" the total of everyone's lowest prices,
+with "Direct for both" / "Cheapest in Nov" tags (8 shown, then "Show N more
+places"; on the map they are hollow dots). The row opens that place's page:
+the coming weekends (or weeks) as cards with everyone's cheapest prices
+added up, or your own dates on a calendar — then each traveller has a **See
+live prices on Aviasales** button (the same partner link as Book). On
+phones, when there are good places, only 3 exact matches show before "Show
+more", so the good places stay close.
+
+Once you've searched and scrolled down, a thin white line at the top of the
+screen keeps your search in view — "Stockholm + Paris → Anywhere · Full
+week" — and each part (or the pencil) takes you back up to change it.
 
 Right above the results, **"Everyone lands within − 3 h +"** sets how far
 apart everyone may land (and fly home). It appears with the first results.
@@ -66,8 +73,8 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-02.1`): change
-that date in all three links whenever `styles.css`, `geo.js` or `app.js`
+`index.html` links our files with a version (`styles.css?v=2026-11-02.2`): change
+that date in all its links (and in the other pages') whenever `styles.css`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
 
@@ -78,6 +85,7 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 | `index.html` | The page structure, including the logo (the "meeting point": two dotted routes meeting in the middle) | Texts, headline, labels |
 | `how-it-works.html`, `destinations.html`, `about.html`, `privacy.html`, `contact.html` | The other pages (same top bar and footer as the home page, styles under "The other pages" in `styles.css`). Destination cards open the search with "Going to" filled in (`index.html?to=LIS&name=Lisbon`) | Their texts. **Keep `privacy.html` in step** when a new service, cookie or kind of data is added. The top bar (with the phones' ☰ menu, `<details class="nav-menu">`, and its small closing script) and the footer are repeated in every page: change a link in all six files |
 | `share.jpg`, `tools/share-image.html` | The picture in link previews (WhatsApp, Messenger, iMessage, Facebook...), 1200 × 630, and the page it is made from. Every page names it in its `og:` tags (title, description, picture) | Change the picture in `tools/share-image.html`, then remake `share.jpg` (the steps are at the top of that file) **under a new name** and update the `og:image` tags in all six pages: apps keep showing an old picture for a long time |
+| `images/destinations/` | The photos on the Destinations cards, one per city (`copenhagen.jpg`...): 640 × 400 JPEGs, cropped from Wikimedia Commons photos with free licences, served by the site itself. Their licences ask us to name each photographer: the small "Photos from Wikimedia Commons" line at the end of `destinations.html` | A new city: a 640 × 400 JPEG here (about 60 KB), an `<img class="dc-photo">` at the top of its card, and its credit (link to the photo's page, photographer, licence) in that line — or a photo of your own |
 | `fonts/` | The two fonts, served by the site itself (no Google Fonts): Outfit for titles and prices, Manrope for the rest, one "variable" file each with all the weights (`-latin`, plus `-latin-ext` for letters like Ł or ș, fetched only when needed), and their free licences (`ofl-*.txt`). Set up at the top of `styles.css`; every page preloads the two `-latin` files | To change a font: put its `.woff2` files here and update the `@font-face` rules at the top of `styles.css`, the `--font-display` / `--font-body` variables, and the two `preload` lines in every page |
 | `404.html`, `robots.txt`, `sitemap.xml` | The page GitHub Pages shows for an address that doesn't exist (its links start with "/", as it can appear at any address), and what search engines read: which pages to look at, and the list of pages | Add a new page to `sitemap.xml`; the 404 page has the same top bar and footer as the others |
 | `about.html` (its story) | The About page tells the story as a route: five pictures in white circles towards the right, joined by a dotted route that swings in wide curves (you and them in two colours, meeting at the idea), the words following the curves. A small script at the end of the page draws the route and shapes the words along it (CSS `shape-outside`); phones get the same, with smaller pictures and slightly tighter settings (`tune()` in the script) | The words: in the page. The pictures: the small drawings inside each `ab-pic`; where they sit: `--x` of `.ab-pic.at-1` ... `at-5` in `styles.css`; how much the words follow the route: `HALO`, `SWAY`, `MAX_TEXT` in the script |
@@ -278,8 +286,8 @@ sends four events through its small `track()` helper:
 | Event | When | Details sent |
 |---|---|---|
 | `search` | a search finishes | `source` (bar, gap, stay, currency, retry, suggest — the "Try a full week instead" button), `kind` (anywhere / destination), `from`, `to` (airport codes), `departures`, `travellers`, `when`, `gap` (the limit the results are for), `startGap` (the limit it started from, before widening), `found` (exact matches), `good` (good places), `outcome` (results / good-places / none / error) |
-| `select` | "Select" opens a trip page | `kind`, `to`, `nights`, `travellers`, `total`, `currency` |
-| `choose-dates` | "Choose dates" opens a good place's page | `to`, `travellers`, `total`, `currency` |
+| `select` | A trip page opens (its row in the list, "Select", "See this trip" on the map) | `kind`, `to`, `nights`, `travellers`, `total`, `currency` |
+| `choose-dates` | A good place's page opens (its row, or "Choose dates" on the map) | `to`, `travellers`, `total`, `currency` |
 | `book-click` | a "Book on Aviasales" or "See live prices on Aviasales" press | `kind` (trip / good-place), `from`, `to`, `seats`, `nights` |
 
 Compare `book-click` with the clicks and sales in Travelpayouts. To keep your

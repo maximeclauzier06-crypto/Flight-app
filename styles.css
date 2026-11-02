@@ -331,6 +331,33 @@ button, input, select { font-family: inherit; }
 .check-option small { color: var(--soft); font-weight: 600; }
 .pop-done { width: 100%; border: 0; border-radius: 14px; padding: 12px; background: var(--action); color: var(--action-ink); font-size: 15px; font-weight: 800; cursor: pointer; }
 
+/* ---------- Your search, at the top of the screen ----------
+   After a search, once the search bar is scrolled out of sight: a thin white
+   line fixed at the top — "Stockholm + Paris → Anywhere · Full week". Each part
+   (and "Change") takes you back up to it (app.js, 6a). Its height, 44px + the
+   line, is SUMMARY_HEIGHT in app.js. */
+.search-summary {
+  position: fixed; left: 0; right: 0; top: 0; z-index: 45;
+  background: #fff; border-bottom: 1px solid var(--line); box-shadow: 0 6px 18px rgba(var(--shadow), 0.07);
+  transform: translateY(-100%); visibility: hidden; transition: transform 0.22s ease, visibility 0s linear 0.22s;
+}
+.search-summary.is-shown { transform: none; visibility: visible; transition: transform 0.22s ease; }
+.ss-inner { width: var(--content); height: 44px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 14px; }
+.ss-parts { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; font-weight: 700; }
+.ss-part { color: var(--ink); }
+.ss-part:hover { opacity: 1; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
+.ss-sep { margin: 0 7px; color: var(--soft); font-weight: 600; }
+.ss-edit {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 999px; padding: 6px 13px; cursor: pointer;
+  background: var(--action); color: var(--action-ink); font-size: 13px; font-weight: 800;
+}
+.ss-edit:hover { background: var(--action-hover); }
+@media (prefers-reduced-motion: reduce) {
+  .search-summary, .search-summary.is-shown { transition: none; }
+}
+/* (rows scrolled into view stay clear of it) */
+.row, .gp-row, .trip-box { scroll-margin-top: 60px; }
+
 /* ---------- Results: the table box (left, tucked under the banner) + the map (right) ---------- */
 
 .results-grid {
@@ -371,24 +398,33 @@ button, input, select { font-family: inherit; }
 .gap-more { margin-left: auto; border: 0; padding: 0; background: none; cursor: pointer; color: var(--accent); font-size: 12.5px; font-weight: 800; }
 .gap-more:hover { text-decoration: underline; }
 
-.row {
-  display: grid; grid-template-columns: 36px 160px minmax(0, 1fr) 104px; column-gap: 16px; align-items: center;
-  padding: 20px 24px; border-top: 1px solid var(--line); background: #fff; cursor: pointer;
+/* A result (exact match .row, good place .gp-row): the place, its dates and
+   how easy the flights are · the total, each departure's share under it · ›.
+   The whole row opens the trip (or the place); the details are there. */
+.row, .gp-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; column-gap: 18px; align-items: center;
+  padding: 18px 24px; border-top: 1px solid var(--line); background: #fff; cursor: pointer;
 }
-.row:hover { background: var(--row-hover); }
-.row.is-selected { background: var(--tint-strong); }
-.rank {
-  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-  background: var(--tint); color: var(--ink); font-family: var(--font-display); font-size: 16px; font-weight: 700;
-}
-.row.is-selected .rank { background: var(--action); color: var(--action-ink); }
+.row:hover, .gp-row:hover { background: var(--row-hover); }
+.row.is-selected, .gp-row.is-selected { background: var(--tint-strong); }
+.r-name { font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.2; }
+.r-name span { margin-left: 2px; color: var(--soft); font-family: var(--font-body); font-size: 13px; font-weight: 600; }
+.r-when { margin-top: 3px; font-size: 13px; font-weight: 800; }
+.gp-row .r-when { color: var(--soft); font-weight: 600; }
+.r-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.r-tags:empty { display: none; }
+.r-tag { border-radius: 999px; padding: 2px 9px; background: var(--tint); color: var(--soft); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.r-tag.is-direct { background: var(--good-tint); color: var(--good); }
+.r-tag.is-apart { background: var(--tag-bg); color: var(--ink); } /* "Paris arrives a day later" */
+.r-total { text-align: right; white-space: nowrap; }
+.r-total b { display: block; font-family: var(--font-display); font-size: 25px; font-weight: 700; line-height: 1.05; }
+.r-total small { color: var(--soft); font-family: var(--font-body); font-size: 12px; font-weight: 700; }
+.r-total span { display: block; margin-top: 4px; color: var(--soft); font-size: 12px; font-weight: 600; }
+.r-go { display: flex; color: var(--placeholder); }
+.row:hover .r-go, .gp-row:hover .r-go, .is-selected .r-go { color: var(--accent); }
 
-.dest-city { font-family: var(--font-display); font-size: 23px; font-weight: 600; line-height: 1.1; }
-.dest-country { margin-top: 2px; color: var(--soft); font-size: 12px; }
-.dest-dates { margin-top: 6px; font-size: 13px; font-weight: 800; }
-.dest-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 5px; color: var(--soft); font-size: 12px; }
+/* (the trip box, when a destination is chosen) */
 .code-chip { border-radius: 999px; padding: 2px 8px; background: var(--tint); color: var(--ink); font-size: 11px; font-weight: 800; letter-spacing: 0.8px; }
-.tag { border-radius: 999px; padding: 2px 8px; background: var(--tag-bg); color: var(--ink); font-size: 10px; font-weight: 800; letter-spacing: 0.8px; }
 
 .traveler + .traveler { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .traveler-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -483,8 +519,7 @@ button, input, select { font-family: inherit; }
 @keyframes sp-in { from { opacity: 0; transform: translateY(4px); } }
 .sp-note { margin: 0; color: var(--soft); font-size: 13px; }
 /* ...and grey "ghost" rows the shape of the results to come, with a soft shine */
-.sk-row { display: grid; grid-template-columns: 36px minmax(0, 1fr) 96px; gap: 16px; align-items: center; padding: 20px 24px; border-top: 1px solid var(--line); }
-.sk-rank { width: 36px; height: 36px; border-radius: 50%; }
+.sk-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 16px; align-items: center; padding: 20px 24px; border-top: 1px solid var(--line); }
 .sk-lines, .sk-price { display: flex; flex-direction: column; gap: 9px; }
 .sk-price { align-items: flex-end; }
 .sk-lines i, .sk-price i { display: block; height: 11px; border-radius: 6px; }
@@ -493,14 +528,14 @@ button, input, select { font-family: inherit; }
 .sk-lines i:nth-child(3) { width: 56%; }
 .sk-price i:nth-child(1) { width: 80px; height: 20px; }
 .sk-price i:nth-child(2) { width: 56px; }
-.sk-rank, .sk-lines i, .sk-price i {
+.sk-lines i, .sk-price i {
   background: linear-gradient(90deg, var(--line) 0%, var(--tint-strong) 50%, var(--line) 100%); background-size: 200% 100%;
   animation: sp-shine 1.6s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-bar span { width: 40%; animation: none; }
   .sp-text.is-new { animation: none; }
-  .sk-rank, .sk-lines i, .sk-price i { animation: none; }
+  .sk-lines i, .sk-price i { animation: none; }
 }
 
 /* No result (or no exact match): a title, one sentence, and a one-tap way on */
@@ -532,34 +567,7 @@ button, input, select { font-family: inherit; }
 .good-places { border-top: 6px solid var(--page); }
 .good-places .section-head { border-top: 0; padding-top: 24px; }
 .good-intro { margin: 0; padding: 0 24px 16px; color: var(--ink); font-size: 14px; line-height: 1.55; }
-/* Place · (each traveller's price, with two travellers) · together · "Choose dates" */
-/* (fixed widths, so the heading row and every row line up) */
-.gp-head, .gp-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px 142px; column-gap: 12px; align-items: center; padding: 0 24px; }
-.gp-list.is-two .gp-head, .gp-list.is-two .gp-row { grid-template-columns: minmax(0, 1fr) 92px 92px 104px 142px; }
-.gp-head { padding-top: 11px; padding-bottom: 11px; background: var(--tint); color: var(--soft); font-size: 11px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; }
-.gp-head span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gp-row { padding-top: 14px; padding-bottom: 14px; border-top: 1px solid var(--line); background: #fff; cursor: pointer; }
-.gp-row:hover { background: var(--row-hover); }
-.gp-row.is-selected { background: var(--tint-strong); }
-.gp-name { font-family: var(--font-display); font-size: 19px; font-weight: 600; line-height: 1.2; }
-.gp-name span { color: var(--soft); font-family: var(--font-body); font-size: 12px; font-weight: 600; }
-.gp-each { margin-top: 3px; color: var(--soft); font-size: 12px; }
-.gp-each b { color: var(--ink); }
-.gp-each-one { white-space: nowrap; } /* "Brussels from 32 €" stays on one line */
-.gp-list.is-two .gp-each { display: none; } /* two travellers: their prices have columns */
-.gp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.gp-tag { border-radius: 999px; padding: 2px 8px; background: var(--tint); color: var(--soft); font-size: 10px; font-weight: 800; letter-spacing: 0.6px; }
-.gp-tag.is-direct { background: var(--good-tint); color: var(--good); }
-.gp-col, .gp-together { color: var(--soft); font-size: 13px; white-space: nowrap; }
-.gp-col b { font-family: var(--font-display); font-size: 17px; color: var(--ink); }
-.gp-col small, .gp-each small { font-size: 11px; }
-.gp-together b { font-family: var(--font-display); font-size: 22px; color: var(--ink); }
-.gp-from-phone { display: none; }
-.gp-go {
-  justify-self: end; border: 1.5px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer;
-  background: #fff; color: var(--accent); font-size: 13px; font-weight: 800; white-space: nowrap;
-}
-.gp-go:hover, .gp-row.is-selected .gp-go { border-color: var(--action); background: var(--action); color: var(--action-ink); }
+.gp-each-one { white-space: nowrap; } /* "Brussels from 32 €" stays on one line (the boxes on the map) */
 .gp-note { margin: 0; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--tint); color: var(--soft); font-size: 12px; line-height: 1.55; }
 
 /* ---------- One destination: the weekends strip, the other days, the trip ---------- */
@@ -843,11 +851,24 @@ button, input, select { font-family: inherit; }
 .doc .dest-group { margin: 34px 0 12px; color: var(--soft); font-family: var(--font-body); font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
 .dest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .dest-card {
-  display: flex; flex-direction: column; gap: 4px; padding: 18px 18px 16px;
+  display: flex; flex-direction: column; gap: 4px; padding: 18px 18px 16px; overflow: hidden;
   border: 1px solid var(--line); border-radius: 20px; background: #fff; color: var(--ink);
   transition: border-color 0.15s, background 0.15s;
 }
 .dest-card:hover { opacity: 1; border-color: var(--pill-border); background: var(--row-hover); }
+/* The photo fills the top of the card (images/destinations/, 640 x 400) */
+.dest-card .dc-photo {
+  display: block; width: calc(100% + 36px); height: auto; aspect-ratio: 16 / 10; margin: -18px -18px 10px; object-fit: cover;
+  background: var(--tint); transition: transform 0.3s ease;
+}
+.dest-card:hover .dc-photo { transform: scale(1.03); }
+@media (prefers-reduced-motion: reduce) {
+  .dest-card .dc-photo { transition: none; }
+  .dest-card:hover .dc-photo { transform: none; }
+}
+/* Who took the photos (their licences ask for it): small, at the very end */
+.doc .photo-credits { margin: 28px 0 0; color: var(--soft); font-size: 11.5px; line-height: 1.6; }
+.doc .photo-credits a:not(.btn) { color: var(--soft); font-weight: 600; text-decoration-thickness: 1px; }
 .dest-card .dc-city { font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.1; }
 .dest-card .dc-country { color: var(--soft); font-size: 12px; font-weight: 700; }
 .dest-card .dc-why { flex: 1; margin-top: 6px; color: var(--ink); font-size: 14px; line-height: 1.5; }
@@ -966,6 +987,14 @@ button, input, select { font-family: inherit; }
   .btn-signin { padding: 7px 14px; font-size: 13px; }
   .brand, .btn-signin { white-space: nowrap; }
 
+  /* Your search at the top: smaller, "Change" as just the pencil, and not over the full-screen map */
+  .ss-inner { padding: 0 2px; gap: 10px; }
+  .ss-parts { font-size: 13px; }
+  .ss-sep { margin: 0 5px; }
+  .ss-edit { padding: 7px; }
+  .ss-edit span { display: none; }
+  body.map-open .search-summary { display: none; }
+
   /* Less text before the search: the title and one line, then the search; the
      badge goes, and the three promises move under the search, smaller */
   .hero { padding: 24px 16px 52px; border-radius: 26px; }
@@ -1003,32 +1032,21 @@ button, input, select { font-family: inherit; }
   .bar-hint { font-size: 12px; }
   .bar-hint.is-trust { display: none; } /* "Free · no account needed..." takes too much room here */
 
-  /* Results: compact rows — the place and its total side by side, one short
-     line per traveller. The exact flight times are on the trip page ("Select"). */
+  /* Results: the same rows as on a computer, a little smaller */
   .table-top { padding: 22px 16px 14px; }
   .table-top h2 { font-size: 26px; }
   .chip { padding: 7px 13px; font-size: 12px; }
   .gap-bar { margin: 0 16px 14px; }
-  .row {
-    grid-template-columns: 30px minmax(0, 1fr) auto;
-    grid-template-areas: "rank dest total" "rank journeys journeys";
-    column-gap: 10px; row-gap: 10px; padding: 16px;
-  }
-  .row .rank { grid-area: rank; align-self: start; width: 30px; height: 30px; font-size: 14px; }
-  .row .dest { grid-area: dest; }
-  .row .journeys { grid-area: journeys; }
-  .row .total-cell { grid-area: total; }
-  .row .dest-city { font-size: 20px; }
-  .row .total { font-size: 22px; }
-  .row .total-sub { margin: 2px 0 8px; }
-  .row .select-btn { padding: 8px 12px; }
-  .row .times, .row .gap-note { display: none; }
-  .sk-row { grid-template-columns: 30px minmax(0, 1fr) 76px; gap: 10px; padding: 16px; }
-  .sk-rank { width: 30px; height: 30px; }
+  .row, .gp-row { column-gap: 10px; padding: 15px 12px 15px 16px; }
+  .r-name { font-size: 19px; }
+  .r-name span { display: block; margin: 1px 0 0; font-size: 12px; } /* the country under the city */
+  .r-tags { margin-top: 7px; }
+  .r-total b { font-size: 21px; }
+  .r-total span { font-size: 11px; }
+  .sk-row { grid-template-columns: minmax(0, 1fr) 76px; gap: 10px; padding: 16px; }
   .sk-price i:nth-child(1) { width: 66px; }
   .search-progress { padding: 24px 16px 26px; }
   .empty-state { padding: 22px 16px 24px; }
-  .row .traveler + .traveler { margin-top: 6px; padding-top: 6px; }
   .trip-box .total-cell { text-align: left; }
   .gap-more { margin-left: 0; }
   .trip-box { grid-template-columns: minmax(0, 1fr); }
@@ -1040,22 +1058,8 @@ button, input, select { font-family: inherit; }
   .alts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .map-hint, .map-legend { display: none; }
 
-  /* Good places: the place and each price on the left, the total and
-     "Choose dates →" on the right (the whole row opens the place) */
   .section-head, .more-row { padding-left: 16px; padding-right: 16px; }
   .good-intro, .gp-note { padding-left: 16px; padding-right: 16px; }
-  .gp-head { display: none; }
-  .gp-row, .gp-list.is-two .gp-row {
-    grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "place together" "place go";
-    column-gap: 10px; row-gap: 4px; padding: 14px 16px;
-  }
-  .gp-place { grid-area: place; }
-  .gp-col { display: none; }
-  .gp-list.is-two .gp-each { display: block; }
-  .gp-together { grid-area: together; text-align: right; }
-  .gp-from-wide { display: none; }
-  .gp-from-phone { display: block; font-size: 11px; }
-  .gp-go, .gp-go:hover, .gp-row.is-selected .gp-go { grid-area: go; align-self: start; border: 0; padding: 0; background: none; color: var(--accent); font-size: 12px; }
 
   /* The story: one row per picture (picture left, words right), joined by
      dots going down; the labels in the pictures a little bigger */
