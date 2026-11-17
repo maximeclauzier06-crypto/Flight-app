@@ -48,7 +48,9 @@ more", so the good places stay close.
 
 Once you've searched and scrolled down, a thin white line at the top of the
 screen keeps your search in view — "Stockholm + Paris → Anywhere · Full
-week" — and each part (or the pencil) takes you back up to change it.
+week" — and a tap on a part (or the pencil) opens the search bar right there,
+under the line, with that part ready to change; a new search (or ×, Escape,
+a tap elsewhere) puts it back in the banner.
 
 Right above the results, **"Everyone lands within − 3 h +"** sets how far
 apart everyone may land (and fly home). It appears with the first results.
@@ -73,7 +75,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-02.2`): change
+`index.html` links our files with a version (`styles.css?v=2026-11-02.3`): change
 that date in all its links (and in the other pages') whenever `styles.css`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.

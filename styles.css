@@ -333,9 +333,10 @@ button, input, select { font-family: inherit; }
 
 /* ---------- Your search, at the top of the screen ----------
    After a search, once the search bar is scrolled out of sight: a thin white
-   line fixed at the top — "Stockholm + Paris → Anywhere · Full week". Each part
-   (and "Change") takes you back up to it (app.js, 6a). Its height, 44px + the
-   line, is SUMMARY_HEIGHT in app.js. */
+   line fixed at the top — "Stockholm + Paris → Anywhere · Full week". A tap on
+   a part (or "Change") opens the search bar under it, on the banner's colours,
+   to change it right there (app.js, 6a). Its height, 44px + the line, is
+   SUMMARY_HEIGHT in app.js. */
 .search-summary {
   position: fixed; left: 0; right: 0; top: 0; z-index: 45;
   background: #fff; border-bottom: 1px solid var(--line); box-shadow: 0 6px 18px rgba(var(--shadow), 0.07);
@@ -352,6 +353,19 @@ button, input, select { font-family: inherit; }
   background: var(--action); color: var(--action-ink); font-size: 13px; font-weight: 800;
 }
 .ss-edit:hover { background: var(--action-hover); }
+.ss-edit-close, .is-editing .ss-edit-open { display: none; }
+.is-editing .ss-edit-close { display: block; }
+/* Changing it: the line stays, the search bar opens under it */
+.search-summary.is-editing { transform: none; visibility: visible; }
+/* (the suggestions and the "When" pop-up hang below it, over the page) */
+.ss-panel {
+  padding: 16px max(16px, calc((100% - var(--content)) / 2 + 16px)) 18px;
+  background: var(--hero-bg); box-shadow: 0 18px 40px rgba(var(--shadow), 0.3);
+}
+@media (max-height: 520px) {
+  /* A very short screen (a phone on its side): it scrolls inside instead */
+  .ss-panel { max-height: calc(100vh - 45px); max-height: calc(100dvh - 45px); overflow-y: auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   .search-summary, .search-summary.is-shown { transition: none; }
 }

@@ -686,7 +686,8 @@ let searchCounter = 0; // so an older, slower search can't overwrite a newer one
 // them, and the routes on the map behind, without having to scroll.
 function revealResults() {
   const visibleTop = document.querySelector(".hero").getBoundingClientRect().bottom; // the results start under the banner
-  if (visibleTop < window.innerHeight * 0.4) return; // already in view
+  if (visibleTop >= SUMMARY_HEIGHT && visibleTop < window.innerHeight * 0.4) return; // already in view
+  // (a search changed from the line at the top, far down the list: back up to the results' start)
   const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
   window.scrollTo({ top: window.scrollY + visibleTop - SUMMARY_HEIGHT, behavior: smooth ? "smooth" : "auto" }); // (just under the line at the top, 6a)
 }
@@ -869,6 +870,7 @@ $("search-form").addEventListener("submit", (event) => {
     return showMessage(esc(error.message), true);
   }
   setWhenOpen(false);
+  closeBarEditor(); // (changed from the line at the top: the search bar goes back into the banner, 6a)
   runSearch(departures, params, { reveal: true, source: "bar" });
 });
 
@@ -900,8 +902,11 @@ document.addEventListener("click", (event) => {
 // ===========================================================================
 // Once you've searched and scrolled past the search bar, a thin white line at
 // the top of the screen keeps what you searched for in view: "Stockholm +
-// Paris → Anywhere · Full week". A tap on a part takes you back up to it in
-// the search bar — that airport, "Going to", or the "When" pop-up — to change it.
+// Paris → Anywhere · Full week". A tap on a part opens the search bar right
+// there, under the line, with that part ready to change (that airport, "Going
+// to", or the "When" pop-up) — you stay where you are on the page. It is the
+// banner's own search bar, moved up while you change it and put back after
+// (a new search, ×, Escape or a tap elsewhere).
 
 const summaryEl = $("search-summary");
 const SUMMARY_HEIGHT = 45; // its height (.ss-inner in styles.css, and its line): the results scroll in just under it
@@ -938,28 +943,66 @@ const sightWatch = new IntersectionObserver((entries) => {
 sightWatch.observe($("search-form"));
 sightWatch.observe(document.querySelector(".nav"));
 
+const panelEl = $("ss-panel");
+const barEls = [$("search-form"), document.querySelector(".bar-extras")]; // the search bar and "+ Add a departure" under it
+const barHome = document.createElement("div"); // keeps their place (and height) in the banner while they're up here
+let editingBar = false;
+
+// "Change" (pencil) while closed, "Close" (×) while open
+function setEditButton(open) {
+  const button = summaryEl.querySelector(".ss-edit");
+  button.setAttribute("aria-expanded", String(open));
+  button.setAttribute("aria-label", open ? "Close" : "Change your search");
+  button.querySelector("span").textContent = open ? "Close" : "Change";
+}
+
+function openBarEditor() {
+  if (editingBar) return;
+  const [form, extras] = barEls;
+  barHome.style.height = `${extras.getBoundingClientRect().bottom - form.getBoundingClientRect().top}px`;
+  form.before(barHome);
+  panelEl.append(...barEls);
+  panelEl.hidden = false;
+  editingBar = true;
+  summaryEl.classList.add("is-editing");
+  setEditButton(true);
+}
+
+function closeBarEditor() {
+  if (!editingBar) return;
+  setWhenOpen(false);
+  barHome.replaceWith(...barEls);
+  panelEl.hidden = true;
+  editingBar = false;
+  summaryEl.classList.remove("is-editing");
+  setEditButton(false);
+}
+
 summaryEl.addEventListener("click", (event) => {
   const target = event.target.closest("[data-edit]");
   if (!target) return;
   event.preventDefault();
   event.stopPropagation(); // (or this click would close the "When" pop-up straight after it opens)
-  // From a trip's page: back to the list first (where the search bar is).
-  if (!tripPageEl.hidden) {
-    closeTripPage();
-    if (history.state?.tripPage) history.replaceState(null, "", location.pathname + location.search);
-  }
-  const smooth = !matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const top = $("search-form").getBoundingClientRect().top + window.scrollY - 24;
-  window.scrollTo({ top: Math.max(0, top), behavior: smooth ? "smooth" : "auto" });
   const edit = target.dataset.edit;
-  if (edit === "when") setWhenOpen(true);
+  if (edit === "bar" && editingBar) return closeBarEditor(); // the × on the right
+  openBarEditor();
+  setWhenOpen(edit === "when");
   const field = edit === "origin" ? originsEl.querySelectorAll(".origin-cell input[type=text]")[Number(target.dataset.index)]
     : edit === "going" ? goingInput
     : null;
   if (field) {
-    field.focus({ preventScroll: true });
+    field.focus();
     field.select();
   }
+});
+// A tap anywhere else, or Escape, puts the search bar back (a new search too: see the "submit" above).
+// (A tap whose target is gone by now, e.g. a picked suggestion or a removed
+// departure, was inside it.)
+document.addEventListener("click", (event) => {
+  if (editingBar && event.target.isConnected && !summaryEl.contains(event.target)) closeBarEditor();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && editingBar) closeBarEditor();
 });
 
 
