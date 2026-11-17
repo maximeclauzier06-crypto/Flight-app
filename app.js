@@ -23,7 +23,8 @@
 //            rule (− / +) · 7 The results (exact matches,
 //            good places) · 7b One destination · 7c Booking · 7d The trip page
 //            (after "Select") · 7e A good place (after "Choose dates") ·
-//            8 The map (with, at its end, the full-screen map on phones)
+//            8 The map (with, at its end, the full-screen map on phones) ·
+//            9 With an account ("♡ Save", your airports, "See this trip")
 // ---------------------------------------------------------------------------
 
 
@@ -352,6 +353,23 @@ function readDepartures() {
       count: Number(cell.dataset.count) || 1,
     };
   });
+}
+
+// Fills the departures in — from "Search again" on the Account page, or your
+// last airports (section 9): [{ code, label, count }].
+function fillDepartures(list) {
+  const cells = () => [...originsEl.querySelectorAll(".origin-cell")];
+  const wanted = Math.min(Math.max(list.length, 2), MAX_ORIGINS);
+  while (cells().length < wanted) addOrigin();
+  while (cells().length > wanted) cells().at(-1).remove();
+  list.slice(0, wanted).forEach((d, i) => {
+    const cell = cells()[i];
+    const input = cell.querySelector("input[type=text]");
+    input.value = `${d.label} (${d.code})`;
+    Object.assign(input.dataset, { code: d.code, label: d.label, lat: "", lon: "" }); // (the search answers with their positions)
+    cell.dataset.count = String(Math.min(9, Math.max(1, Number(d.count) || 1)));
+  });
+  refreshOrigins();
 }
 
 addOrigin();
@@ -872,6 +890,7 @@ $("search-form").addEventListener("submit", (event) => {
   setWhenOpen(false);
   closeBarEditor(); // (changed from the line at the top: the search bar goes back into the banner, 6a)
   runSearch(departures, params, { reveal: true, source: "bar" });
+  rememberAirports(departures); // (signed in: for next time, section 9)
 });
 
 // "Try a full week instead" / "Try flexible dates" (after a search that found
@@ -1436,9 +1455,11 @@ function showTrip(json) {
     showMessage(explainEmptyTrip(json));
     showTripOnMap(null);
     updateWarning();
+    openSavedTrip(); // (it lets go of a saved trip that has no price now, section 9)
     return;
   }
   renderTrip();
+  openSavedTrip(); // "See this trip" from the Account page: that trip's page (section 9)
 }
 
 function renderTripHeader() {
@@ -1771,7 +1792,7 @@ function tripPageHtml(t) {
   const n = t.travelers.length;
   const people = t.travelers.reduce((sum, leg) => sum + leg.count, 0);
   return `
-    <button type="button" class="back-link" id="trip-back">← Back to results</button>
+    <div class="tp-topbar"><button type="button" class="back-link" id="trip-back">← Back to results</button>${saveButtonHtml()}</div>
     <div class="tp-head">
       <div>
         <div class="hero-badge">YOUR TRIP</div>
@@ -1779,7 +1800,7 @@ function tripPageHtml(t) {
         ${t.country ? `<div class="tp-country">${esc(t.country)}</div>` : ""}
         <div class="tp-when">${dayLabel(t.departDate)} → ${dayLabel(t.returnDate)} · ${nightsLabel(t.nights)} · ${travellersLabel(people)}</div>
       </div>
-      <div class="tp-total"><strong>${formatPrice(t.total, state.currency)}</strong><span>in total, for ${peopleLabel(people)}</span></div>
+      <div class="tp-total"><strong>${formatPrice(t.total, state.currency)}</strong><span>in total, for ${peopleLabel(people)}</span>${t.savedTotal != null ? `<span class="tp-was">${formatPrice(t.savedTotal, state.currency)} when you saved it</span>` : ""}</div>
     </div>
 
     <section class="tp-card">
@@ -1808,6 +1829,7 @@ function showPage(html) {
   window.scrollTo({ top: 0 });
   $("trip-back").focus({ preventScroll: true });
   updateMapButton();
+  checkSaved(); // "♡ Save" or "Saved" (section 9)
 }
 
 function openTripPage(trip) {
@@ -1978,7 +2000,7 @@ function placePageHtml() {
   const d = chosenDates();
 
   return `
-    <button type="button" class="back-link" id="trip-back">← Back to results</button>
+    <div class="tp-topbar"><button type="button" class="back-link" id="trip-back">← Back to results</button>${saveButtonHtml()}</div>
     <div class="tp-head">
       <div>
         <div class="hero-badge">A GOOD PLACE FOR ${words.you.toUpperCase()}</div>
@@ -2633,3 +2655,174 @@ phoneQuery.addEventListener("change", () => (phoneQuery.matches ? renderMap() : 
 renderGapBar();
 renderMap();
 Geo.load().then(renderMap); // the countries arrive a moment later
+
+
+// ===========================================================================
+// 9. WITH AN ACCOUNT — "♡ Save", your airports, "See this trip"
+// ===========================================================================
+// Signing in is on the Account page (account.html; auth.js does the work).
+// Signed in, a trip's page and a good place's page have "♡ Save" (the trip
+// goes to your account, with the price you saw), and the airports of your
+// last search are filled in when you come back. Signed out, "♡ Save" says how
+// to sign in, and nothing else changes.
+
+const account = window.htAuth ?? null; // (null if auth.js didn't load)
+let saved = null;        // your saved trips: key → id, loaded once when first needed
+let savedLoading = null;
+
+const HEART = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"></path></svg>';
+const departuresOf = () => state.origins.map((o) => ({ code: o.code, label: o.label, count: o.count }));
+const saveKey = (row) => [row.kind, row.destination, row.depart_date ?? "", row.return_date ?? "", row.origins.map((o) => o.code).join(",")].join("|");
+
+// What "♡ Save" keeps for the page that's open: a good place, or a trip.
+function rowToSave() {
+  if (placeView) {
+    const g = placeView.place;
+    return {
+      kind: "place", destination: g.destination, destination_name: g.destinationName, country: g.country || null,
+      origins: departuresOf(), depart_date: null, return_date: null,
+      nights: TRIP_NIGHTS[placeView.stay] ?? stayNights(state.lastSearch.params), total: Math.round(g.total), currency: state.currency,
+    };
+  }
+  const t = lastPage?.trip;
+  return t ? {
+    kind: "trip", destination: t.code, destination_name: t.name, country: t.country || null,
+    origins: departuresOf(), depart_date: t.departDate, return_date: t.returnDate,
+    nights: t.nights, total: Math.round(t.total), currency: state.currency,
+  } : null;
+}
+
+const isSaved = () => {
+  const row = rowToSave();
+  return Boolean(row && saved?.has(saveKey(row)));
+};
+function saveButtonHtml() {
+  const on = isSaved();
+  return `<span class="save-wrap"><button type="button" class="save-btn${on ? " is-saved" : ""}" id="save-btn" aria-pressed="${on}">${HEART}<span>${on ? "Saved" : "Save"}</span></button><span class="save-note" id="save-note" hidden></span></span>`;
+}
+function updateSaveButton() {
+  const button = $("save-btn");
+  if (!button) return;
+  const on = isSaved();
+  button.classList.toggle("is-saved", on);
+  button.setAttribute("aria-pressed", String(on));
+  button.querySelector("span").textContent = on ? "Saved" : "Save";
+}
+
+function loadSaved() {
+  if (saved) return Promise.resolve(saved);
+  savedLoading ??= account.rest("saved_trips?select=id,kind,destination,depart_date,return_date,origins")
+    .then((rows) => (saved = new Map(rows.map((r) => [saveKey(r), r.id]))))
+    .finally(() => (savedLoading = null));
+  return savedLoading;
+}
+// A page just opened: is this one saved already?
+function checkSaved() {
+  if (account?.signedIn()) loadSaved().then(updateSaveButton, () => {});
+}
+
+tripPageEl.addEventListener("click", async (event) => {
+  const button = event.target.closest("#save-btn");
+  if (!button) return;
+  const note = $("save-note");
+  if (!account?.signedIn()) {
+    note.innerHTML = 'Keep trips with a free account — just your email. <a href="account.html">Sign in</a>';
+    note.hidden = false;
+    return;
+  }
+  const row = rowToSave();
+  if (!row) return;
+  button.disabled = true;
+  try {
+    await loadSaved();
+    const key = saveKey(row);
+    if (saved.has(key)) {
+      await account.rest(`saved_trips?id=eq.${encodeURIComponent(saved.get(key))}`, { method: "DELETE" });
+      saved.delete(key);
+      note.hidden = true;
+    } else {
+      const [made] = await account.rest("saved_trips", { method: "POST", body: row, prefer: "return=representation" });
+      saved.set(key, made.id);
+      note.innerHTML = 'Saved to <a href="account.html">your account</a>.';
+      note.hidden = false;
+    }
+  } catch (error) {
+    note.textContent = `Couldn't save it: ${error.message}`;
+    note.hidden = false;
+  } finally {
+    button.disabled = false;
+    updateSaveButton();
+  }
+});
+
+// After a search from the bar: its airports, to fill in next time.
+// (Only a convenience: if it fails, nothing is in the way.)
+function rememberAirports(departures) {
+  if (!account?.signedIn()) return;
+  const airports = departures.map((d) => ({ code: d.code, label: d.label, count: d.count }));
+  account.rest("profiles", {
+    method: "POST",
+    body: { user_id: account.user().id, airports, updated_at: new Date().toISOString() },
+    prefer: "resolution=merge-duplicates",
+  }).catch(() => {});
+}
+
+// "See this trip": once the search for its dates is in, that trip's own page
+// opens — the same flights, with today's prices and the price you saw. If
+// it has no price for everyone right now, the list for those dates stays.
+let tripToOpen = null; // { depart, back, total, currency }
+function openSavedTrip() {
+  const wanted = tripToOpen;
+  tripToOpen = null;
+  if (!wanted || !state.trip) return;
+  const isIt = (o) => o.status === "ok" && o.departDate === wanted.depart && o.returnDate === wanted.back;
+  const windowIndex = state.trip.windows.findIndex((w) => w.options.some(isIt));
+  if (windowIndex < 0) {
+    if (state.trip.windows.some(cheapestOption)) showMessage("This exact trip has no price for everyone at the moment. Here are your dates and the days around them.");
+    return;
+  }
+  state.tripWindow = windowIndex;
+  state.tripOption = state.trip.windows[windowIndex].options.findIndex(isIt);
+  renderTrip(); // (its dates chosen in the list, for "Back to results")
+  const option = state.trip.windows[windowIndex].options[state.tripOption];
+  const d = state.trip.destination;
+  chooseTrip({ ...option, code: d.code, name: d.name, country: d.country, savedTotal: wanted.currency === state.currency ? wanted.total : null });
+}
+
+// The links from the Account page: index.html?from=STO:Stockholm:1&from=PAR:Paris:2
+// &to=LIS&name=Lisbon (filled in above, 3c), with depart= & return= or
+// stay=weekend|long|week, cur=sek (the currency it was saved in) and go=1 —
+// the search runs straight away. "See this trip" adds open=1 and was=1896.
+const linkedFrom = linkedPlace.getAll("from").map((item) => {
+  const [code, ...rest] = item.split(":");
+  const count = /^\d$/.test(rest.at(-1) ?? "") ? Number(rest.pop()) : 1;
+  return { code, label: (rest.join(":") || code).slice(0, 60), count };
+}).filter((d) => /^[A-Z]{3}$/.test(d.code));
+
+if (linkedFrom.length >= 2) {
+  fillDepartures(linkedFrom);
+  const currency = (linkedPlace.get("cur") ?? "").toLowerCase();
+  if ([...currencySelect.options].some((o) => o.value === currency)) currencySelect.value = currency;
+  const [depart, back] = [linkedPlace.get("depart"), linkedPlace.get("return")];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(depart ?? "") && /^\d{4}-\d{2}-\d{2}$/.test(back ?? "") && depart > today && back > depart) {
+    $("mode-specific").checked = true;
+    departDateInput.value = depart;
+    returnDateInput.value = back;
+    if (linkedPlace.get("open") === "1" && hasDestination()) {
+      const was = Number(linkedPlace.get("was"));
+      tripToOpen = { depart, back, total: linkedPlace.has("was") && Number.isFinite(was) ? was : null, currency: currencySelect.value };
+    }
+  } else if (linkedPlace.get("stay") in TRIP_NIGHTS) {
+    $("mode-flexible").checked = true;
+    durationSelect.value = linkedPlace.get("stay");
+  }
+  updateWhenFields();
+  if (linkedPlace.get("go") === "1") $("search-form").requestSubmit();
+} else if (account?.signedIn()) {
+  // Back, signed in, with an empty search bar: your last airports.
+  account.rest("profiles?select=airports").then(([profile]) => {
+    const airports = profile?.airports ?? [];
+    const untouched = readDepartures().every((d) => !d.code) && ![...originsEl.querySelectorAll("input[type=text]")].some((i) => i.value.trim());
+    if (airports.length >= 2 && untouched) fillDepartures(airports);
+  }, () => {});
+}

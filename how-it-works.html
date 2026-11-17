@@ -29,7 +29,7 @@
        early so the words don't change shape just after the page appears -->
   <link rel="preload" href="fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=2026-11-02.3">
+  <link rel="stylesheet" href="styles.css?v=2026-11-17.1">
   <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal -->
   <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
 </head>
@@ -51,6 +51,7 @@
       <a href="how-it-works.html" aria-current="page">How it works</a>
       <a href="destinations.html">Destinations</a>
       <a href="about.html">About</a>
+      <a class="nav-account" href="account.html">Sign in</a>
       <a class="btn-signin btn-cta" href="index.html">Find a trip</a>
       <!-- Phones: the page links fold into this small menu (☰) -->
       <details class="nav-menu">
@@ -63,6 +64,7 @@
           <a href="destinations.html">Destinations</a>
           <a href="about.html">About</a>
           <a href="contact.html">Contact</a>
+          <a class="nav-account" href="account.html">Sign in</a>
         </div>
       </details>
     </nav>
@@ -104,7 +106,7 @@
       <div class="faq">
         <details>
           <summary>Is it free?</summary>
-          <p>Yes. There is no fee and no account to create.</p>
+          <p>Yes. There is no fee, and you don't need an account. If you want one, it's free too: sign in with your email to keep the trips you save.</p>
         </details>
         <details>
           <summary>How does Halfway Trips make money?</summary>
@@ -144,5 +146,7 @@
     <span class="footer-links"><a href="how-it-works.html">How it works</a><a href="destinations.html">Destinations</a><a href="about.html">About</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></span>
   </footer>
 
+  <!-- (turns "Sign in" into "Account" when you are signed in) -->
+  <script src="auth.js?v=2026-11-17.1" defer></script>
 </body>
 </html>

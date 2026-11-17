@@ -1,0 +1,74 @@
+<!doctype html>
+<!--
+  The sign-in email: Supabase → Authentication → Emails → Templates → "Magic link or OTP".
+  Subject: Your Halfway Trips sign-in link
+  Paste everything in this file into the message body (Source), then Save.
+  {{ .ConfirmationURL }} becomes the link and {{ .Token }} the code — Supabase fills them in.
+  (Email apps ignore most styles in <head>, so the styles are on each element.)
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
+  <title>Your Halfway Trips sign-in link</title>
+  <style>
+    /* Our fonts, for the email apps that load them (Apple Mail); the others use Arial. */
+    @font-face { font-family: 'Outfit'; font-weight: 500 700; src: url('https://halfwaytrips.com/fonts/outfit-latin.woff2') format('woff2'); }
+    @font-face { font-family: 'Manrope'; font-weight: 400 800; src: url('https://halfwaytrips.com/fonts/manrope-latin.woff2') format('woff2'); }
+    @media (max-width: 520px) {
+      .card { padding: 28px 22px 26px !important; }
+      .code { font-size: 26px !important; letter-spacing: 5px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0; padding:0; background:#F5EEE3;">
+  <!-- The line the inbox shows next to the subject -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:#F5EEE3;">Your link to sign in to Halfway Trips, and a code for another device.</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5EEE3;">
+    <tr>
+      <td align="center" style="padding:32px 16px 40px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+
+          <tr>
+            <td style="padding:0 4px 20px;">
+              <a href="https://halfwaytrips.com" style="text-decoration:none;"><img src="https://halfwaytrips.com/images/email-logo.png" width="196" height="40" alt="Halfway Trips" style="display:block; border:0; font-family:Arial, Helvetica, sans-serif; font-size:22px; font-weight:bold; color:#2A1D16;"></a>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="card" style="background:#FFFFFF; border-radius:20px; padding:36px 36px 32px; font-family:'Manrope', Arial, Helvetica, sans-serif; color:#2A1D16;">
+              <h1 style="margin:0 0 10px; font-family:'Outfit', Arial, Helvetica, sans-serif; font-size:28px; line-height:1.2; font-weight:700; color:#2A1D16;">Your sign-in link</h1>
+              <p style="margin:0 0 26px; font-size:16px; line-height:1.55; color:#6A5E56;">Tap the button to sign in to Halfway Trips. It works once, within the hour.</p>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="border-radius:999px; background:#F2B33D;">
+                    <a href="{{ .ConfirmationURL }}" style="display:inline-block; padding:15px 30px; border-radius:999px; font-family:'Outfit', Arial, Helvetica, sans-serif; font-size:17px; font-weight:700; color:#2B1608; text-decoration:none;">Sign in to Halfway Trips</a>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="height:1px; line-height:1px; font-size:1px; background:#ECE3D6; margin:30px 0 24px;">&nbsp;</div>
+
+              <p style="margin:0 0 12px; font-size:15px; line-height:1.5; color:#2A1D16;"><b>Reading this on another device?</b> Type this code on the sign-in page instead:</p>
+              <div class="code" style="display:inline-block; padding:14px 22px; border-radius:14px; background:#F6F0E7; font-family:'Outfit', Arial, Helvetica, sans-serif; font-size:30px; line-height:1.1; font-weight:700; letter-spacing:7px; color:#2A1D16;">{{ .Token }}</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:22px 8px 0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.55; color:#6A5E56;">
+              <p style="margin:0 0 10px;">Someone (we hope you) asked to sign in to Halfway Trips with this email address. If it wasn't you, just ignore this email: nobody can sign in without this link or code.</p>
+              <p style="margin:0 0 10px;">We never ask for a password or for payment details by email.</p>
+              <p style="margin:0;"><a href="https://halfwaytrips.com" style="color:#A8461C; font-weight:bold; text-decoration:none;">halfwaytrips.com</a> · find where you and someone else can meet</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

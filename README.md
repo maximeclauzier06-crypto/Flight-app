@@ -75,8 +75,8 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-02.3`): change
-that date in all its links (and in the other pages') whenever `styles.css`, `geo.js` or `app.js`
+`index.html` links our files with a version (`styles.css?v=2026-11-17.1`): change
+that date in all its links (and in the other pages') whenever `styles.css`, `auth.js`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
 
@@ -96,6 +96,9 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-bg`, `--action`, `--accent`...). Change them and the whole site follows. |
 | `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the results (exact matches, then good places), the trip page after "Select" (with the "Book on Aviasales" buttons), a good place's page after "Choose dates", the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`, how many rows show before "Show more": `EXACT_SHOWN`, `EXACT_SHOWN_PHONE`, `GOOD_SHOWN`); the trip page is section 7d, a good place's page 7e |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
+| `account.html`, `account.js`, `auth.js` | Accounts. **Sign in** (top bar; in the ☰ menu on phones) opens `account.html`: your email → a link (or a code) by email, no password. Signed in, it shows your saved trips (a trip still to come opens again on its own page — **See this trip**, with today's prices and the price you saved it at; a good place opens its dates; a trip whose dates have passed searches the same kind of stay), your airports, Sign out and Delete my account. `auth.js` (on every page) does the signing in with Supabase Auth, keeps the session in the browser until you sign out, talks to your rows in the database, and turns "Sign in" into "Account". On the home page (`app.js` section 9): **♡ Save** on a trip's and a good place's page, and the airports of your last search filled in when you come back | The texts are in `account.html` and `account.js`. The setup in Supabase: "Setting up accounts" below |
+| `supabase/emails/` | The two sign-in emails: `welcome.html` (the first one, Supabase's "Confirm sign up") and `sign-in.html` ("Magic link or OTP"). Their logo is `images/email-logo.png` (made from the site's logo, transparent PNG) | Edit the file, then paste it again into Supabase (see "Setting up accounts") |
+| `supabase/accounts.sql` | One-time SQL for the accounts: the `saved_trips` and `profiles` tables, the rules that let each person see only their own rows, and `delete_my_account()` | Run once (see "Setting up accounts") |
 | `geo.js` | The flat world map: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN) | Rarely needs changes. The map colours are `--map-sea`, `--map-land`, `--map-borders`, `--map-grid` in `styles.css` |
 | `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | At the top: `MAX_DESTINATIONS`, `MAX_GOOD_PLACES`, `MAX_STOPS`, `DEFAULT_MAX_GAP_HOURS`, `DAY_APART_FROM_NIGHTS`, `DAY_APART_PENALTY_USD`, `MAX_CALLS_PER_SEARCH`, `QUOTA_RESERVE`, `CACHE_TTL_MS`; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
 
@@ -273,6 +276,44 @@ So the real request happens on a small server we control instead:
 into the dashboard's editor). If the page shows "the deployed function is
 running older code", that is what it means.
 
+## Setting up accounts
+
+Signing in uses Supabase Auth (already part of the Supabase project); the
+saved trips live in two small tables. Do this once, in the Supabase dashboard:
+
+1. **The tables:** SQL Editor → New query → paste all of
+   `supabase/accounts.sql` → Run.
+2. **Where the email links go:** Authentication → URL Configuration. Site URL:
+   `https://halfwaytrips.com`. Redirect URLs: add
+   `https://halfwaytrips.com/account.html` (and, to test on your computer,
+   `http://localhost:5197/account.html`).
+3. **The emails** (they can be changed once step 4 is done): Authentication →
+   Emails → Templates. In **Confirm sign up** paste all of
+   `supabase/emails/welcome.html` (subject: "Welcome to Halfway Trips: your
+   sign-in link"); in **Magic link or OTP** paste all of
+   `supabase/emails/sign-in.html` (subject: "Your Halfway Trips sign-in
+   link"). Both have the link and the code (`{{ .Token }}`, for people who
+   read their email on another device).
+4. **Sending the emails (before telling people about it):** Supabase's own
+   email service only sends to the project's team (your own address) and a
+   few emails an hour — fine for testing. For everyone, connect an email
+   service under Authentication → Emails → SMTP Settings (for example Resend
+   or Brevo, both free for small numbers; they ask you to add a few DNS
+   records at Porkbun so the emails come from halfwaytrips.com). Its password
+   / API key goes only into that Supabase form.
+
+Then try it: Sign in → your email → the link (or the code) → Account. Save
+a trip with ♡ on its page; it shows on the Account page.
+
+**A test account, to sign in quickly while testing:** Authentication → Users
+→ Add user → Create new user: an email (yours with `+test`, e.g.
+`name+test@gmail.com`, still arrives in your inbox), a password of your
+choice, and tick **Auto Confirm User**. The Account page then has a
+"Testing: sign in with a password" box on your computer (localhost), or on the
+live site with `#password` at the end of the address
+(`halfwaytrips.com/account.html#password`). Visitors never see it, and
+their accounts have no password.
+
 ## Visitor statistics (Umami)
 
 The live site counts its visitors with [Umami Cloud](https://cloud.umami.is)
@@ -299,4 +340,4 @@ run `localStorage.setItem('umami.disabled', 1)`.
 ## Ideas for later
 
 - Exact flight times and prices with a live flight-search API.
-- Accounts, a shared live dashboard, price alerts (Phase 2).
+- A shared live dashboard, price alerts (with accounts, now there).

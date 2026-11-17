@@ -648,6 +648,19 @@ button, input, select { font-family: inherit; }
 .trip-page { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 20px; min-width: 0; padding-top: 64px; margin-left: 24px; }
 .back-link { align-self: flex-start; border: 0; padding: 4px 0; background: none; cursor: pointer; color: var(--accent); font-size: 14px; font-weight: 800; }
 .back-link:hover { text-decoration: underline; }
+/* "← Back to results" on the left, "♡ Save" on the right (app.js, section 9) */
+.tp-topbar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.save-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-left: auto; }
+.save-btn {
+  display: inline-flex; align-items: center; gap: 7px; border: 1.5px solid var(--pill-border); border-radius: 999px; padding: 7px 15px; cursor: pointer;
+  background: #fff; color: var(--ink); font-size: 14px; font-weight: 800;
+}
+.save-btn:hover { border-color: var(--accent); color: var(--accent); }
+.save-btn.is-saved { border-color: var(--accent); background: var(--accent); color: #fff; }
+.save-btn.is-saved svg { fill: currentColor; }
+.save-btn:disabled { opacity: 0.6; cursor: default; }
+.save-note { max-width: 300px; color: var(--soft); font-size: 12.5px; text-align: right; }
+.save-note a { color: var(--accent); font-weight: 800; text-decoration: underline; }
 .tp-head {
   display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;
   border-radius: 30px; padding: 30px 32px; color: var(--hero-text);
@@ -661,6 +674,7 @@ button, input, select { font-family: inherit; }
 .tp-total { text-align: right; }
 .tp-total strong { display: block; font-family: var(--font-display); font-size: 40px; font-weight: 700; line-height: 1; }
 .tp-total span { color: var(--hero-sub); font-size: 13px; }
+.tp-total .tp-was { display: block; margin-top: 2px; font-weight: 700; } /* a saved trip: the price you saved it at */
 
 .tp-card { padding: 24px; background: #fff; border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(var(--shadow), 0.14); }
 .tp-card h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 24px; font-weight: 600; }
@@ -901,6 +915,54 @@ button, input, select { font-family: inherit; }
 }
 .btn:hover { opacity: 1; background: var(--action-hover); }
 
+/* The Account page (account.html): signing in by email, then your saved trips */
+.acc button.btn { border: 0; cursor: pointer; font-family: inherit; }
+.acc button.btn:disabled { opacity: 0.6; cursor: default; }
+.acc-form { margin: 0 0 18px; }
+.acc-form label { display: block; margin-bottom: 8px; color: var(--soft); font-size: 12px; font-weight: 800; letter-spacing: 0.9px; text-transform: uppercase; }
+.acc-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.acc-row input {
+  flex: 1 1 240px; min-width: 0; border: 1.5px solid var(--pill-border); border-radius: 14px; padding: 12px 16px;
+  background: #fff; color: var(--ink); font-size: 16px; font-weight: 600;
+}
+.acc-row input:focus { outline: 2px solid var(--action); outline-offset: 1px; border-color: var(--action); }
+.acc-row input::placeholder { color: var(--placeholder); }
+.acc-sent { margin-bottom: 16px; }
+.acc-test { margin-top: 26px; padding: 16px 18px; border: 1.5px dashed var(--pill-border); border-radius: 16px; } /* (testing only) */
+.acc-test .acc-row input { flex-basis: 180px; }
+.acc-link-btn { border: 0; padding: 0; background: none; cursor: pointer; color: var(--accent); font: inherit; font-size: 14px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.acc-form .acc-link-btn { margin-top: 14px; }
+.doc .acc-note { margin-top: 22px; color: var(--soft); font-size: 13px; }
+.acc-message { margin: 18px 0 0; padding: 12px 16px; border-radius: 14px; background: var(--good-tint); color: var(--good); font-size: 14px; font-weight: 700; }
+.acc-message.is-error { background: var(--tag-bg); color: var(--accent); }
+.acc-who { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 14px 18px; border-radius: 16px; background: var(--tint); font-size: 15px; }
+.acc-trips { display: flex; flex-direction: column; gap: 10px; }
+.acc-trip {
+  position: relative; /* (the whole card is the link: .acc-trip-open below) */
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main price" "actions actions"; gap: 12px 16px;
+  padding: 16px 18px; border: 1px solid var(--line); border-radius: 18px; background: #fff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.acc-trip:hover { border-color: var(--pill-border); box-shadow: 0 6px 18px rgba(var(--shadow), 0.08); }
+.acc-trip.is-past { background: var(--tint); }
+.acc-trip-main { grid-area: main; min-width: 0; }
+.acc-trip-when { margin-top: 3px; font-size: 13px; font-weight: 800; }
+.acc-trip.is-past .acc-trip-when { color: var(--soft); }
+.acc-trip-from { color: var(--soft); font-size: 13px; }
+.acc-trip-price { grid-area: price; text-align: right; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.1; white-space: nowrap; }
+.acc-trip-price small { display: block; color: var(--soft); font-family: var(--font-body); font-size: 11px; font-weight: 600; }
+.acc-trip-price .acc-from { color: var(--soft); font-family: var(--font-body); font-size: 12px; font-weight: 700; } /* "from" (a good place) */
+.acc-trip-actions { grid-area: actions; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+.acc-trip-open { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 14px; font-weight: 800; text-decoration: none; }
+.acc-trip-open::after { content: ""; position: absolute; inset: 0; border-radius: 18px; } /* the whole card opens the trip */
+.acc-trip:hover .acc-trip-open { text-decoration: underline; text-underline-offset: 3px; }
+.acc-trip-open:focus-visible { outline: none; }
+.acc-trip:has(.acc-trip-open:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.acc-remove { position: relative; z-index: 1; color: var(--soft); font-weight: 700; } /* (above the card's link) */
+.acc-empty { color: var(--soft); }
+.acc-danger { border: 1.5px solid var(--accent); border-radius: 999px; padding: 9px 18px; cursor: pointer; background: #fff; color: var(--accent); font: inherit; font-size: 14px; font-weight: 800; }
+.acc-danger:hover { background: var(--accent); color: #fff; }
+
 /* The contact card */
 .contact-card { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin: 6px 0 22px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--tint-strong); }
 .contact-card .cc-email { font-family: var(--font-display); font-size: 24px; font-weight: 600; }
@@ -989,7 +1051,7 @@ button, input, select { font-family: inherit; }
 
   /* Top bar on one line: the logo, the currency (or "Find a trip" on the
      other pages) and the ☰ menu with the page links. Above the banner, so
-     the menu's panel opens over it. ("Sign in" waits until it does something.) */
+     the menu's panel opens over it. ("Sign in" is in the menu too.) */
   .nav { z-index: 20; padding: 16px 2px; gap: 10px; }
   .nav-menu { display: block; }
   .btn-signin:not(.btn-cta) { display: none; }
