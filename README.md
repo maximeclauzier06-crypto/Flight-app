@@ -75,7 +75,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-17.2`): change
+`index.html` links our files with a version (`styles.css?v=2026-11-17.4`): change
 that date in all its links (and in the other pages') whenever `styles.css`, `auth.js`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
@@ -84,7 +84,7 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 
 | File | What it is | Easy things to change |
 |---|---|---|
-| `index.html` | The page structure, including the logo (the "meeting point": two dotted routes meeting in the middle) | Texts, headline, labels |
+| `index.html` | The page structure, including the logo (the "meeting point": two dotted routes meeting in the middle). The banner is kept short on purpose: the title, one line, the search. Before the first search, the results box shows three numbered steps; under the results, **Places people meet** shows four photo cards (from `images/destinations/`, credited on the Destinations page), each opening a search — room for more later (hotels...) | Texts, headline, labels; which four places |
 | `how-it-works.html`, `destinations.html`, `about.html`, `privacy.html`, `contact.html` | The other pages (same top bar and footer as the home page, styles under "The other pages" in `styles.css`). Destination cards open the search with "Going to" filled in (`index.html?to=LIS&name=Lisbon`) | Their texts. **Keep `privacy.html` in step** when a new service, cookie or kind of data is added. The top bar (with the phones' ☰ menu, `<details class="nav-menu">`, and its small closing script) and the footer (a dark band across the whole width: logo, the pages, the small print) are repeated in every page: change a link in all eight files (with `index.html`, `account.html` and `404.html`) |
 | `share.jpg`, `tools/share-image.html` | The picture in link previews (WhatsApp, Messenger, iMessage, Facebook...), 1200 × 630, and the page it is made from. Every page names it in its `og:` tags (title, description, picture) | Change the picture in `tools/share-image.html`, then remake `share.jpg` (the steps are at the top of that file) **under a new name** and update the `og:image` tags in all six pages: apps keep showing an old picture for a long time |
 | `images/destinations/` | The photos on the Destinations cards, one per city (`copenhagen.jpg`...): 640 × 400 JPEGs, cropped from Wikimedia Commons photos with free licences, served by the site itself. Their licences ask us to name each photographer: the small "Photos from Wikimedia Commons" line at the end of `destinations.html` | A new city: a 640 × 400 JPEG here (about 60 KB), an `<img class="dc-photo">` at the top of its card, and its credit (link to the photo's page, photographer, licence) in that line — or a photo of your own |

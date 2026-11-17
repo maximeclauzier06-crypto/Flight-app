@@ -32,7 +32,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-11-17.2">
+  <link rel="stylesheet" href="styles.css?v=2026-11-17.4">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -135,15 +135,9 @@
     <section class="hero">
 
       <div class="hero-content">
-        <div class="hero-badge">REAL PRICES · REAL DATES</div>
+        <!-- Only the title and one line before the search: the rest is for later -->
         <h1>Find where to meet in the middle</h1>
-        <p class="hero-sub">For long-distance love, friends and family.</p>
-        <!-- What makes us different, said straight away -->
-        <ul class="headliners">
-          <li>The full price for everyone, not per person</li>
-          <li>Cheapest first</li>
-          <li>Dates that work for all of you</li>
-        </ul>
+        <p class="hero-sub">Cheap for both of you, on dates that work for everyone.</p>
 
         <form id="search-form" class="search-bar" autocomplete="off">
           <!-- The departures. app.js creates one cell per departure (2 to 8) and the
@@ -270,62 +264,12 @@
 
         <!-- Rows are drawn here by app.js: the exact matches, then the good places -->
         <div id="table-rows" aria-live="polite">
-          <!-- Before the first search: the idea in three small pictures, joined by
-               dotted lines (colours: the variables in styles.css, "The story") -->
+          <!-- Before the first search: the idea in three short, numbered steps
+               (styles.css, "The story"). A search replaces it. -->
           <ol class="story" aria-label="How it works, in three steps">
-            <li>
-              <div class="story-pic">
-                <svg viewBox="0 0 196 150" aria-hidden="true">
-                  <rect class="st-home" x="20" y="104" width="44" height="26" rx="3"></rect>
-                  <rect class="st-home-2" x="28" y="90" width="12" height="40" rx="2"></rect>
-                  <rect class="st-home" x="44" y="96" width="14" height="34" rx="2"></rect>
-                  <circle class="st-a" cx="48" cy="52" r="11"></circle>
-                  <path class="st-a" d="M32 90 Q32 66 48 66 Q64 66 64 90 Z"></path>
-                  <rect class="st-home" x="132" y="102" width="46" height="28" rx="3"></rect>
-                  <path class="st-home-2" d="M138 102 L155 86 L172 102 Z"></path>
-                  <circle class="st-b" cx="148" cy="52" r="11"></circle>
-                  <path class="st-b" d="M132 90 Q132 66 148 66 Q164 66 164 90 Z"></path>
-                  <path class="st-gap" d="M72 58 H124"></path>
-                  <text class="st-label" x="48" y="26" text-anchor="middle">Stockholm</text>
-                  <text class="st-label" x="148" y="26" text-anchor="middle">Brussels</text>
-                </svg>
-              </div>
-              <div><strong>You live apart</strong><span>Add your airport and theirs</span></div>
-            </li>
-            <li>
-              <div class="story-pic">
-                <svg viewBox="0 0 196 150" aria-hidden="true">
-                  <circle class="st-ring" cx="38" cy="96" r="4"></circle>
-                  <circle class="st-ring" cx="150" cy="120" r="4"></circle>
-                  <circle class="st-ring" cx="128" cy="72" r="4"></circle>
-                  <circle class="st-ring" cx="66" cy="128" r="4"></circle>
-                  <path class="st-route st-route-a" d="M58 32 Q58 87 98 104"></path>
-                  <path class="st-route st-route-b" d="M168 50 Q158 92 98 104"></path>
-                  <circle class="st-a st-pin" cx="58" cy="32" r="7"></circle>
-                  <circle class="st-b st-pin" cx="168" cy="50" r="7"></circle>
-                  <circle class="st-sun" cx="98" cy="104" r="20" opacity="0.3"></circle>
-                  <circle class="st-sun st-pin" cx="98" cy="104" r="9"></circle>
-                  <rect class="st-sun" x="104" y="118" width="66" height="24" rx="12"></rect>
-                  <text class="st-label" x="137" y="134" text-anchor="middle">Milan</text>
-                </svg>
-              </div>
-              <div><strong>We find the middle</strong><span>The same dates, the cheapest for both of you</span></div>
-            </li>
-            <li>
-              <div class="story-pic">
-                <svg viewBox="0 0 196 150" aria-hidden="true">
-                  <path class="st-sun" d="M36 150 A62 62 0 0 1 160 150 Z" opacity="0.45"></path>
-                  <circle class="st-a" cx="80" cy="62" r="11"></circle>
-                  <path class="st-a" d="M64 100 Q64 76 80 76 Q96 76 96 100 Z"></path>
-                  <circle class="st-b" cx="116" cy="62" r="11"></circle>
-                  <path class="st-b" d="M100 100 Q100 76 116 76 Q132 76 132 100 Z"></path>
-                  <path class="st-a" d="M98 32 c-4 -6 -12 -2 -8 4 l8 8 l8 -8 c4 -6 -4 -10 -8 -4 z"></path>
-                  <rect class="st-home" x="54" y="104" width="92" height="8" rx="4"></rect>
-                  <text class="st-label" x="98" y="138" text-anchor="middle">Milan</text>
-                </svg>
-              </div>
-              <div><strong>You meet there</strong><span>Each of you books on Aviasales</span></div>
-            </li>
+            <li><strong>You live apart</strong><span>Add your airport and theirs</span></li>
+            <li><strong>We find the middle</strong><span>The same dates, the cheapest for both of you</span></li>
+            <li><strong>You meet there</strong><span>Each of you books on Aviasales</span></li>
           </ol>
         </div>
 
@@ -364,6 +308,25 @@
           </div>
         </div>
       </aside>
+    </section>
+
+    <!-- Further down: places to meet, each opening a search for it (the photos
+         and their credits are on the Destinations page). Room for more later —
+         hotels, ideas... Hidden while a trip's page is open (app.js, 7d). -->
+    <section class="home-more" aria-labelledby="home-more-title">
+      <div class="hm-inner">
+        <div class="hm-head">
+          <h2 id="home-more-title">Places people meet</h2>
+          <a href="destinations.html">All destinations →</a>
+        </div>
+        <div class="hm-grid">
+          <a class="dest-card" href="index.html?to=BCN&amp;name=Barcelona"><img class="dc-photo" src="images/destinations/barcelona.jpg" alt="Park Güell with the city and the sea behind it" width="640" height="400" loading="lazy"><span class="dc-city">Barcelona</span><span class="dc-country">Spain</span><span class="dc-go">Plan a trip here →</span></a>
+          <a class="dest-card" href="index.html?to=LIS&amp;name=Lisbon"><img class="dc-photo" src="images/destinations/lisbon.jpg" alt="A yellow tram in the Alfama" width="640" height="400" loading="lazy"><span class="dc-city">Lisbon</span><span class="dc-country">Portugal</span><span class="dc-go">Plan a trip here →</span></a>
+          <a class="dest-card" href="index.html?to=PRG&amp;name=Prague"><img class="dc-photo" src="images/destinations/prague.jpg" alt="Charles Bridge and the old town across the river" width="640" height="400" loading="lazy"><span class="dc-city">Prague</span><span class="dc-country">Czechia</span><span class="dc-go">Plan a trip here →</span></a>
+          <a class="dest-card" href="index.html?to=CPH&amp;name=Copenhagen"><img class="dc-photo" src="images/destinations/copenhagen.jpg" alt="Colourful houses and boats along Nyhavn harbour" width="640" height="400" loading="lazy"><span class="dc-city">Copenhagen</span><span class="dc-country">Denmark</span><span class="dc-go">Plan a trip here →</span></a>
+        </div>
+        <p class="hm-credits">Photos from Wikimedia Commons, cropped — <a href="destinations.html#photo-credits">photographers and licences</a></p>
+      </div>
     </section>
   </main>
 
@@ -405,8 +368,8 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="auth.js?v=2026-11-17.2"></script>
-  <script src="geo.js?v=2026-11-17.2"></script>
-  <script src="app.js?v=2026-11-17.2"></script>
+  <script src="auth.js?v=2026-11-17.4"></script>
+  <script src="geo.js?v=2026-11-17.4"></script>
+  <script src="app.js?v=2026-11-17.4"></script>
 </body>
 </html>

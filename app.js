@@ -1740,7 +1740,7 @@ document.addEventListener("click", async (event) => {
 // results", or the browser's back button, returns to the list.
 
 const tripPageEl = $("trip-page");
-const listViewEls = [document.querySelector(".hero"), document.querySelector(".table-box")];
+const listViewEls = [document.querySelector(".hero"), document.querySelector(".table-box"), document.querySelector(".home-more")].filter(Boolean); // (and "Places people meet")
 let lastPage = null; // the page open last, { trip } or { place } — so the browser's Forward button can reopen it
 
 // The trip behind a "Select" button (or a row of the list), in one shape for
