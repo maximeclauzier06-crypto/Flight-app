@@ -32,7 +32,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-11-17.4">
+  <link rel="stylesheet" href="styles.css?v=2026-11-17.5">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -135,9 +135,13 @@
     <section class="hero">
 
       <div class="hero-content">
-        <!-- Only the title and one line before the search: the rest is for later -->
-        <h1>Find where to meet in the middle</h1>
-        <p class="hero-sub">Cheap for both of you, on dates that work for everyone.</p>
+        <!-- Only the title and one line before the search: the rest is for later.
+             (On phones this part is the orange band, and the search card sits
+             half over it — styles.css, the phones section.) -->
+        <div class="hero-head">
+          <h1>Find where to meet in the middle</h1>
+          <p class="hero-sub">Cheap for both of you, on dates that work for everyone.</p>
+        </div>
 
         <form id="search-form" class="search-bar" autocomplete="off">
           <!-- The departures. app.js creates one cell per departure (2 to 8) and the
@@ -368,8 +372,8 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="auth.js?v=2026-11-17.4"></script>
-  <script src="geo.js?v=2026-11-17.4"></script>
-  <script src="app.js?v=2026-11-17.4"></script>
+  <script src="auth.js?v=2026-11-17.5"></script>
+  <script src="geo.js?v=2026-11-17.5"></script>
+  <script src="app.js?v=2026-11-17.5"></script>
 </body>
 </html>

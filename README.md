@@ -75,7 +75,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-17.4`): change
+`index.html` links our files with a version (`styles.css?v=2026-11-17.5`): change
 that date in all its links (and in the other pages') whenever `styles.css`, `auth.js`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.

@@ -1085,17 +1085,36 @@ body:has(.home-more) .page-footer { margin-top: 0; }
   .ss-edit { padding: 7px; }
   .ss-edit span { display: none; }
   body.map-open .search-summary { display: none; }
+  /* Changing the search from the line: the same look as the first screen — an
+     orange band holding the top of the card, the rest of it on the cream */
+  .ss-panel { position: relative; padding-top: 18px; background: var(--page); }
+  .ss-panel::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 96px; border-radius: 0 0 26px 26px; background: var(--hero-bg); }
+  .ss-panel > * { position: relative; } /* (above the band) */
 
-  /* The banner: the title and one line, then the search */
-  .hero { padding: 24px 16px 52px; border-radius: 26px; }
+  /* The banner: a short orange band with the title and one line, and the
+     search card half over it, half over the page (it moves up into the band,
+     whatever the title's height) */
+  .hero { padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .hero-head { padding: 26px 16px 62px; border-radius: 26px; background: var(--hero-bg); box-shadow: 0 18px 36px rgba(var(--shadow), 0.22); }
   .hero-content { display: flex; flex-direction: column; }
   .hero-badge { display: none; }
-  .hero h1 { margin-bottom: 6px; font-size: 32px; }
-  .hero-sub { margin-bottom: 16px; font-size: 15px; }
+  .hero h1 { margin-bottom: 6px; font-size: 30px; }
+  .hero-sub { margin-bottom: 0; font-size: 14px; }
+  .hero .search-bar, .ss-panel .search-bar { border: 1px solid var(--line); box-shadow: 0 18px 40px rgba(var(--shadow), 0.16); }
+  .hero .search-bar { margin: -44px 12px 0; }
   .bar-extras { order: 1; }
+  /* "+ Add a departure" under the card, on the page's cream (also when the
+     search opens from the line at the top, 6a) */
+  .add-departure { border-color: var(--pill-border); background: #fff; color: var(--accent); }
+  .add-departure small { color: var(--soft); }
+  .bar-hint { color: var(--soft); }
+  /* (the results box no longer slides under the banner) */
+  .results-grid { margin-top: 22px; }
+  .table-box { padding-top: 0; }
 
-  /* The search bar as a compact grid: the departures two per row (app.js),
-     then "When" (narrower, left) and "Going to" (wider, right), then the button across */
+  /* The search bar as a compact grid: the departures one under the other
+     (app.js), then "When" (narrower, left) and "Going to" (wider, right), then
+     the button across */
   .search-bar { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); padding: 6px; border-radius: 20px; }
   .search-bar .origins { grid-column: 1 / -1; grid-row: 1; }
   .search-bar .divider-origins { grid-column: 1 / -1; grid-row: 2; width: auto; height: 1px; margin: 0 10px; }
@@ -1108,6 +1127,11 @@ body:has(.home-more) .page-footer { margin-top: 0; }
   .origin-cell input[type="text"], .going-row input, .when-button { font-size: 15px; }
   .when-button { white-space: normal; line-height: 1.25; }
   .people { gap: 6px; margin-top: 5px; }
+  /* Each departure a row: the place on the left, how many people on the right */
+  .origin-cell { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head people" "input people"; column-gap: 10px; align-items: center; }
+  .origin-cell .origin-head { grid-area: head; }
+  .origin-cell input[type="text"] { grid-area: input; }
+  .origin-cell .people { grid-area: people; margin-top: 0; }
   .people-text { display: none; } /* the avatars already show how many */
   .going-sub { margin-top: 5px; font-size: 11px; }
   .search-btn { justify-content: center; margin-top: 6px; padding: 13px; border-radius: 14px; font-size: 15px; }
