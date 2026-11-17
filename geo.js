@@ -2,14 +2,16 @@
 // geo.js — the flat world map behind the page: real countries and borders.
 //
 // It uses two small free libraries loaded in index.html (d3-geo draws the
-// round Earth flat — the "Natural Earth" projection — and topojson-client
-// unpacks the country shapes), plus the free Natural Earth outlines
-// ("world-atlas"), fetched once. If any of that can't load (no internet...),
+// round Earth flat — the "Mercator" projection, as on Google Maps — and
+// topojson-client unpacks the country shapes), plus the free Natural Earth
+// outlines ("world-atlas"), fetched once. If any of that can't load (no internet...),
 // the map still works: you just get the routes and pins, without countries.
 //
 // A map "view" is { k, tx, ty }: k is the zoom (the projection's scale) and
 // tx, ty are where longitude 0 / latitude 0 sits on the screen. Dragging the
-// map changes tx, ty; zooming changes k.
+// map changes tx, ty; zooming changes k. The world repeats sideways: drag it
+// as far as you like left or right and it keeps going round (app.js stops it
+// at the far north and south, so the map always fills its box).
 //
 // app.js uses:
 //   Geo.load()                          fetch the countries once (a promise)
@@ -42,14 +44,19 @@ const Geo = (() => {
     return loading;
   }
 
-  const projectionFor = ({ k, tx, ty }) => d3.geoNaturalEarth1().scale(k).translate([tx, ty]);
+  // On this map, turning the globe and sliding the map sideways are the same
+  // thing. So the map turns the globe by as much as it was slid, and keeps it
+  // centred in the box: wherever you slide it, there is world on both sides.
+  const DEGREES = 180 / Math.PI;
+  const projectionFor = ({ k, tx, ty }, width) =>
+    d3.geoMercator().scale(k).rotate([((tx - width / 2) / k) * DEGREES, 0]).translate([width / 2, ty]);
 
   // The view that frames `points` ([{lat, lon}, ...]) inside `box`
   // ([[left, top], [right, bottom]] in pixels), zooming in no further than maxK
   // (so two nearby cities don't fill the whole screen).
   function fitView(points, box, maxK) {
     if (!hasLibraries) return { k: 200, tx: (box[0][0] + box[1][0]) / 2, ty: (box[0][1] + box[1][1]) / 2 };
-    const fitted = d3.geoNaturalEarth1().fitExtent(box, { type: "MultiPoint", coordinates: points.map((p) => [p.lon, p.lat]) });
+    const fitted = d3.geoMercator().fitExtent(box, { type: "MultiPoint", coordinates: points.map((p) => [p.lon, p.lat]) });
     let k = fitted.scale();
     let [tx, ty] = fitted.translate();
     if (!Number.isFinite(k) || k > maxK) {
@@ -67,11 +74,11 @@ const Geo = (() => {
   // One frame of the map, `width` x `height` pixels.
   function createMap(view, width, height) {
     if (!hasLibraries) {
-      // Without the libraries: a plain equirectangular guess, enough for the pins.
-      const project = (lat, lon) => [view.tx + (lon * Math.PI / 180) * view.k, view.ty - (lat * Math.PI / 180) * view.k];
+      // Without the libraries: the same Mercator sums, enough for the pins.
+      const project = (lat, lon) => [view.tx + (lon * Math.PI / 180) * view.k, view.ty - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) * view.k];
       return { project, landPath: "", bordersPath: "", gridPath: "" };
     }
-    const projection = projectionFor(view).clipExtent([[-20, -20], [width + 20, height + 20]]);
+    const projection = projectionFor(view, width).clipExtent([[-20, -20], [width + 20, height + 20]]);
     const path = d3.geoPath(projection);
     return {
       project: (lat, lon) => projection([lon, lat]) ?? [-999, -999],

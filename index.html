@@ -32,7 +32,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-11-17.1">
+  <link rel="stylesheet" href="styles.css?v=2026-11-17.2">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -367,9 +367,32 @@
     </section>
   </main>
 
+  <!-- The band at the bottom of every page: the whole width, dark (styles.css, "The footer") -->
   <footer class="page-footer">
-    <span>Halfway Trips — find where you and someone else can meet. Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span>
-    <span class="footer-links"><a href="how-it-works.html">How it works</a><a href="destinations.html">Destinations</a><a href="about.html">About</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></span>
+    <div class="footer-inner footer-main">
+      <div class="footer-brand">
+        <a class="brand" href="index.html">
+          <svg width="44" height="32" viewBox="2 8 44 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path class="logo-route logo-route-a" d="M8 34 Q13 19 24 19"></path>
+            <path class="logo-route logo-route-b" d="M40 34 Q35 19 24 19"></path>
+            <circle class="logo-a" cx="8" cy="35" r="4.5"></circle>
+            <circle class="logo-b" cx="40" cy="35" r="4.5"></circle>
+            <circle class="logo-meet" cx="24" cy="19" r="10" opacity="0.3"></circle>
+            <circle class="logo-meet" cx="24" cy="19" r="6"></circle>
+          </svg>
+          <span>Halfway Trips</span>
+        </a>
+        <p>Find where you and someone else can meet.</p>
+      </div>
+      <nav class="footer-links" aria-label="More about Halfway Trips">
+        <a href="how-it-works.html">How it works</a>
+        <a href="destinations.html">Destinations</a>
+        <a href="about.html">About</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </div>
+    <p class="footer-inner footer-small"><span>Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span><span>© 2026 Halfway Trips</span></p>
   </footer>
 
   <!-- Phones only: opens the map full screen (shown once there are results) -->
@@ -382,8 +405,8 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="auth.js?v=2026-11-17.1"></script>
-  <script src="geo.js?v=2026-11-17.1"></script>
-  <script src="app.js?v=2026-11-17.1"></script>
+  <script src="auth.js?v=2026-11-17.2"></script>
+  <script src="geo.js?v=2026-11-17.2"></script>
+  <script src="app.js?v=2026-11-17.2"></script>
 </body>
 </html>

@@ -80,6 +80,10 @@
   --map-borders: rgba(90, 60, 30, 0.15);
   --map-grid: rgba(90, 60, 30, 0.05);
   --map-good: #D99A2B;      /* the ring of a "good place" dot (exact matches are full mustard dots) */
+  --footer-bg: #2A1D16;     /* the dark band at the bottom of every page */
+  --footer-ink: #F5EEE3;    /* ...its logo and links */
+  --footer-soft: #BCAC99;   /* ...its other words */
+  --footer-line: rgba(245, 238, 227, 0.14);
 
   /* One colour per departure (1st = you, 2nd = them, ... up to 8):
      the dots in the table, the avatars, the routes and pins on the map */
@@ -814,14 +818,21 @@ button, input, select { font-family: inherit; }
    and place card of the full-screen map */
 .map-toggle, .map-close, .map-card { display: none; }
 
+/* The footer: a dark band across the whole width, at the bottom of every page.
+   Inside, the same width as the page: the logo and a line on the left, the
+   pages on the right; under a thin line, the small print. */
 .page-footer {
-  position: relative; z-index: 3; width: var(--content); margin: 72px auto 0; padding: 28px 16px 40px;
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  border-top: 1px solid var(--line); color: var(--soft); font-size: 13px;
-  background: var(--page);
+  position: relative; z-index: 3; margin-top: 72px; padding: 44px 0 26px;
+  background: var(--footer-bg); color: var(--footer-soft); font-size: 13px;
 }
-.footer-links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
-.footer-links a:hover, .nav-links a[aria-current="page"] { color: var(--accent); }
+.footer-inner { width: var(--content); margin: 0 auto; padding: 0 16px; box-sizing: border-box; }
+.footer-main { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 24px 48px; }
+.footer-brand .brand { color: var(--footer-ink); }
+.footer-brand p { margin: 10px 0 0; font-size: 14px; }
+.footer-links { display: flex; flex-wrap: wrap; gap: 10px 28px; padding-top: 6px; color: var(--footer-ink); font-size: 14px; font-weight: 700; }
+.footer-links a:hover, .footer-links a[aria-current="page"] { color: var(--action); }
+.footer-small { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 24px; margin-top: 34px; padding-top: 20px; border-top: 1px solid var(--footer-line); font-size: 12px; }
+.nav-links a[aria-current="page"] { color: var(--accent); }
 .nav-links a[aria-current="page"] { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
 /* The mustard "Find a trip" button in the top bar of the other pages */
 .btn-cta { border-color: var(--action); background: var(--action); color: var(--action-ink); }
@@ -1155,7 +1166,8 @@ button, input, select { font-family: inherit; }
   .pp-weeks { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; padding-bottom: 4px; }
   .pp-week { flex: 0 0 auto; min-width: 104px; padding: 10px; scroll-snap-align: start; }
   .pp-week.is-selected { padding: 9px; }
-  .page-footer { flex-direction: column; align-items: flex-start; }
+  .footer-main { flex-direction: column; }
+  .footer-links { gap: 12px 22px; }
 
   /* The other pages */
   .page-hero { padding: 28px 18px 66px; border-radius: 26px; }

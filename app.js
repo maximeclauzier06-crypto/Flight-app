@@ -49,10 +49,12 @@ const AUTOCOMPLETE_URL = "https://autocomplete.travelpayouts.com/places2";
 // link — your marker and project ID live there, as Edge Function Secrets.
 // See section 7c.
 
-// The map's zoom (the size of the world: at 150 the whole world is ~800px wide).
-const MAP_MIN_ZOOM = 140;  // how far you can zoom out
-const MAP_MAX_ZOOM = 2400; // how far you can zoom in (about one country on screen)
-const MAP_FIT_ZOOM = 1500; // how close it zooms by itself, so two nearby cities don't fill the screen
+// The map's zoom (the size of the world: at 150 the whole world is ~940px wide).
+// Zooming out stops earlier on its own when the world would no longer fill
+// the map's box (section 8, minZoom).
+const MAP_MIN_ZOOM = 100;  // how far you can zoom out
+const MAP_MAX_ZOOM = 1300; // how far you can zoom in (about one country on screen)
+const MAP_FIT_ZOOM = 800;  // how close it zooms by itself, so two nearby cities don't fill the screen
 
 // "Everyone lands within ..." — the steps of the − / + buttons, in hours (0 = any).
 // A search that finds nothing within the limit tries the next steps by itself.
@@ -2237,17 +2239,28 @@ const areaCentre = ([[left, top], [right, bottom]]) => [(left + right) / 2, (top
 
 // The view zoomed to `k` (within the limits), keeping the point at (x, y) in place.
 function zoomedView(v, k, x, y) {
-  const nextK = clamp(k, MAP_MIN_ZOOM, MAP_MAX_ZOOM);
+  const nextK = clamp(k, minZoom(), MAP_MAX_ZOOM);
   return { k: nextK, tx: x - (x - v.tx) * (nextK / v.k), ty: y - (y - v.ty) * (nextK / v.k) };
 }
 
-// Don't let the world slide right off the screen.
+// The map always fills its box. Sideways, the world repeats (geo.js), so it
+// can go round as far as you like. Up and down it stops at its edges: the far
+// north (above Greenland) and the far south (below Cape Horn) — further than
+// that the map would leave an empty band.
+const mercatorY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+const MAP_TOP = mercatorY(82);
+const MAP_BOTTOM = mercatorY(-58);
+
+// How far out you can zoom: not so far that the world gets narrower or
+// shorter than the box.
+function minZoom() {
+  return Math.max(MAP_MIN_ZOOM, mapLayer.clientWidth / (2 * Math.PI), mapLayer.clientHeight / (MAP_TOP - MAP_BOTTOM));
+}
+
 function keepInView(v) {
-  const w = mapLayer.clientWidth;
   const h = mapLayer.clientHeight;
-  const halfWidth = 2.74 * v.k;  // half the width of the world on this map
-  const halfHeight = 1.43 * v.k; // ...and half its height
-  return { k: v.k, tx: clamp(v.tx, 120 - halfWidth, w - 120 + halfWidth), ty: clamp(v.ty, 120 - halfHeight, h - 120 + halfHeight) };
+  const k = Math.max(v.k, minZoom()); // (the box grew: zoom in just enough)
+  return { k, tx: v.tx, ty: clamp(v.ty, h + k * MAP_BOTTOM, k * MAP_TOP) };
 }
 
 // Where the map looks when you haven't moved it: every departure AND every
@@ -2270,7 +2283,7 @@ function autoView() {
     }
   }
   const fitted = Geo.fitView(hasRoutes ? [...origins, ...destinations] : DEFAULT_POINTS, area, MAP_FIT_ZOOM);
-  return zoomedView(fitted, fitted.k, ...areaCentre(area));
+  return keepInView(zoomedView(fitted, fitted.k, ...areaCentre(area)));
 }
 
 // A route: a gentle curve from a departure to the meeting point, bowing upwards.
@@ -2386,7 +2399,7 @@ function renderMap() {
   $("map-legend").hidden = !ready || state.goodPlaces.length === 0;
   $("map-reset").hidden = state.mapView === null;
   $("zoom-in").disabled = shownView.k >= MAP_MAX_ZOOM - 1;
-  $("zoom-out").disabled = shownView.k <= MAP_MIN_ZOOM + 1;
+  $("zoom-out").disabled = shownView.k <= minZoom() + 1;
 }
 
 // --- Dragging and zooming the map -------------------------------------------

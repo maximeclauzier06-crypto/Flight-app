@@ -17,7 +17,7 @@
        early so the words don't change shape just after the page appears -->
   <link rel="preload" href="fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=2026-11-17.1">
+  <link rel="stylesheet" href="styles.css?v=2026-11-17.2">
   <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal.
        data-exclude-hash: the sign-in link comes back with the session after "#", never counted. -->
   <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
@@ -140,12 +140,35 @@
     </article>
   </main>
 
+  <!-- The band at the bottom of every page: the whole width, dark (styles.css, "The footer") -->
   <footer class="page-footer">
-    <span>Halfway Trips — find where you and someone else can meet. Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span>
-    <span class="footer-links"><a href="how-it-works.html">How it works</a><a href="destinations.html">Destinations</a><a href="about.html">About</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></span>
+    <div class="footer-inner footer-main">
+      <div class="footer-brand">
+        <a class="brand" href="index.html">
+          <svg width="44" height="32" viewBox="2 8 44 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path class="logo-route logo-route-a" d="M8 34 Q13 19 24 19"></path>
+            <path class="logo-route logo-route-b" d="M40 34 Q35 19 24 19"></path>
+            <circle class="logo-a" cx="8" cy="35" r="4.5"></circle>
+            <circle class="logo-b" cx="40" cy="35" r="4.5"></circle>
+            <circle class="logo-meet" cx="24" cy="19" r="10" opacity="0.3"></circle>
+            <circle class="logo-meet" cx="24" cy="19" r="6"></circle>
+          </svg>
+          <span>Halfway Trips</span>
+        </a>
+        <p>Find where you and someone else can meet.</p>
+      </div>
+      <nav class="footer-links" aria-label="More about Halfway Trips">
+        <a href="how-it-works.html">How it works</a>
+        <a href="destinations.html">Destinations</a>
+        <a href="about.html">About</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </div>
+    <p class="footer-inner footer-small"><span>Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span><span>© 2026 Halfway Trips</span></p>
   </footer>
 
-  <script src="auth.js?v=2026-11-17.1"></script>
-  <script src="account.js?v=2026-11-17.1"></script>
+  <script src="auth.js?v=2026-11-17.2"></script>
+  <script src="account.js?v=2026-11-17.2"></script>
 </body>
 </html>
