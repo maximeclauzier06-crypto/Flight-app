@@ -9,7 +9,7 @@
   <meta name="color-scheme" content="only light">
   <meta name="theme-color" content="#F5EEE3">
   <title>Your account — Halfway Trips</title>
-  <meta name="description" content="Sign in to Halfway Trips with a link by email: no password. Keep the trips you save and your latest searches, on any device.">
+  <meta name="description" content="Sign in to Halfway Trips with a link by email: no password. Keep the trips you save, your latest searches and your price alerts, on any device.">
   <!-- (a personal page: not for search engines) -->
   <meta name="robots" content="noindex">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -17,10 +17,10 @@
        early so the words don't change shape just after the page appears -->
   <link rel="preload" href="fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=2026-11-21.3">
+  <link rel="stylesheet" href="styles.css?v=2026-11-21.4">
   <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal.
        data-exclude-hash: the sign-in link comes back with the session after "#", never counted. -->
-  <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
+  <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com" data-exclude-hash="true"></script>
 </head>
 <body>
 
@@ -74,15 +74,102 @@
     })();
   </script>
 
-  <main>
-    <section class="page-hero">
-      <div class="hero-badge">YOUR ACCOUNT</div>
-      <h1 id="acc-title">Sign in</h1>
-      <p id="acc-intro">No password: we email you a link. Your account keeps the trips you save and your latest searches, on any device.</p>
-    </section>
+  <!-- Signed out: the banner and the sign-in box under it, as on the other pages.
+       Signed in (class "is-in", account.js): two columns — your account and
+       "New price alert" on the left, everything you have on the right. -->
+  <main class="acc-page" id="acc-page">
+    <aside class="acc-side">
+      <section class="page-hero">
+        <div class="hero-badge">YOUR ACCOUNT</div>
+        <h1 id="acc-title">Sign in</h1>
+        <p id="acc-intro">No password: we email you a link. Your account keeps the trips you save, your latest searches and your price alerts, on any device.</p>
+        <p class="acc-hero-who" id="acc-who" hidden>Signed in as <b id="acc-who-email"></b></p>
+        <button type="button" class="acc-hero-signout" id="acc-signout" hidden>Sign out</button>
+      </section>
+
+      <!-- Signed in: a new price alert, or changing one (account.js, "Price alerts").
+           On phones the form opens from the button. -->
+      <section class="acc-new" id="acc-new" hidden>
+        <button type="button" class="btn acc-new-open" id="acc-new-open"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg>New price alert</button>
+        <form class="acc-new-form" id="alert-form" novalidate>
+          <div class="acc-new-head">
+            <span class="acc-bell"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"></path><path d="M10 20a2 2 0 0 0 4 0"></path></svg></span>
+            <div>
+              <h2 id="af-title">New price alert</h2>
+              <p>Every morning we look at the prices. When a trip matches, we email you.</p>
+            </div>
+          </div>
+
+          <div class="af-field">
+            <div class="af-label"><span class="af-n">1</span>Who's travelling</div>
+            <div id="af-people"></div>
+            <div class="af-links">
+              <button type="button" class="acc-link-btn" id="af-add">+ Add a departure</button>
+              <button type="button" class="acc-link-btn" id="af-latest" hidden>Fill in my latest search</button>
+            </div>
+          </div>
+
+          <div class="af-field">
+            <div class="af-label"><span class="af-n">2</span>Going to</div>
+            <div class="af-chips" role="group" aria-label="Going to">
+              <button type="button" class="af-chip" data-to="any" aria-pressed="true">Anywhere</button>
+              <button type="button" class="af-chip" data-to="city" aria-pressed="false">A city…</button>
+            </div>
+            <div class="af-place" id="af-city-box" hidden>
+              <input type="text" class="af-input af-wide" id="af-city" placeholder="City or airport" autocomplete="off" aria-label="The city">
+              <ul class="suggestions" role="listbox"></ul>
+            </div>
+          </div>
+
+          <div class="af-field">
+            <div class="af-label"><span class="af-n">3</span>Kind of trip</div>
+            <div class="af-chips" role="group" aria-label="Kind of trip">
+              <button type="button" class="af-chip" data-stay="weekend" aria-pressed="true">Weekend</button>
+              <button type="button" class="af-chip" data-stay="long" aria-pressed="false">Long weekend</button>
+              <button type="button" class="af-chip" data-stay="week" aria-pressed="false">Full week</button>
+              <button type="button" class="af-chip" data-stay="nights" aria-pressed="false">Nights…</button>
+            </div>
+            <div class="af-row" id="af-nights-box" hidden><input type="number" class="af-input af-small-input" id="af-nights" min="1" max="30" value="5" aria-label="Number of nights"> nights</div>
+          </div>
+
+          <div class="af-field">
+            <div class="af-label"><span class="af-n">4</span>When</div>
+            <div class="af-row">From <select class="af-input" id="af-from" aria-label="First month"></select> to <select class="af-input" id="af-to" aria-label="Last month"></select></div>
+            <div class="af-hint">The month you leave in · up to 4 months ahead</div>
+          </div>
+
+          <div class="af-field">
+            <div class="af-label"><span class="af-n">5</span>Your price</div>
+            <div class="af-row">
+              <input type="number" class="af-input af-price" id="af-price" min="1" step="1" inputmode="numeric" placeholder="e.g. 2000" aria-label="Highest price in total">
+              <select class="af-input" id="af-currency" aria-label="Currency"></select>
+              <span id="af-for">in total, for both of you</span>
+            </div>
+            <div class="af-hint" id="af-each">The most you'd pay for everyone's flights together</div>
+          </div>
+
+          <div class="af-field">
+            <div class="af-label"><span class="af-n">6</span>Also</div>
+            <label class="af-check"><input type="checkbox" id="af-gap" checked> Everyone lands within 3 h of each other</label>
+            <label class="af-check"><input type="checkbox" id="af-direct"> Direct flights only</label>
+          </div>
+
+          <div class="af-field">
+            <div class="af-label"><span class="af-n">7</span>Email me</div>
+            <label class="af-check"><input type="radio" name="af-often" value="daily" checked> As soon as a trip matches (at most one email a day)</label>
+            <label class="af-check"><input type="radio" name="af-often" value="weekly"> Once a week, with the best ones</label>
+          </div>
+
+          <p class="af-error" id="af-error" role="alert" hidden></p>
+          <button type="submit" class="btn af-submit" id="af-submit">Create the alert</button>
+          <button type="button" class="acc-link-btn af-cancel" id="af-cancel" hidden>Cancel</button>
+          <p class="af-small" id="af-small">Pause or stop any time · up to 5 alerts</p>
+        </form>
+      </section>
+    </aside>
 
     <!-- Filled in by account.js: signing in (email → link or code), or, once
-         you're in, your saved trips, your latest searches and "Delete my account" -->
+         you're in, your price alerts, saved trips, latest searches and "Delete my account" -->
     <article class="doc acc">
       <!-- Signed out -->
       <section id="acc-out" hidden>
@@ -120,15 +207,13 @@
           </div>
         </form>
 
-        <p class="acc-note">We only use your email to sign you in. Nothing to remember, no newsletter. More in our <a href="privacy.html#accounts">privacy policy</a>.</p>
+        <p class="acc-note">We only use your email to sign you in (and for the price alerts you make). Nothing to remember, no newsletter. More in our <a href="privacy.html#accounts">privacy policy</a>.</p>
       </section>
 
       <!-- Signed in -->
       <section id="acc-in" hidden>
-        <div class="acc-who">
-          <span>Signed in as <b id="acc-who-email"></b></span>
-          <button type="button" class="acc-link-btn" id="acc-signout">Sign out</button>
-        </div>
+        <div class="acc-h"><h2>Your price alerts</h2><span id="acc-alert-count"></span></div>
+        <div class="acc-alerts" id="acc-alerts"></div>
 
         <h2>Your saved trips</h2>
         <div class="acc-trips" id="acc-trips"></div>
@@ -137,7 +222,7 @@
         <div class="acc-searches" id="acc-searches"></div>
 
         <h2>Delete your account</h2>
-        <p>This deletes your account, your saved trips and your latest searches, straight away and for good.</p>
+        <p>This deletes your account, your price alerts, your saved trips and your latest searches, straight away and for good.</p>
         <button type="button" class="acc-danger" id="acc-delete">Delete my account</button>
       </section>
 
@@ -173,7 +258,7 @@
     <p class="footer-inner footer-small"><span>Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span><span>© 2026 Halfway Trips</span></p>
   </footer>
 
-  <script src="auth.js?v=2026-11-21.3"></script>
-  <script src="account.js?v=2026-11-21.3"></script>
+  <script src="auth.js?v=2026-11-21.4"></script>
+  <script src="account.js?v=2026-11-21.4"></script>
 </body>
 </html>

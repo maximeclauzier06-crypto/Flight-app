@@ -133,6 +133,13 @@
     return call(`/rest/v1/${path}`, { method: "GET", ...options, token: access });
   }
 
+  // One of our Supabase Edge Functions, e.g. fn("price-alerts", { action: "check", id }):
+  // with your sign-in token when you're signed in, otherwise (or `anonymous`) the public key.
+  async function fn(name, body, { anonymous = false } = {}) {
+    const access = anonymous ? null : await token();
+    return call(`/functions/v1/${name}`, { body, token: access || ANON_KEY });
+  }
+
   // "Sign in" in the top bar (and the phones' menu) says "Account" once you're in.
   function updateNav() {
     const signedIn = Boolean(readSession());
@@ -152,5 +159,6 @@
     fromLink,
     signOut,
     rest,
+    fn,
   };
 })();

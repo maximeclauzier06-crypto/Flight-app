@@ -1,7 +1,7 @@
 # Halfway Trips
 
-Live at **https://halfwaytrips.com** (GitHub Pages; the old address
-maximeclauzier06-crypto.github.io/Flight-app redirects there).
+Live at **https://halfwaytrips.com** (GitHub Pages; the old github.io address
+redirects there).
 
 Add two or more departures (yours, a partner's, friends', family's — up to 8,
 with how many people leave from each) and get a ranked list of places you could
@@ -75,7 +75,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-21.3`): change
+`index.html` links our files with a version (`styles.css?v=2026-11-21.4`): change
 that date in all its links (and in the other pages') whenever `styles.css`, `auth.js`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
@@ -96,8 +96,9 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-bg`, `--action`, `--accent`...). Change them and the whole site follows. |
 | `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the results (exact matches, then good places), the trip page after "Select" (with the "Book on Aviasales" buttons), a good place's page after "Choose dates", the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`, how many rows show before "Show more": `EXACT_SHOWN`, `EXACT_SHOWN_PHONE`, `GOOD_SHOWN`); the trip page is section 7d, a good place's page 7e |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
-| `account.html`, `account.js`, `auth.js` | Accounts. **Sign in** (top bar; in the ☰ menu on phones) opens `account.html`: your email → a link (or a code) by email, no password. Signed in, it shows your saved trips (a trip still to come opens again on its own page — **See this trip**, with today's prices and the price you saved it at; a good place opens its dates; a trip whose dates have passed searches the same kind of stay), your 5 latest searches (each with **Search again**), Sign out and Delete my account. `auth.js` (on every page) does the signing in with Supabase Auth, keeps the session in the browser until you sign out, talks to your rows in the database, and turns "Sign in" into "Account". On the home page (`app.js` section 9): **♡ Save** on a trip's and a good place's page; each search from the bar goes to your latest searches (`rememberSearch`), and the airports of the newest one are filled in when you come back | The texts are in `account.html` and `account.js`. The setup in Supabase: "Setting up accounts" below |
+| `account.html`, `account.js`, `auth.js` | Accounts. **Sign in** (top bar; in the ☰ menu on phones) opens `account.html`: your email → a link (or a code) by email, no password. Signed in, it has two columns: your account and **New price alert** on the left, and on the right your price alerts (what each one's last check found: Edit, Pause, Delete), your saved trips (a trip still to come opens again on its own page — **See this trip**, with today's prices and the price you saved it at; a good place opens its dates; a trip whose dates have passed searches the same kind of stay), your 5 latest searches (each with **Search again**), Sign out and Delete my account. `auth.js` (on every page) does the signing in with Supabase Auth, keeps the session in the browser until you sign out, talks to your rows in the database, and turns "Sign in" into "Account". On the home page (`app.js` section 9): **♡ Save** on a trip's and a good place's page; each search from the bar goes to your latest searches (`rememberSearch`), and the airports of the newest one are filled in when you come back | The texts are in `account.html` and `account.js`. The setup in Supabase: "Setting up accounts" below |
 | `supabase/emails/` | The two sign-in emails: `welcome.html` (the first one, Supabase's "Confirm sign up") and `sign-in.html` ("Magic link or OTP"). Their logo is `images/email-logo.png` (made from the site's logo, transparent PNG) | Edit the file, then paste it again into Supabase (see "Setting up accounts") |
+| `supabase/alerts.sql`, `supabase/functions/price-alerts/index.ts` | Price alerts: the `price_alerts` table (each person sees only their own, at most 5) and the function that checks them every morning and emails through Resend | Setup: "Setting up price alerts" below. In the function: `PER_RUN`, `MAX_MATCHES`, the email's words in `emailHtml` / `emailText` |
 | `supabase/accounts.sql` | One-time SQL for the accounts: the `saved_trips` and `profiles` tables, the rules that let each person see only their own rows, and `delete_my_account()` | Run once (see "Setting up accounts") |
 | `geo.js` | The flat world map: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN). It is a Mercator map, as on Google Maps: it repeats left and right, and `app.js` (section 8, `keepInView`) stops it at the far north and south, so it always fills the screen | Rarely needs changes. How far north and south it goes: `MAP_TOP` / `MAP_BOTTOM` in `app.js`. The map colours are `--map-sea`, `--map-land`, `--map-borders`, `--map-grid` in `styles.css` |
 | `supabase/functions/search-flights/index.ts` | The server-side function that talks to Travelpayouts. Deployed on Supabase, not run from this folder. | At the top: `MAX_DESTINATIONS`, `MAX_GOOD_PLACES`, `MAX_STOPS`, `DEFAULT_MAX_GAP_HOURS`, `DAY_APART_FROM_NIGHTS`, `DAY_APART_PENALTY_USD`, `MAX_CALLS_PER_SEARCH`, `QUOTA_RESERVE`, `CACHE_TTL_MS`; `TRIP_TYPES`, `TRIP_WEEKS`, `TRIP_VARIATIONS` for the one-destination search |
@@ -316,13 +317,55 @@ live site with `#password` at the end of the address
 (`halfwaytrips.com/account.html#password`). Visitors never see it, and
 their accounts have no password.
 
+## Setting up price alerts
+
+On the Account page, signed in, anyone can make up to 5 price alerts
+(everyone's airports, where or Anywhere, the kind of trip, the months, the
+most they'd pay in total). Every morning the `price-alerts` function checks
+each alert with the same search as the site (it asks `search-flights`) and
+emails the person through Resend when a trip is under their price — at most
+once a day, and only when the trip is new or cheaper than in the last email
+("once a week": at most one email a week). Right after an alert is made or
+changed, it is checked once straight away. Do this once:
+
+1. **The table:** SQL Editor → New query → paste all of `supabase/alerts.sql`
+   → Run.
+2. **The function:** Edge Functions → Deploy a new function → Via Editor →
+   name it `price-alerts` → paste `supabase/functions/price-alerts/index.ts`
+   → Deploy. Then, in that function's settings, turn **off** "Verify JWT"
+   (the email's Pause / Stop links and the inbox's own Unsubscribe button
+   arrive without a sign-in; the function checks everything itself).
+3. **Two secrets** (Edge Functions → Secrets; never paste them anywhere else):
+   * `RESEND_API_KEY`: in Resend → API Keys → Create API key, "Sending
+     access", domain halfwaytrips.com.
+   * `ALERTS_CRON_SECRET`: a long random text you make up (a password
+     manager can make one). The Cron job below sends it, so nobody else can
+     start the morning check.
+   * (optional) `ALERTS_FROM`: the sender, by default
+     `Halfway Trips <alerts@halfwaytrips.com>`.
+4. **The morning check:** Integrations → Cron → enable it → Create job:
+   name `price-alerts`, schedule `*/10 5-9 * * *` (every 10 minutes from
+   05:00 to 09:59 UTC — 06:00 to 10:59 in Sweden in winter), type
+   "Supabase Edge Function", method POST, function `price-alerts`, a header
+   `x-alerts-secret` with the same secret, body `{"action":"run"}`. Each run
+   checks up to 4 alerts (`PER_RUN`), so the 30 runs cover about 120 alerts
+   every morning; for more, run it more often or raise `PER_RUN`.
+5. **Try it:** make an alert on the Account page with a generous price: its
+   card shows what the first check found within about 20 seconds, and the
+   email arrives.
+
+Good to know: an Anywhere search gives each place's cheapest dates in the
+coming 4 months, so with a narrower choice of months a place whose cheapest
+dates fall outside them is left out (a later improvement: let the search take
+a window of dates). The prices are the same remembered prices as on the site.
+
 ## Visitor statistics (Umami)
 
 The live site counts its visitors with [Umami Cloud](https://cloud.umami.is)
 (free plan: 100,000 events a month, 6 months of history). It uses no cookies
 and nothing personal, so no cookie banner is needed. The script is in the
 `<head>` of `index.html`; `data-domains` makes it count only the live site
-(`halfwaytrips.com`, plus the old GitHub address), so testing on your
+(`halfwaytrips.com` and www), so testing on your
 computer is never counted.
 
 Besides visits (pages, countries, devices, where people came from), `app.js`
@@ -335,6 +378,7 @@ sends five events through its small `track()` helper:
 | `choose-dates` | A good place's page opens (its row, or "Choose dates" on the map) | `to`, `travellers`, `total`, `currency` |
 | `book-click` | a "Book on Aviasales" or "See live prices on Aviasales" press | `kind` (trip / good-place), `from`, `to`, `seats`, `nights` |
 | `share` | "Share" on a trip's or good place's page, once shared (or the link copied) | `kind` (trip / place), `to`, `how` (menu = the device's share menu, copy) |
+| `alert-create`, `alert-change` | a price alert made or changed on the Account page (`account.js`) | `kind` (anywhere / city), `to`, `stay`, `travellers`, `currency`, `direct`, `often` |
 
 Compare `book-click` with the clicks and sales in Travelpayouts. To keep your
 own visits out, open the console (F12) on the live site once per browser and

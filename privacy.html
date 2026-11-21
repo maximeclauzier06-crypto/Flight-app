@@ -29,9 +29,9 @@
        early so the words don't change shape just after the page appears -->
   <link rel="preload" href="fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=2026-11-21.3">
+  <link rel="stylesheet" href="styles.css?v=2026-11-21.4">
   <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal -->
-  <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
+  <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com" data-exclude-hash="true"></script>
 </head>
 <body>
 
@@ -99,7 +99,7 @@
 
       <h2>The short version</h2>
       <ul>
-        <li>We don't use cookies, and you don't need an account. If you create one, we keep only your email address, the trips you save and your 5 latest searches — and you can delete it all at once.</li>
+        <li>We don't use cookies, and you don't need an account. If you create one, we keep only your email address, the trips you save, your 5 latest searches and the price alerts you make — and you can delete it all at once.</li>
         <li>We count visits and clicks anonymously, to see what works and what to improve.</li>
         <li>Your search (airports, dates, number of travellers) is sent to our flight-data partner to find prices.</li>
         <li>When you book, you leave our site for Aviasales, and their privacy policy applies.</li>
@@ -115,7 +115,11 @@
       <h2 id="accounts">If you create an account</h2>
       <p>An account is optional. To sign in, you give your email address and we send you a sign-in link and code — there is no password. Signing in and our database are run by Supabase, which keeps standard sign-in logs (such as the time and the IP address) for security. The sign-in emails are sent by Resend, from its servers in the EU (Ireland); it keeps a record of each email it sends (the address and the time) for a limited period, to deliver them and to prevent abuse.</p>
       <p>With an account we keep your email address, the trips you save (the place, the dates, the airports and the price when you saved it) and your 5 latest searches (the airports, the destination and the dates you chose), so they are ready on any device where you sign in. We use them only for that: no newsletter, and we don't share or sell them. We do this to provide the account you asked for.</p>
-      <p>They stay until you remove them or delete your account. On the Account page you can remove a saved trip, forget your latest searches, or delete your account and everything in it, straight away. (The technical logs above are deleted on their own after a while.)</p>
+      <p>They stay until you remove them or delete your account. On the Account page you can remove a saved trip, forget your latest searches, delete a price alert, or delete your account and everything in it, straight away. (The technical logs above are deleted on their own after a while.)</p>
+
+      <h3 id="alerts">Price alerts</h3>
+      <p>With an account you can make price alerts (up to 5). For each one we keep what you chose — the airports and how many people, where to (or anywhere), the kind of trip, the months, your price, and how often to email you — and what our last check found. Every morning our search service (on Supabase) looks at the prices for it with the same flight data as a search on the site (from Travelpayouts; only the airports, dates and number of travellers are sent, never who you are). When a trip is under your price, we email you through Resend, at your account's email address: at most one email a day, or a week if you chose that.</p>
+      <p>Every alert email has links to change, pause or stop the alert (and your email app's own “Unsubscribe” button stops it too). An alert stays until you delete it or your account; you can pause or delete it any time on the Account page.</p>
 
       <h2>Visitor statistics</h2>
       <p>We use Umami Cloud, a privacy-friendly analytics service that doesn't use cookies. It records the pages you visit, the website you came from, your browser, operating system and type of device, and your approximate location (country and region), which is worked out from your IP address — your IP address itself is not stored.</p>
@@ -174,6 +178,6 @@
   </footer>
 
   <!-- (turns "Sign in" into "Account" when you are signed in) -->
-  <script src="auth.js?v=2026-11-21.3" defer></script>
+  <script src="auth.js?v=2026-11-21.4" defer></script>
 </body>
 </html>
