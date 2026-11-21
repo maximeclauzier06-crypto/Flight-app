@@ -75,7 +75,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-21.1`): change
+`index.html` links our files with a version (`styles.css?v=2026-11-21.2`): change
 that date in all its links (and in the other pages') whenever `styles.css`, `auth.js`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
@@ -324,7 +324,7 @@ and nothing personal, so no cookie banner is needed. The script is in the
 computer is never counted.
 
 Besides visits (pages, countries, devices, where people came from), `app.js`
-sends four events through its small `track()` helper:
+sends five events through its small `track()` helper:
 
 | Event | When | Details sent |
 |---|---|---|
@@ -332,6 +332,7 @@ sends four events through its small `track()` helper:
 | `select` | A trip page opens (its row in the list, "Select", "See this trip" on the map) | `kind`, `to`, `nights`, `travellers`, `total`, `currency` |
 | `choose-dates` | A good place's page opens (its row, or "Choose dates" on the map) | `to`, `travellers`, `total`, `currency` |
 | `book-click` | a "Book on Aviasales" or "See live prices on Aviasales" press | `kind` (trip / good-place), `from`, `to`, `seats`, `nights` |
+| `share` | "Share" on a trip's or good place's page, once shared (or the link copied) | `kind` (trip / place), `to`, `how` (menu = the device's share menu, copy) |
 
 Compare `book-click` with the clicks and sales in Travelpayouts. To keep your
 own visits out, open the console (F12) on the live site once per browser and

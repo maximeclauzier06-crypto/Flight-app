@@ -32,7 +32,7 @@
   <!-- "?v=..." is the version of our own files: change it (here and at the bottom)
        whenever styles.css, geo.js or app.js change, so browsers that kept the old
        files fetch the new ones together with the new page. -->
-  <link rel="stylesheet" href="styles.css?v=2026-11-21.1">
+  <link rel="stylesheet" href="styles.css?v=2026-11-21.2">
   <!-- Visitor statistics (Umami Cloud): no cookies, nothing personal. It only counts
        visits on the live site (data-domains: halfwaytrips.com, plus the old GitHub
        address), so testing on your computer isn't counted. The website ID is public
@@ -119,7 +119,9 @@
        on a part opens the search bar right here, under the line, to change it. -->
   <div class="search-summary" id="search-summary" hidden>
     <div class="ss-inner">
-      <div class="ss-parts" id="ss-parts"></div>
+      <!-- (a magnifier first: this line is your search) -->
+      <svg class="ss-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 20 20"></path></svg>
+      <div class="ss-parts" id="ss-parts" aria-label="Your search"></div>
       <button type="button" class="ss-edit" data-edit="bar" aria-label="Change your search" aria-expanded="false">
         <svg class="ss-edit-open" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"></path><path d="M14 6l4 4"></path></svg>
         <svg class="ss-edit-close" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
@@ -372,8 +374,8 @@
   <script src="https://cdn.jsdelivr.net/npm/d3-array@3.2.4/dist/d3-array.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-geo@3.1.1/dist/d3-geo.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
-  <script src="auth.js?v=2026-11-21.1"></script>
-  <script src="geo.js?v=2026-11-21.1"></script>
-  <script src="app.js?v=2026-11-21.1"></script>
+  <script src="auth.js?v=2026-11-21.2"></script>
+  <script src="geo.js?v=2026-11-21.2"></script>
+  <script src="app.js?v=2026-11-21.2"></script>
 </body>
 </html>

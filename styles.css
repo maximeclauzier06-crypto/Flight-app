@@ -351,6 +351,7 @@ button, input, select { font-family: inherit; }
 }
 .search-summary.is-shown { transform: none; visibility: visible; transition: transform 0.22s ease; }
 .ss-inner { width: var(--content); height: 44px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 14px; }
+.ss-icon { flex: none; margin-right: -6px; color: var(--accent); }
 .ss-parts { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; font-weight: 700; }
 .ss-part { color: var(--ink); }
 .ss-part:hover { opacity: 1; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px; }
@@ -642,6 +643,8 @@ button, input, select { font-family: inherit; }
 /* "← Back to results" on the left, "♡ Save" on the right (app.js, section 9) */
 .tp-topbar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .save-wrap { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-left: auto; }
+.tp-actions { display: flex; gap: 8px; } /* "Share" and "♡ Save" side by side */
+.share-link { display: block; width: 260px; max-width: 100%; margin-top: 4px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font: inherit; }
 .save-btn {
   display: inline-flex; align-items: center; gap: 7px; border: 1.5px solid var(--pill-border); border-radius: 999px; padding: 7px 15px; cursor: pointer;
   background: #fff; color: var(--ink); font-size: 14px; font-weight: 800;
@@ -733,6 +736,9 @@ button, input, select { font-family: inherit; }
 .map-layer { position: fixed; inset: 0; z-index: 0; }
 #map { position: absolute; left: 0; top: 0; width: 100%; height: 100%; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .map-layer.is-dragging #map, .map-layer.is-dragging #map .dest-dot { cursor: grabbing; }
+/* Before the first search: only a background, holding still (app.js, section 8) */
+body.map-still #map { cursor: default; touch-action: auto; }
+body.map-still .map-ui { display: none; }
 #map .dest-dot { cursor: pointer; }
 #map .dest-dot:hover .dot-core { r: 7.5; }
 #map .dest-dot.is-open .dot-core { r: 8.5; stroke-width: 3; } /* the dot whose box is open */
@@ -910,7 +916,11 @@ body:has(.home-more) .page-footer { margin-top: 0; }
   .dest-card:hover .dc-photo { transform: none; }
 }
 /* Who took the photos (their licences ask for it): small, at the very end */
+/* "Photo credits": one small line; a click opens the photographers and licences */
 .doc .photo-credits { margin: 28px 0 0; color: var(--soft); font-size: 11.5px; line-height: 1.6; }
+.doc .photo-credits summary { width: fit-content; cursor: pointer; font-size: 12.5px; font-weight: 700; }
+.doc .photo-credits summary:hover { color: var(--ink); }
+.doc .photo-credits p { margin: 8px 0 0; }
 .doc .photo-credits a:not(.btn) { color: var(--soft); font-weight: 600; text-decoration-thickness: 1px; }
 .dest-card .dc-city { font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.1; }
 .dest-card .dc-country { color: var(--soft); font-size: 12px; font-weight: 700; }

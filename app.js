@@ -431,8 +431,32 @@ updateGoing();
 // 4. CURRENCY
 // ===========================================================================
 
-// A starting guess from the browser's language (e.g. "sv-SE" -> SEK). The
-// dropdown in the top bar is always there to change it.
+// The currency you see first:
+//  1. the one you picked yourself before, on this device (kept in this
+//     browser's storage, never sent anywhere);
+//  2. or a guess from the computer's time zone, i.e. where you are: Stockholm
+//     time -> SEK, Paris time -> EUR (a computer set to English (UK) in Sweden
+//     would otherwise get pounds);
+//  3. or from the browser's language (e.g. "sv-SE" -> SEK);
+//  4. or dollars.
+// The dropdown in the top bar is always there to change it.
+const CURRENCY_KEY = "ht-currency";
+const ZONE_CURRENCY = {
+  "Europe/Stockholm": "sek", "Europe/Oslo": "nok", "Arctic/Longyearbyen": "nok", "Europe/Copenhagen": "dkk",
+  "Europe/Zurich": "chf", "Europe/Warsaw": "pln", "Europe/London": "gbp", "Europe/Moscow": "rub", "Europe/Istanbul": "try",
+  "Asia/Tokyo": "jpy", "Asia/Kolkata": "inr", "Asia/Calcutta": "inr", "Pacific/Auckland": "nzd",
+  "America/Sao_Paulo": "brl", "America/Mexico_City": "mxn", "America/Cancun": "mxn", "America/Tijuana": "mxn", "America/Monterrey": "mxn",
+  "America/Toronto": "cad", "America/Vancouver": "cad", "America/Edmonton": "cad", "America/Winnipeg": "cad",
+  "America/Halifax": "cad", "America/St_Johns": "cad", "America/Regina": "cad", "America/Montreal": "cad",
+  "America/New_York": "usd", "America/Chicago": "usd", "America/Denver": "usd", "America/Phoenix": "usd",
+  "America/Los_Angeles": "usd", "America/Anchorage": "usd", "America/Detroit": "usd", "America/Boise": "usd", "Pacific/Honolulu": "usd",
+};
+// The euro countries' time zones (the euro is everywhere there)
+for (const city of ["Dublin", "Paris", "Berlin", "Madrid", "Rome", "Amsterdam", "Brussels", "Lisbon", "Vienna", "Helsinki",
+  "Athens", "Luxembourg", "Ljubljana", "Bratislava", "Tallinn", "Riga", "Vilnius", "Malta", "Zagreb", "Monaco", "Andorra",
+  "San_Marino", "Vatican", "Busingen", "Mariehamn"]) ZONE_CURRENCY[`Europe/${city}`] = "eur";
+for (const zone of ["Atlantic/Canary", "Atlantic/Madeira", "Atlantic/Azores", "Africa/Ceuta", "Asia/Nicosia", "Europe/Nicosia"]) ZONE_CURRENCY[zone] = "eur";
+
 const REGION_CURRENCY = {
   US: "usd", GB: "gbp", IE: "eur", DE: "eur", FR: "eur", ES: "eur", IT: "eur",
   NL: "eur", PT: "eur", AT: "eur", BE: "eur", FI: "eur", GR: "eur", LU: "eur",
@@ -443,6 +467,16 @@ const REGION_CURRENCY = {
 };
 
 function detectDefaultCurrency() {
+  const known = (code) => code && [...$("currency").options].some((o) => o.value === code);
+  try {
+    const picked = localStorage.getItem(CURRENCY_KEY);
+    if (known(picked)) return picked;
+  } catch {}
+  let zone = "";
+  try {
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {}
+  if (ZONE_CURRENCY[zone] || zone.startsWith("Australia/")) return ZONE_CURRENCY[zone] ?? "aud";
   const locales = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language];
   for (const locale of locales) {
     const region = locale.split("-")[1];
@@ -458,6 +492,9 @@ currencySelect.value = detectDefaultCurrency();
 // (The server remembers its answers, so this is quick and costs no extra
 // flight-data calls.)
 currencySelect.addEventListener("change", () => {
+  try {
+    localStorage.setItem(CURRENCY_KEY, currencySelect.value); // your choice, for next time (this device only)
+  } catch {}
   if (!state.lastSearch) return;
   runSearch(state.lastSearch.origins, { ...state.lastSearch.params, currency: currencySelect.value }, { source: "currency" });
 });
@@ -785,6 +822,7 @@ async function runSearch(origins, params, { reveal = false, source = "bar" } = {
   const startGap = Number(params.maxGapHours);
   if (source === "bar") state.searchedTo = params.destination ? goingInput.dataset.label || params.destination : null;
   state.lastSearch = { origins, params };
+  document.body.classList.remove("map-still"); // from now on the map moves (section 8)
   renderSearchSummary();
   state.maxGapHours = startGap;
   if (source !== "currency") state.widenedFrom = null;
@@ -1794,7 +1832,7 @@ function tripPageHtml(t) {
   const n = t.travelers.length;
   const people = t.travelers.reduce((sum, leg) => sum + leg.count, 0);
   return `
-    <div class="tp-topbar"><button type="button" class="back-link" id="trip-back">← Back to results</button>${saveButtonHtml()}</div>
+    <div class="tp-topbar"><button type="button" class="back-link" id="trip-back">← Back to results</button>${pageActionsHtml()}</div>
     <div class="tp-head">
       <div>
         <div class="hero-badge">YOUR TRIP</div>
@@ -2002,7 +2040,7 @@ function placePageHtml() {
   const d = chosenDates();
 
   return `
-    <div class="tp-topbar"><button type="button" class="back-link" id="trip-back">← Back to results</button>${saveButtonHtml()}</div>
+    <div class="tp-topbar"><button type="button" class="back-link" id="trip-back">← Back to results</button>${pageActionsHtml()}</div>
     <div class="tp-head">
       <div>
         <div class="hero-badge">A GOOD PLACE FOR ${words.you.toUpperCase()}</div>
@@ -2456,6 +2494,12 @@ function showOnMap(code) {
   else renderMap();
 }
 
+// Before the first search the map is only a background: it holds still (no
+// dragging or zooming, and no +/− buttons), so it doesn't get in the way of
+// someone just looking at the page. The first search sets it free (runSearch).
+document.body.classList.add("map-still");
+const mapIsStill = () => document.body.classList.contains("map-still");
+
 // Mouse and fingers: one pointer drags the map, two pinch to zoom.
 // A drag only starts after 5px, so a simple click/tap on a dot still selects it.
 const pointers = new Map();
@@ -2463,6 +2507,7 @@ let dragged = false;
 let pinchDistance = 0;
 
 mapSvg.addEventListener("pointerdown", (event) => {
+  if (mapIsStill()) return;
   if (event.pointerType === "mouse" && event.button !== 0) return;
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY });
   if (pointers.size === 1) dragged = false;
@@ -2508,7 +2553,7 @@ mapSvg.addEventListener("pointercancel", endPointer);
 // Zoom with Ctrl/⌘ + scroll (that's also what a trackpad pinch sends). A plain
 // scroll keeps scrolling the page — the map is its background.
 mapSvg.addEventListener("wheel", (event) => {
-  if (!event.ctrlKey && !event.metaKey) return;
+  if (mapIsStill() || (!event.ctrlKey && !event.metaKey)) return;
   event.preventDefault();
   const rect = mapSvg.getBoundingClientRect();
   zoomMapAt(Math.exp(-clamp(event.deltaY, -50, 50) * 0.006), event.clientX - rect.left, event.clientY - rect.top);
@@ -2684,6 +2729,7 @@ let saved = null;        // your saved trips: key → id, loaded once when first
 let savedLoading = null;
 
 const HEART = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.4C19.5 15.4 12 20 12 20z"></path></svg>';
+const SHARE_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"></path><path d="M8 8l4-4 4 4"></path><path d="M6 12H5v8h14v-8h-1"></path></svg>';
 const departuresOf = () => state.origins.map((o) => ({ code: o.code, label: o.label, count: o.count }));
 const saveKey = (row) => [row.kind, row.destination, row.depart_date ?? "", row.return_date ?? "", row.origins.map((o) => o.code).join(",")].join("|");
 
@@ -2709,9 +2755,17 @@ const isSaved = () => {
   const row = rowToSave();
   return Boolean(row && saved?.has(saveKey(row)));
 };
-function saveButtonHtml() {
+// The top right of a trip's (or good place's) page: "Share" and "♡ Save",
+// with a short note under them when there's something to say.
+function pageActionsHtml() {
   const on = isSaved();
-  return `<span class="save-wrap"><button type="button" class="save-btn${on ? " is-saved" : ""}" id="save-btn" aria-pressed="${on}">${HEART}<span>${on ? "Saved" : "Save"}</span></button><span class="save-note" id="save-note" hidden></span></span>`;
+  return `<span class="save-wrap">
+    <span class="tp-actions">
+      <button type="button" class="save-btn share-btn" id="share-btn">${SHARE_ICON}<span>Share</span></button>
+      <button type="button" class="save-btn${on ? " is-saved" : ""}" id="save-btn" aria-pressed="${on}">${HEART}<span>${on ? "Saved" : "Save"}</span></button>
+    </span>
+    <span class="save-note" id="save-note" hidden></span>
+  </span>`;
 }
 function updateSaveButton() {
   const button = $("save-btn");
@@ -2766,6 +2820,65 @@ tripPageEl.addEventListener("click", async (event) => {
     button.disabled = false;
     updateSaveButton();
   }
+});
+
+// "Share" (no account needed): a link to this trip — the same kind of link as
+// a saved trip's — so whoever opens it gets the same page, with today's
+// prices, in their own currency. On phones (and most computers) the device's
+// own share menu opens: WhatsApp, Messenger, Messages, email...; elsewhere the
+// link is copied.
+
+function shareLink(row) {
+  const q = new URLSearchParams();
+  for (const o of row.origins) q.append("from", `${o.code}:${o.label}:${o.count || 1}`);
+  q.set("to", row.destination);
+  q.set("name", row.destination_name);
+  if (row.kind === "trip") {
+    q.set("depart", row.depart_date);
+    q.set("return", row.return_date);
+    q.set("open", "1");
+  } else {
+    q.set("stay", row.nights === 2 ? "weekend" : row.nights === 3 ? "long" : "week");
+  }
+  q.set("go", "1");
+  return new URL(`./?${q}`, location.href).href.replace(/%3A/gi, ":"); // ("from=STO:Stockholm:1" reads better)
+}
+
+function shareWords(row) {
+  const from = row.origins.map((o) => o.label).join(", ").replace(/, ([^,]*)$/, " and $1");
+  return row.kind === "trip"
+    ? `Meet in ${row.destination_name}? ${dayLabel(row.depart_date)} – ${dayLabel(row.return_date)}, with flights from ${from}.`
+    : `Meet in ${row.destination_name}? Cheap flights from ${from} — let's pick the dates.`;
+}
+
+tripPageEl.addEventListener("click", async (event) => {
+  if (!event.target.closest("#share-btn")) return;
+  const row = rowToSave();
+  if (!row) return;
+  const note = $("save-note");
+  const url = shareLink(row);
+  const text = shareWords(row);
+  note.hidden = true;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: `${row.destination_name} — Halfway Trips`, text, url });
+      track("share", { kind: row.kind, to: row.destination, how: "menu" });
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") return; // closed without sharing
+      // (any other trouble: copy the link instead, below)
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    note.textContent = "Link copied — paste it into WhatsApp, Messenger or an email.";
+    track("share", { kind: row.kind, to: row.destination, how: "copy" });
+  } catch {
+    // (copying isn't allowed here: the link in a box, selected, to copy by hand)
+    note.innerHTML = `Copy this link: <input class="share-link" readonly value="${esc(url)}" aria-label="Link to this trip">`;
+  }
+  note.hidden = false;
+  note.querySelector(".share-link")?.select();
 });
 
 // After a search from the bar: its airports, to fill in next time.
