@@ -930,7 +930,7 @@ $("search-form").addEventListener("submit", (event) => {
   setWhenOpen(false);
   closeBarEditor(); // (changed from the line at the top: the search bar goes back into the banner, 6a)
   runSearch(departures, params, { reveal: true, source: "bar" });
-  rememberAirports(departures); // (signed in: for next time, section 9)
+  rememberSearch(departures, params); // (signed in: your latest searches, section 9)
 });
 
 // "Try a full week instead" / "Try flexible dates" (after a search that found
@@ -2881,16 +2881,37 @@ tripPageEl.addEventListener("click", async (event) => {
   note.querySelector(".share-link")?.select();
 });
 
-// After a search from the bar: its airports, to fill in next time.
-// (Only a convenience: if it fails, nothing is in the way.)
-function rememberAirports(departures) {
+// After a search from the bar (signed in): it goes to the top of your latest
+// searches — the 5 newest are kept, for the Account page — and its airports
+// are filled in next time. (Only a convenience: if it fails, nothing is in
+// the way.)
+const LATEST_KEPT = 5;
+let latestSearches = null; // your latest searches, read once when first needed
+
+async function rememberSearch(departures, params) {
   if (!account?.signedIn()) return;
   const airports = departures.map((d) => ({ code: d.code, label: d.label, count: d.count }));
-  account.rest("profiles", {
-    method: "POST",
-    body: { user_id: account.user().id, airports, updated_at: new Date().toISOString() },
-    prefer: "resolution=merge-duplicates",
-  }).catch(() => {});
+  const search = {
+    origins: airports,
+    to: params.destination ?? null,
+    toName: params.destination ? goingInput.dataset.label || params.destination : null,
+    ...(params.mode === "specific"
+      ? { depart: params.departDate, return: params.returnDate }
+      : { stay: params.trip ?? stayOfSearch(params), nights: Number(params.nights) }),
+    at: new Date().toISOString(),
+  };
+  // (the same search again moves up instead of being there twice)
+  const sameAs = (s) => JSON.stringify([s.origins.map((o) => o.code + o.count), s.to, s.stay ?? s.depart, s.nights ?? s.return]);
+  const profile = { user_id: account.user().id, airports, updated_at: search.at };
+  try {
+    latestSearches ??= (await account.rest("profiles?select=searches"))[0]?.searches ?? [];
+    latestSearches = [search, ...latestSearches.filter((s) => sameAs(s) !== sameAs(search))].slice(0, LATEST_KEPT);
+    await account.rest("profiles", { method: "POST", body: { ...profile, searches: latestSearches }, prefer: "resolution=merge-duplicates" });
+  } catch {
+    // (e.g. the database doesn't have the "searches" column yet — supabase/accounts.sql: the airports at least)
+    latestSearches = null;
+    account.rest("profiles", { method: "POST", body: profile, prefer: "resolution=merge-duplicates" }).catch(() => {});
+  }
 }
 
 // "See this trip": once the search for its dates is in, that trip's own page
@@ -2915,10 +2936,11 @@ function openSavedTrip() {
   chooseTrip({ ...option, code: d.code, name: d.name, country: d.country, savedTotal: wanted.currency === state.currency ? wanted.total : null });
 }
 
-// The links from the Account page: index.html?from=STO:Stockholm:1&from=PAR:Paris:2
-// &to=LIS&name=Lisbon (filled in above, 3c), with depart= & return= or
-// stay=weekend|long|week, cur=sek (the currency it was saved in) and go=1 —
-// the search runs straight away. "See this trip" adds open=1 and was=1896.
+// The links from the Account page (and "Share"): index.html?from=STO:Stockholm:1
+// &from=PAR:Paris:2&to=LIS&name=Lisbon (filled in above, 3c), with depart= &
+// return=, or stay=weekend|long|week, or nights=5; cur=sek (the currency it was
+// saved in) and go=1 — the search runs straight away. "See this trip" adds
+// open=1 and was=1896.
 const linkedFrom = linkedPlace.getAll("from").map((item) => {
   const [code, ...rest] = item.split(":");
   const count = /^\d$/.test(rest.at(-1) ?? "") ? Number(rest.pop()) : 1;
@@ -2941,6 +2963,11 @@ if (linkedFrom.length >= 2) {
   } else if (linkedPlace.get("stay") in TRIP_NIGHTS) {
     $("mode-flexible").checked = true;
     durationSelect.value = linkedPlace.get("stay");
+  } else if (/^([1-9]|[12]\d|30)$/.test(linkedPlace.get("nights") ?? "")) {
+    // nights=5: a number of nights of your own (from "Search again" on the Account page)
+    $("mode-flexible").checked = true;
+    durationSelect.value = "custom";
+    $("custom-nights").value = linkedPlace.get("nights");
   }
   updateWhenFields();
   if (linkedPlace.get("go") === "1") $("search-form").requestSubmit();

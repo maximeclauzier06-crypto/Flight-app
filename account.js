@@ -2,8 +2,9 @@
 // Halfway Trips — the Account page (account.html)
 //
 // Signed out: your email → we send a link (and a code) → you're in.
-// Signed in: your saved trips (each opens again: "See this trip"), your airports (the
-// ones the search bar fills in for you), "Sign out" and "Delete my account".
+// Signed in: your saved trips (each opens again: "See this trip"), your 5
+// latest searches ("Search again"; the newest one's airports are filled in
+// for you), "Sign out" and "Delete my account".
 // Signing in and the database calls are in auth.js (window.htAuth).
 // ---------------------------------------------------------------------------
 
@@ -31,12 +32,12 @@ function render() {
   $("acc-in").hidden = !user;
   $("acc-title").textContent = user ? "Your account" : "Sign in";
   $("acc-intro").textContent = user
-    ? "The trips you saved and your airports, on any device where you sign in."
-    : "No password: we email you a link. Your account keeps the trips you save and your airports, on any device.";
+    ? "The trips you saved and your latest searches, on any device where you sign in."
+    : "No password: we email you a link. Your account keeps the trips you save and your latest searches, on any device.";
   if (user) {
     $("acc-who-email").textContent = user.email;
     loadTrips();
-    loadAirports();
+    loadSearches();
   }
 }
 
@@ -246,27 +247,86 @@ $("acc-trips").addEventListener("click", async (event) => {
 });
 
 
-// ---- Your airports ----------------------------------------------------------
+// ---- Your latest searches ---------------------------------------------------
 
-async function loadAirports() {
-  const box = $("acc-airports");
+// The 5 newest searches you made while signed in (app.js keeps them, section
+// 9), each with "Search again". The airports of the newest one are also
+// filled in for you when you open the search.
+
+const STAY_WORDS = { weekend: "Weekend", long: "Long weekend", week: "Full week" };
+const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+
+function searchWhen(s) {
+  if (s.depart) return `${day(s.depart)} – ${day(s.return)}${s.depart <= today ? " · these dates have passed" : ""}`;
+  return STAY_WORDS[s.stay] ?? `${s.nights} night${s.nights === 1 ? "" : "s"}`;
+}
+
+// "searched today", "searched yesterday", "searched 3 days ago", or "searched Nov 2"
+function searchedAgo(iso) {
+  const days = daysBetween(iso.slice(0, 10), today);
+  if (days <= 0) return "searched today";
+  if (days === 1) return "searched yesterday";
+  return `searched ${days < 7 ? `${days} days ago` : MONTH_DAY.format(new Date(iso))}`;
+}
+
+// The same search again (dates that have passed: the same number of nights instead)
+function searchLink(s) {
+  const q = new URLSearchParams();
+  for (const o of s.origins) q.append("from", `${o.code}:${o.label}:${o.count || 1}`);
+  if (s.to) {
+    q.set("to", s.to);
+    q.set("name", s.toName || s.to);
+  }
+  if (s.depart && s.depart > today) {
+    q.set("depart", s.depart);
+    q.set("return", s.return);
+  } else if (s.stay in STAY_WORDS) {
+    q.set("stay", s.stay);
+  } else {
+    q.set("nights", String(s.nights || daysBetween(s.depart, s.return)));
+  }
+  q.set("go", "1");
+  return `index.html?${q}`.replace(/%3A/gi, ":");
+}
+
+function searchHtml(s) {
+  const from = s.origins.map((o) => esc(o.label) + (o.count > 1 ? ` ×${o.count}` : "")).join(" + ");
+  return `
+    <div class="acc-search">
+      <div class="acc-search-main">
+        <div class="acc-search-what">${from} <span class="acc-arrow">→</span> ${esc(s.to ? s.toName || s.to : "Anywhere")}</div>
+        <div class="acc-search-when">${esc(searchWhen(s))} · ${esc(searchedAgo(s.at))}</div>
+      </div>
+      <a class="acc-trip-open" href="${esc(searchLink(s))}">Search again${CHEVRON}</a>
+    </div>`;
+}
+
+async function loadSearches() {
+  const box = $("acc-searches");
   try {
-    const [profile] = await htAuth.rest("profiles?select=airports");
+    const [profile] = await htAuth.rest("profiles?select=*");
+    const searches = profile?.searches ?? [];
     const airports = profile?.airports ?? [];
-    box.innerHTML = airports.length
-      ? `<b>${airports.map((a) => esc(a.label)).join(" + ")}</b> — the airports of your last search. We fill them in for you when you open the search. <button type="button" class="acc-link-btn" id="acc-forget">Forget them</button>`
-      : "None yet. After your next search, its airports are filled in for you whenever you come back.";
+    if (searches.length) {
+      box.innerHTML = `${searches.map(searchHtml).join("")}
+        <p class="acc-searches-note">We fill in the airports of the newest one for you when you open the search. <button type="button" class="acc-link-btn" id="acc-forget">Forget them all</button></p>`;
+    } else if (airports.length) {
+      // (from before the latest searches were kept: only the airports)
+      box.innerHTML = `<p><b>${airports.map((a) => esc(a.label)).join(" + ")}</b> — the airports of your last search. We fill them in for you when you open the search. <button type="button" class="acc-link-btn" id="acc-forget">Forget them</button></p>`;
+    } else {
+      box.innerHTML = '<p class="acc-empty">None yet. Your next searches show up here, so you can run them again in one tap.</p>';
+    }
   } catch (error) {
-    box.textContent = `Your airports couldn't be loaded: ${error.message}`;
+    box.innerHTML = `<p class="acc-empty">Your latest searches couldn't be loaded: ${esc(error.message)}</p>`;
   }
 }
 
-$("acc-airports").addEventListener("click", async (event) => {
+$("acc-searches").addEventListener("click", async (event) => {
   if (event.target.id !== "acc-forget") return;
   event.target.disabled = true;
   try {
     await htAuth.rest(`profiles?user_id=eq.${encodeURIComponent(htAuth.user().id)}`, { method: "DELETE" });
-    loadAirports();
+    loadSearches();
   } catch (error) {
     event.target.disabled = false;
     showMessage(error.message, true);
@@ -277,7 +337,7 @@ $("acc-airports").addEventListener("click", async (event) => {
 // ---- Deleting the account ---------------------------------------------------
 
 $("acc-delete").addEventListener("click", async (event) => {
-  if (!confirm("Delete your account, your saved trips and your airports? This can't be undone.")) return;
+  if (!confirm("Delete your account, your saved trips and your latest searches? This can't be undone.")) return;
   event.target.disabled = true;
   try {
     await htAuth.rest("rpc/delete_my_account", { method: "POST", body: {} });

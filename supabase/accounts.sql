@@ -5,7 +5,8 @@
 -- this → Run. (Running it again is harmless.)
 --
 --   saved_trips  the trips and good places someone saved with ♡
---   profiles     the airports of their last search, to fill in the search bar
+--   profiles     their 5 latest searches (the Account page) and the airports of
+--                the newest one, to fill in the search bar
 --
 -- The rules ("row level security") let each signed-in person read, add and
 -- remove only their OWN rows: the page sends their sign-in token, and the
@@ -36,6 +37,11 @@ create table if not exists public.profiles (
   airports jsonb not null default '[]' check (jsonb_typeof(airports) = 'array' and pg_column_size(airports) < 4000), -- [{ code, label, count }]
   updated_at timestamptz not null default now()
 );
+-- Added 2026-11-21: the 5 latest searches, for the Account page, newest first:
+-- [{ origins: [{ code, label, count }], to, toName, stay, nights, depart, return, at }]
+-- (Already set up before? Running just this line adds it.)
+alter table public.profiles add column if not exists searches jsonb not null default '[]'
+  check (jsonb_typeof(searches) = 'array' and pg_column_size(searches) < 16000);
 
 alter table public.saved_trips enable row level security;
 alter table public.profiles enable row level security;

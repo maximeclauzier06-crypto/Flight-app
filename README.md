@@ -75,7 +75,7 @@ The page talks to the Supabase function below, so you need internet.
 
 The live site is published by GitHub Pages from the `main` branch: every push
 updates it within a few minutes. Browsers may keep a file for 10 minutes, so
-`index.html` links our files with a version (`styles.css?v=2026-11-21.2`): change
+`index.html` links our files with a version (`styles.css?v=2026-11-21.3`): change
 that date in all its links (and in the other pages') whenever `styles.css`, `auth.js`, `geo.js` or `app.js`
 change, so nobody gets the new page with an old stylesheet. The `CNAME` file holds the domain
 (`halfwaytrips.com`, bought separately); its DNS points to GitHub Pages.
@@ -96,7 +96,7 @@ change, so nobody gets the new page with an old stylesheet. The `CNAME` file hol
 | `styles.css` | How it looks | **The colours are the variables at the very top** (`--hero-bg`, `--action`, `--accent`...). Change them and the whole site follows. |
 | `app.js` | The behaviour: autocomplete, the departures (add/remove, people counter), the "When" pop-up, the search, the "Everyone lands within" stepper, the results (exact matches, then good places), the trip page after "Select" (with the "Book on Aviasales" buttons), a good place's page after "Choose dates", the map | Settings are in section 1 at the top (map zoom limits, the stepper's steps `GAP_STEPS`, how many rows show before "Show more": `EXACT_SHOWN`, `EXACT_SHOWN_PHONE`, `GOOD_SHOWN`); the trip page is section 7d, a good place's page 7e |
 | `supabase/calendar_cache.sql` | One-time SQL that creates the table where answers are remembered | Run once, then leave it |
-| `account.html`, `account.js`, `auth.js` | Accounts. **Sign in** (top bar; in the ☰ menu on phones) opens `account.html`: your email → a link (or a code) by email, no password. Signed in, it shows your saved trips (a trip still to come opens again on its own page — **See this trip**, with today's prices and the price you saved it at; a good place opens its dates; a trip whose dates have passed searches the same kind of stay), your airports, Sign out and Delete my account. `auth.js` (on every page) does the signing in with Supabase Auth, keeps the session in the browser until you sign out, talks to your rows in the database, and turns "Sign in" into "Account". On the home page (`app.js` section 9): **♡ Save** on a trip's and a good place's page, and the airports of your last search filled in when you come back | The texts are in `account.html` and `account.js`. The setup in Supabase: "Setting up accounts" below |
+| `account.html`, `account.js`, `auth.js` | Accounts. **Sign in** (top bar; in the ☰ menu on phones) opens `account.html`: your email → a link (or a code) by email, no password. Signed in, it shows your saved trips (a trip still to come opens again on its own page — **See this trip**, with today's prices and the price you saved it at; a good place opens its dates; a trip whose dates have passed searches the same kind of stay), your 5 latest searches (each with **Search again**), Sign out and Delete my account. `auth.js` (on every page) does the signing in with Supabase Auth, keeps the session in the browser until you sign out, talks to your rows in the database, and turns "Sign in" into "Account". On the home page (`app.js` section 9): **♡ Save** on a trip's and a good place's page; each search from the bar goes to your latest searches (`rememberSearch`), and the airports of the newest one are filled in when you come back | The texts are in `account.html` and `account.js`. The setup in Supabase: "Setting up accounts" below |
 | `supabase/emails/` | The two sign-in emails: `welcome.html` (the first one, Supabase's "Confirm sign up") and `sign-in.html` ("Magic link or OTP"). Their logo is `images/email-logo.png` (made from the site's logo, transparent PNG) | Edit the file, then paste it again into Supabase (see "Setting up accounts") |
 | `supabase/accounts.sql` | One-time SQL for the accounts: the `saved_trips` and `profiles` tables, the rules that let each person see only their own rows, and `delete_my_account()` | Run once (see "Setting up accounts") |
 | `geo.js` | The flat world map: real countries and borders (free Natural Earth data via the `world-atlas` package, drawn with the small `d3-geo` and `topojson-client` libraries loaded in `index.html` from a CDN). It is a Mercator map, as on Google Maps: it repeats left and right, and `app.js` (section 8, `keepInView`) stops it at the far north and south, so it always fills the screen | Rarely needs changes. How far north and south it goes: `MAP_TOP` / `MAP_BOTTOM` in `app.js`. The map colours are `--map-sea`, `--map-land`, `--map-borders`, `--map-grid` in `styles.css` |
@@ -282,7 +282,9 @@ Signing in uses Supabase Auth (already part of the Supabase project); the
 saved trips live in two small tables. Do this once, in the Supabase dashboard:
 
 1. **The tables:** SQL Editor → New query → paste all of
-   `supabase/accounts.sql` → Run.
+   `supabase/accounts.sql` → Run. (Set up before 21 November 2026? Run it
+   once more, or just its `alter table … add column if not exists searches`
+   line: it adds the latest searches.)
 2. **Where the email links go:** Authentication → URL Configuration. Site URL:
    `https://halfwaytrips.com`. Redirect URLs: add
    `https://halfwaytrips.com/account.html` (and, to test on your computer,
