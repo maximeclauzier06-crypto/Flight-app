@@ -57,9 +57,28 @@ function showCodeStep(email) {
 }
 
 const friendly = (error) =>
-  error.status === 429 ? "Too many emails in a short time. Wait a minute, then try again."
-  : /expired|invalid/i.test(error.message) ? "That code didn't work — it may have expired. Check the newest email, or ask for a new one."
+  error.status === 429 ? "Please wait a minute before asking for another email — and use the newest one you get."
+  : /expired|invalid/i.test(error.message) ? "That code didn't work. If you asked for more than one email, only the newest one works — or ask for a new one."
   : error.message;
+
+// "Send it again": after a minute (Supabase sends at most one email a minute
+// to the same address). Asking again makes the email before stop working, so
+// people are told to wait for it first, and to use the newest one.
+const RESEND_AFTER_S = 60;
+let resendTimer = 0;
+function waitBeforeResend() {
+  const button = $("acc-resend");
+  const until = Date.now() + RESEND_AFTER_S * 1000;
+  clearInterval(resendTimer);
+  const tick = () => {
+    const left = Math.ceil((until - Date.now()) / 1000);
+    button.disabled = left > 0;
+    button.textContent = left > 0 ? `Send it again in ${left} s` : "Didn't get it? Send it again";
+    if (left <= 0) clearInterval(resendTimer);
+  };
+  tick();
+  resendTimer = setInterval(tick, 1000);
+}
 
 $("acc-email-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -71,9 +90,24 @@ $("acc-email-form").addEventListener("submit", async (event) => {
     await htAuth.sendLink(email);
     pendingEmail.set(email);
     showCodeStep(email);
+    waitBeforeResend();
   } catch (error) {
     showMessage(friendly(error), true);
   } finally {
+    button.disabled = false;
+  }
+});
+
+$("acc-resend").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  showMessage("");
+  try {
+    await htAuth.sendLink(pendingEmail.get());
+    showMessage("We sent you a new email. Use that one: the link and code in the earlier email no longer work.");
+    waitBeforeResend();
+  } catch (error) {
+    showMessage(friendly(error), true);
     button.disabled = false;
   }
 });
@@ -114,6 +148,7 @@ $("acc-password-form").addEventListener("submit", async (event) => {
 });
 
 $("acc-again").addEventListener("click", () => {
+  clearInterval(resendTimer);
   pendingEmail.set("");
   showCodeStep("");
   showMessage("");

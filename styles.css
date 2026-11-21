@@ -946,7 +946,8 @@ body:has(.home-more) .page-footer { margin-top: 0; }
 .acc-test { margin-top: 26px; padding: 16px 18px; border: 1.5px dashed var(--pill-border); border-radius: 16px; } /* (testing only) */
 .acc-test .acc-row input { flex-basis: 180px; }
 .acc-link-btn { border: 0; padding: 0; background: none; cursor: pointer; color: var(--accent); font: inherit; font-size: 14px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
-.acc-form .acc-link-btn { margin-top: 14px; }
+.acc-again-row { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 14px; }
+.acc-link-btn:disabled { color: var(--soft); text-decoration: none; cursor: default; }
 .doc .acc-note { margin-top: 22px; color: var(--soft); font-size: 13px; }
 .acc-message { margin: 18px 0 0; padding: 12px 16px; border-radius: 14px; background: var(--good-tint); color: var(--good); font-size: 14px; font-weight: 700; }
 .acc-message.is-error { background: var(--tag-bg); color: var(--accent); }

@@ -111,7 +111,7 @@
     const clean = () => history.replaceState(null, "", location.pathname + location.search);
     if (hash.get("error")) {
       clean();
-      throw new Error(hash.get("error_code") === "otp_expired" ? "This link has expired or was already used. Ask for a new one below." : hash.get("error_description") || "This link didn't work.");
+      throw new Error(hash.get("error_code") === "otp_expired" ? "This link no longer works: it was already used, or a newer email replaced it. Use the newest email, or ask for a new one below." : hash.get("error_description") || "This link didn't work.");
     }
     if (!hash.get("access_token")) return false;
     clean();

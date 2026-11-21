@@ -17,7 +17,7 @@
        early so the words don't change shape just after the page appears -->
   <link rel="preload" href="fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="styles.css?v=2026-11-17.5">
+  <link rel="stylesheet" href="styles.css?v=2026-11-21.1">
   <!-- Visitor statistics (Umami Cloud), as on the home page: no cookies, nothing personal.
        data-exclude-hash: the sign-in link comes back with the session after "#", never counted. -->
   <script defer src="https://cloud.umami.is/script.js" data-website-id="fbf0c8dd-831c-4101-b31c-093ba8cb714a" data-domains="halfwaytrips.com,www.halfwaytrips.com,maximeclauzier06-crypto.github.io" data-exclude-hash="true"></script>
@@ -95,13 +95,18 @@
         </form>
 
         <form id="acc-code-form" class="acc-form" hidden>
-          <p class="acc-sent">Check your inbox: we sent a sign-in link to <b id="acc-sent-to"></b>. Open it on this device — or, if you read your email somewhere else, type the code from the email here:</p>
+          <p class="acc-sent">Check your inbox: we sent a sign-in link to <b id="acc-sent-to"></b>. It usually arrives within a minute — if not, look in your spam folder. Open the link, or type the code from the email here:</p>
           <label for="acc-code">The code from the email</label>
           <div class="acc-row">
             <input type="text" id="acc-code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" maxlength="10" placeholder="123456">
             <button type="submit" class="btn">Sign in</button>
           </div>
-          <button type="button" class="acc-link-btn" id="acc-again">Use another email, or send it again</button>
+          <!-- "Send it again" waits a minute first (Supabase allows one email a minute),
+               and a new email replaces the one before: only the newest works -->
+          <div class="acc-again-row">
+            <button type="button" class="acc-link-btn" id="acc-resend">Send it again</button>
+            <button type="button" class="acc-link-btn" id="acc-again">Use another email</button>
+          </div>
         </form>
 
         <!-- For testing only: a test account made with a password in Supabase. Shown on
@@ -168,7 +173,7 @@
     <p class="footer-inner footer-small"><span>Booking links are affiliate links: if you book through one we may earn a small commission, at no extra cost to you.</span><span>© 2026 Halfway Trips</span></p>
   </footer>
 
-  <script src="auth.js?v=2026-11-17.5"></script>
-  <script src="account.js?v=2026-11-17.5"></script>
+  <script src="auth.js?v=2026-11-21.1"></script>
+  <script src="account.js?v=2026-11-21.1"></script>
 </body>
 </html>
